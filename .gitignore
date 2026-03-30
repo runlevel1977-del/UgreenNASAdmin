@@ -1,0 +1,11 @@
+# Build-Artefakte (lokal)
+/build/
+/dist/
+*.zip
+__pycache__/
+*.pyc
+*.pyo
+
+# Sensible lokale Konfiguration (nie committen)
+nas_admin_connection.json
+telegram_notify.json

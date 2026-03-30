@@ -1,0 +1,12 @@
+# =============================================================================
+# Deutsch — Öffentliche Lauf- und Build-Abhängigkeiten
+# Pillow: UI (abgerundete Buttons, ggf. Icons)
+# PyInstaller: EXE bauen (siehe builder.py / UgreenNASAdmin.spec)
+# =============================================================================
+# English — Public run and build dependencies
+# Pillow: UI (rounded buttons, icons as needed)
+# PyInstaller: build EXE (see builder.py / UgreenNASAdmin.spec)
+# =============================================================================
+
+Pillow>=9.0
+pyinstaller>=6.0
