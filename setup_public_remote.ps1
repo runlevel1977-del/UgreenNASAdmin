@@ -17,7 +17,8 @@ $url = Read-Host "HTTPS-URL des OEFFENTLICHEN Repos (z. B. https://github.com/US
 if (-not $url) { exit 1 }
 $url = $url.Trim()
 
-if (git remote get-url origin 2>$null) {
+# Kein "git remote get-url origin" wenn origin fehlt — sonst bricht PS bei $ErrorActionPreference Stop ab.
+if (@(git remote 2>$null) -contains "origin") {
     git remote set-url origin $url
 } else {
     git remote add origin $url
