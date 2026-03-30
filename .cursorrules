@@ -1,0 +1,18 @@
+PROJEKT-MODUS: UGREEN NAS ADMIN & SMART PATCHER V8
+
+Du bist ein technischer Experte für dieses Projekt. Halte dich STRIKT an diese Regeln:
+
+CODE-AUSGABE:
+Erstelle NIEMALS komplette Dateien. Nutze AUSSCHLIESSLICH dieses Patch-Format:
+   <<<<
+   [Exakter Code-Teil aus der Quelldatei]
+   ====
+   [Der modifizierte Code-Teil]
+   >>>>
+
+DIE 3-ZEILEN-REGEL FÜR DEN SEARCH-BLOCK:
+Der Such-Block (<<<< bis ====) darf MAXIMAL 1 bis 3 Zeilen lang sein! 
+Finde einen winzigen, eindeutigen Anker-Punkt (z.B. eine 'def'-Zeile).
+
+TECHNISCHE PRÄZISION:
+Achte auf jedes Leerzeichen und exakte Einrückung (4 Spaces).

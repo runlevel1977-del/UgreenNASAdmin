@@ -1,0 +1,8 @@
+# Weniger CRLF/LF-Warnungen; konsistente Zeilenenden für Text
+* text=auto
+*.py text eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.md text eol=lf
+*.json text eol=lf
+*.spec text eol=lf

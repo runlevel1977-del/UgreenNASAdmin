@@ -1,0 +1,29 @@
+# Secrets & local config (never commit)
+nas_admin_connection.json
+telegram_notify.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+
+# PyInstaller / builds
+build/
+dist/
+*.spec.bak
+
+# Lokale Release-Pakete / Binaries (nicht ins Repo)
+öffentlich/*.zip
+nastools/*.exe
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
