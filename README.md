@@ -1,5 +1,7 @@
 # Öffentliche Release-Quelle — Ugreen NAS Admin
 
+**Eigenes Git-Repository:** Dieser Ordner hat ein **separates** `.git` und wird für **GitHub öffentlich** genutzt. Der übergeordnete Projektordner ist **privat** (ohne Inhalt von `öffentlich/` im Git-Index). Remote setzen: `setup_public_remote.ps1` ausführen oder `git remote add origin …` in `öffentlich/`.
+
 ---
 
 ## Deutsch
@@ -54,6 +56,10 @@ Verbindungsdaten und Tokens liegen bei Lauf der App neben der EXE bzw. hier im O
 ---
 
 ## English
+
+### Own Git repository
+
+This folder has a **separate** `.git` and is what you **publish to GitHub** for the public. The parent project folder is **private** (parent Git does not track `öffentlich/`). Set the remote: run `setup_public_remote.ps1` or `git remote add origin …` inside `öffentlich/`.
 
 ### Important
 
