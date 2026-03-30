@@ -17,8 +17,11 @@ build/
 dist/
 *.spec.bak
 
-# Lokale Release-Pakete / Binaries (nicht ins Repo)
-öffentlich/*.zip
+# Öffentlicher Unterordner: eigenes Git-Repo (siehe README → GitHub)
+# Inhalt von öffentlich/ nicht im privaten Haupt-Repo versionieren.
+öffentlich/
+
+# Lokale Binaries (nicht ins private Repo)
 nastools/*.exe
 
 # IDE / OS
