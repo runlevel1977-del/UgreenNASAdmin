@@ -6,6 +6,11 @@
 
 ## Deutsch
 
+### App-Bilder
+
+![App Screenshot 1](images/1.png)
+![App Screenshot 3](images/3.png)
+
 ### Wichtig
 
 **Dieser Ordner `öffentlich/` ist die feste Quelle für alle öffentlichen Versionen (Release-Builds und Verteilung).**
@@ -53,9 +58,22 @@ Wenn du im übergeordneten Ordner `NAS_Admin_Project` entwickelst, musst du **vo
 
 Verbindungsdaten und Tokens liegen bei Lauf der App neben der EXE bzw. hier im Ordner als `nas_admin_connection.json` / `telegram_notify.json` — diese gehören **nicht** ins öffentliche Repository (siehe `.gitignore` hier).
 
+### Weitere Screenshots
+
+![App Screenshot 2](images/2.png)
+![App Screenshot 4](images/4.png)
+![App Screenshot 5](images/5.png)
+
+> Hinweis: In einem **öffentlichen** GitHub-Repository sind Bilder immer herunterladbar. Wenn Bilder nicht downloadbar sein sollen, dürfen sie nicht im öffentlichen Repo liegen.
+
 ---
 
 ## English
+
+### App screenshots
+
+![App Screenshot 1](images/1.png)
+![App Screenshot 3](images/3.png)
 
 ### Own Git repository
 
@@ -107,3 +125,11 @@ If you develop in the parent folder `NAS_Admin_Project`, **before a public relea
 ### Local files (do not ship)
 
 Connection data and tokens are created next to the EXE at runtime, or in this folder as `nas_admin_connection.json` / `telegram_notify.json` — these must **not** go into a public repository (see `.gitignore` here).
+
+### More screenshots
+
+![App Screenshot 2](images/2.png)
+![App Screenshot 4](images/4.png)
+![App Screenshot 5](images/5.png)
+
+> Note: In a **public** GitHub repository, images are always downloadable. If they must not be downloadable, do not store them in the public repo.
