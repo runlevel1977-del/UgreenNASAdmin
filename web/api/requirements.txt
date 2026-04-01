@@ -1,6 +1,0 @@
-fastapi
-uvicorn[standard]
-paramiko
-itsdangerous
-passlib[bcrypt]
-python-multipart

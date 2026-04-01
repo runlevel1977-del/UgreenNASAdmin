@@ -5,6 +5,7 @@ Desktop **control center** for a Ugreen NAS over SSH: scripts, explorer (upload/
 ## Deutsch
 
 - **Entwicklung aus dem Projektroot:** `python -m pip install -r öffentlich/requirements.txt` (oder eigene Umgebung), dann `python ugreen_nas_admin.py`.
+- **Früherer Docker-Web-Stack auf dem NAS entfernen:** siehe [`NAS_WEB_STACK_ENTFERNEN.md`](NAS_WEB_STACK_ENTFERNEN.md).
 - **Öffentliche Release-Quelle / EXE bauen:** Ordner **`öffentlich/`** — siehe [`öffentlich/README.md`](öffentlich/README.md) und [`öffentlich/CHANGELOG.md`](öffentlich/CHANGELOG.md).
 
 ## English
@@ -25,9 +26,5 @@ Desktop **control center** for a Ugreen NAS over SSH: scripts, explorer (upload/
 - **Privat pushen:** im Root `git push` (Repo auf GitHub unter **Settings → General → Danger zone** auf **Private** stellen, falls bisher alles in einem Repo lag).
 
 Do **not** commit `nas_admin_connection.json` or `telegram_notify.json` (ignored via `.gitignore`).
-
-## Web / Docker (LAN)
-
-For browser-based access (Mac/Linux/Windows clients) see `WEB_DOCKER_SETUP.md`.
 
 **Hinweis:** Wenn dein bisheriges GitHub-Repo noch den **kompletten** Ordner enthält: entweder auf **Private** stellen und ein **neues leeres public** Repo für nur `öffentlich/` anlegen, oder Inhalt des public Repos bewusst ersetzen (nur `öffentlich/` pushen — ggf. mit neuer Repo-URL).
