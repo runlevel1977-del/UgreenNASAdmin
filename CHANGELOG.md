@@ -1,5 +1,26 @@
 # Changelog — Ugreen NAS Admin
 
+## Unreleased (Web/Docker Preview)
+
+### Neu
+
+- Docker-Web-Stack hinzugefügt (`docker-compose.web.yml`) mit separatem API-Container und Web-Container.
+- Browser-UI mit linker Navigation und rechtem Funktionsbereich (`web/ui/src/index.html`).
+- API-Endpunkte für Verbindung, Health/SMART, Docker, Explorer, Scheduler, ACL, Snapshots (`web/api/app/routers/`).
+- Persistente Konfiguration und Reports über Docker-Volumes (`/app_data/config`, `/app_data/reports`).
+
+### Betrieb/Sicherheit
+
+- Session-Login mit Cookie für LAN-Betrieb.
+- Reverse-Proxy-Beispiele (Nginx/Caddy) unter `deploy/proxy/`.
+- Install/Update/Backup/Restore-Skripte unter `deploy/scripts/`.
+- Smoke-Test für Basisverfügbarkeit unter `tests/web/smoke_test_web.py`.
+
+### Migration Notes
+
+- Desktop-App bleibt unverändert nutzbar; Web-Version ist zusätzlicher Betriebsmodus.
+- Für Web-Betrieb `.env.web` anlegen (aus `.env.web.example`) und starke Secrets setzen.
+
 ## 22.0.0 (Public) — 2026-03-30
 
 ### Neu

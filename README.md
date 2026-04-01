@@ -26,4 +26,8 @@ Desktop **control center** for a Ugreen NAS over SSH: scripts, explorer (upload/
 
 Do **not** commit `nas_admin_connection.json` or `telegram_notify.json` (ignored via `.gitignore`).
 
+## Web / Docker (LAN)
+
+For browser-based access (Mac/Linux/Windows clients) see `WEB_DOCKER_SETUP.md`.
+
 **Hinweis:** Wenn dein bisheriges GitHub-Repo noch den **kompletten** Ordner enthält: entweder auf **Private** stellen und ein **neues leeres public** Repo für nur `öffentlich/` anlegen, oder Inhalt des public Repos bewusst ersetzen (nur `öffentlich/` pushen — ggf. mit neuer Repo-URL).

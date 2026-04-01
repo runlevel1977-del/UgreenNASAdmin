@@ -351,6 +351,7 @@ class MixinTabsSetup:
         self.create_modern_btn(h1, self.t("health.raid"), self.health_check_raid, self.color_cron).pack(side=tk.LEFT, padx=4)
         self.create_modern_btn(h2, self.t("health.smart"), self.health_check_smart, self.color_btn_purple).pack(side=tk.LEFT, padx=4)
         self.create_modern_btn(h2, self.t("health.storage"), self.health_check_storage, self.color_user).pack(side=tk.LEFT, padx=4)
+        self.create_modern_btn(h2, self.t("health.report_save"), self.save_health_snapshot, self.color_header).pack(side=tk.LEFT, padx=4)
 
         h3 = tk.Frame(top, bg=self.color_surface_alt)
         h3.pack(fill=tk.X, pady=(12, 0))

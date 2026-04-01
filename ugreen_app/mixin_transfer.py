@@ -276,7 +276,10 @@ class MixinTransfer:
         ssh = pk.SSHClient()
         ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
         try:
-            ssh.connect(self.entry_ip.get(), username=self.entry_user.get(), password=self.entry_pwd.get(), timeout=25)
+            ssh.connect(
+                self.entry_ip.get(),
+                **self._ssh_connect_kwargs(timeout=25, banner_timeout=40, auth_timeout=40),
+            )
             self._ssh_sudo_bash(ssh, inner_bash_script)
         finally:
             try:
@@ -358,14 +361,14 @@ class MixinTransfer:
         ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
         ssh.connect(
             self.entry_ip.get(),
-            username=self.entry_user.get(),
-            password=self.entry_pwd.get(),
-            timeout=30,
-            banner_timeout=60,
-            auth_timeout=60,
-            look_for_keys=False,
-            allow_agent=False,
-            compress=False,
+            **self._ssh_connect_kwargs(
+                timeout=30,
+                banner_timeout=60,
+                auth_timeout=60,
+                look_for_keys=False,
+                allow_agent=False,
+                compress=False,
+            ),
         )
         try:
             inner = f"cat > {shlex.quote(rp)}"
@@ -873,14 +876,14 @@ class MixinTransfer:
                 ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
                 ssh.connect(
                     self.entry_ip.get(),
-                    username=self.entry_user.get(),
-                    password=self.entry_pwd.get(),
-                    timeout=30,
-                    banner_timeout=60,
-                    auth_timeout=60,
-                    look_for_keys=False,
-                    allow_agent=False,
-                    compress=False,
+                    **self._ssh_connect_kwargs(
+                        timeout=30,
+                        banner_timeout=60,
+                        auth_timeout=60,
+                        look_for_keys=False,
+                        allow_agent=False,
+                        compress=False,
+                    ),
                 )
                 self._paramiko_tune_fast_transfer(ssh, for_upload=True)
                 sftp = ssh.open_sftp()
@@ -1148,11 +1151,13 @@ class MixinTransfer:
                             sshv.set_missing_host_key_policy(pkv.AutoAddPolicy())
                             sshv.connect(
                                 self.entry_ip.get(),
-                                username=self.entry_user.get(),
-                                password=self.entry_pwd.get(),
-                                timeout=20,
-                                look_for_keys=False,
-                                allow_agent=False,
+                                **self._ssh_connect_kwargs(
+                                    timeout=20,
+                                    banner_timeout=40,
+                                    auth_timeout=40,
+                                    look_for_keys=False,
+                                    allow_agent=False,
+                                ),
                             )
                             try:
                                 for rp, exs in uploaded_meta:
@@ -1333,14 +1338,14 @@ class MixinTransfer:
                 ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
                 ssh.connect(
                     self.entry_ip.get(),
-                    username=self.entry_user.get(),
-                    password=self.entry_pwd.get(),
-                    timeout=30,
-                    banner_timeout=60,
-                    auth_timeout=60,
-                    look_for_keys=False,
-                    allow_agent=False,
-                    compress=False,
+                    **self._ssh_connect_kwargs(
+                        timeout=30,
+                        banner_timeout=60,
+                        auth_timeout=60,
+                        look_for_keys=False,
+                        allow_agent=False,
+                        compress=False,
+                    ),
                 )
                 self._paramiko_tune_fast_transfer(ssh, for_upload=False)
 

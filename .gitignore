@@ -1,6 +1,7 @@
 # Secrets & local config (never commit)
 nas_admin_connection.json
 telegram_notify.json
+.env.web
 
 # Python
 __pycache__/

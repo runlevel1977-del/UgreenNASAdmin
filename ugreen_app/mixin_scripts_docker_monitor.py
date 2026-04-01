@@ -31,6 +31,63 @@ import nas_utils
 from ugreen_app._paramiko import _paramiko
 
 class MixinScriptsDockerMonitor:
+    def _get_ssh_port(self):
+        try:
+            raw = self.entry_port.get().strip() if hasattr(self, "entry_port") else "22"
+            p = int(raw or "22")
+            if 1 <= p <= 65535:
+                return p
+        except Exception:
+            pass
+        return 22
+
+    def _ssh_auth_payload(self):
+        use_key = False
+        key_path = ""
+        key_pass = ""
+        try:
+            use_key = bool(self.var_ssh_use_key.get())
+            key_path = self.entry_ssh_key_path.get().strip()
+            key_pass = self.entry_ssh_key_pass.get()
+        except Exception:
+            pass
+        return {
+            "ssh_port": self._get_ssh_port(),
+            "ssh_use_key": use_key,
+            "ssh_key_path": key_path,
+            "ssh_key_passphrase": key_pass,
+        }
+
+    def _ssh_connect_kwargs(
+        self,
+        *,
+        timeout=20,
+        banner_timeout=60,
+        auth_timeout=60,
+        look_for_keys=False,
+        allow_agent=False,
+        compress=False,
+    ):
+        kwargs = {
+            "username": self.entry_user.get(),
+            "password": self.entry_pwd.get(),
+            "port": self._get_ssh_port(),
+            "timeout": timeout,
+            "look_for_keys": look_for_keys,
+            "allow_agent": allow_agent,
+            "compress": compress,
+        }
+        if banner_timeout is not None:
+            kwargs["banner_timeout"] = banner_timeout
+        if auth_timeout is not None:
+            kwargs["auth_timeout"] = auth_timeout
+        auth = self._ssh_auth_payload()
+        if auth["ssh_use_key"] and auth["ssh_key_path"]:
+            kwargs["key_filename"] = auth["ssh_key_path"]
+            if auth["ssh_key_passphrase"]:
+                kwargs["passphrase"] = auth["ssh_key_passphrase"]
+        return kwargs
+
     def update_human_text(self):
         m = self.get_cron_val("Minute", self.cron_fields["Minute"].get())
         h = self.get_cron_val("Stunde", self.cron_fields["Stunde"].get())
@@ -134,20 +191,25 @@ class MixinScriptsDockerMonitor:
             self.docker_log_view.see(tk.END)
 
     def run_ssh_cmd(self, cmd, use_sudo=False):
+        auth = self._ssh_auth_payload()
         return self._ssh_mgr.run(
             self.entry_ip.get(),
             self.entry_user.get(),
             self.entry_pwd.get(),
             cmd,
+            ssh_port=auth["ssh_port"],
+            ssh_use_key=auth["ssh_use_key"],
+            ssh_key_path=auth["ssh_key_path"],
+            ssh_key_passphrase=auth["ssh_key_passphrase"],
             use_sudo=use_sudo,
             set_status=self.set_status,
         )
 
-    def add_grid_field(self, parent, label, default, col, is_pwd=False):
+    def add_grid_field(self, parent, label, default, col, is_pwd=False, row=0, width=16):
         f = tk.Frame(parent, bg=self.color_header)
-        f.grid(row=0, column=col, padx=10)
+        f.grid(row=row, column=col, padx=10, sticky="w")
         tk.Label(f, text=label, bg=self.color_header, fg=self.color_header_subtle, font=('Segoe UI', 8, 'bold')).pack(anchor=tk.W)
-        e = tk.Entry(f, show="*" if is_pwd else "", font=self.font_mono, justify='center', width=16, 
+        e = tk.Entry(f, show="*" if is_pwd else "", font=self.font_mono, justify='center', width=width,
                      bg=self.color_input_bg, fg=self.color_input_fg, insertbackground=self.color_input_fg, relief="flat", highlightbackground=self.color_border, highlightthickness=1)
         e.insert(0, default)
         e.pack(pady=(4, 0), ipady=4)
@@ -187,7 +249,10 @@ class MixinScriptsDockerMonitor:
             pk = _paramiko()
             ssh = pk.SSHClient()
             ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
-            ssh.connect(self.entry_ip.get(), username=self.entry_user.get(), password=self.entry_pwd.get(), timeout=5)
+            ssh.connect(
+                self.entry_ip.get(),
+                **self._ssh_connect_kwargs(timeout=5, banner_timeout=20, auth_timeout=20),
+            )
             last_idle, last_total = [0]*4, [0]*4
             
             while self.is_monitoring:

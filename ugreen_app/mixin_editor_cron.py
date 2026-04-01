@@ -116,6 +116,7 @@ class MixinEditorCron:
                     self.entry_pwd.get(),
                     data,
                     path,
+                    **self._ssh_auth_payload(),
                 )
                 if not ok:
                     messagebox.showerror(self.t("msg.save_error"), self.t("msg.editor_save_user", err=err))
@@ -132,6 +133,7 @@ class MixinEditorCron:
             data,
             target_path.strip(),
             chmod_mode="644",
+            **self._ssh_auth_payload(),
         )
         if not ok:
             self.log(f"❌ Fehler beim Schreiben: {err}")

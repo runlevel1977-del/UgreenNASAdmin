@@ -371,7 +371,13 @@ class MixinExplorer:
             self.root.after(1000, self.refresh_docker_list)
 
     def open_powershell(self): 
-        os.system(f'start powershell.exe -NoExit -Command "ssh {self.entry_user.get()}@{self.entry_ip.get()}"')
+        try:
+            port = int((self.entry_port.get() or "22").strip())
+        except Exception:
+            port = 22
+        os.system(
+            f'start powershell.exe -NoExit -Command "ssh -p {port} {self.entry_user.get()}@{self.entry_ip.get()}"'
+        )
 
     def show_context_menu(self, event):
         item = self.tree.identify_row(event.y)
