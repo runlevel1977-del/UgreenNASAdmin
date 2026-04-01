@@ -39,7 +39,7 @@ from ugreen_app.mixin_transfer import MixinTransfer
 from ugreen_app.mixin_editor_cron import MixinEditorCron
 from ugreen_app.i18n import cron_mappings_for_lang, translate
 
-__version__ = "22.0.0"
+__version__ = "22.1.0"
 
 class NASManager(
     MixinThemeUI,

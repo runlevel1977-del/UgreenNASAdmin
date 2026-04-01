@@ -29,6 +29,7 @@ import urllib.parse
 import nas_ssh
 import nas_utils
 from ugreen_app._paramiko import _paramiko
+from ugreen_app import keyring_helper
 
 class MixinConfigTelegram:
     def _app_data_dir(self):
@@ -83,22 +84,64 @@ class MixinConfigTelegram:
             if hasattr(self, "entry_ip") and data.get("ip"):
                 self.entry_ip.delete(0, tk.END)
                 self.entry_ip.insert(0, str(data["ip"]))
+            if hasattr(self, "entry_port") and data.get("port") is not None:
+                self.entry_port.delete(0, tk.END)
+                self.entry_port.insert(0, str(data.get("port", "22")))
             if hasattr(self, "entry_user") and data.get("user"):
                 self.entry_user.delete(0, tk.END)
                 self.entry_user.insert(0, str(data["user"]))
             if hasattr(self, "entry_pwd") and data.get("password") is not None:
                 self.entry_pwd.delete(0, tk.END)
-                self.entry_pwd.insert(0, str(data.get("password", "")))
+                pw = str(data.get("password", ""))
+                if not pw and data.get("ip") and data.get("user"):
+                    kr = keyring_helper.get_ssh_password(str(data["ip"]).strip(), str(data["user"]).strip())
+                    if kr:
+                        pw = kr
+                self.entry_pwd.insert(0, pw)
+            if hasattr(self, "var_ssh_use_key"):
+                self.var_ssh_use_key.set(bool(data.get("ssh_use_key", False)))
+            if hasattr(self, "entry_ssh_key_path") and data.get("ssh_key_path") is not None:
+                self.entry_ssh_key_path.delete(0, tk.END)
+                self.entry_ssh_key_path.insert(0, str(data.get("ssh_key_path", "")))
+            if hasattr(self, "entry_ssh_key_pass") and data.get("ssh_key_passphrase") is not None:
+                self.entry_ssh_key_pass.delete(0, tk.END)
+                self.entry_ssh_key_pass.insert(0, str(data.get("ssh_key_passphrase", "")))
         except Exception:
             pass
+
+    def _keyring_store_password_clicked(self):
+        if not keyring_helper.keyring_available():
+            messagebox.showinfo(self.t("msg.connection"), self.t("keyring.unavailable"))
+            return
+        host = self.entry_ip.get().strip() if hasattr(self, "entry_ip") else ""
+        user = self.entry_user.get().strip() if hasattr(self, "entry_user") else ""
+        pwd = self.entry_pwd.get() if hasattr(self, "entry_pwd") else ""
+        if not pwd:
+            messagebox.showinfo(self.t("msg.connection"), self.t("keyring.empty"))
+            return
+        if not host or not user:
+            messagebox.showinfo(self.t("msg.connection"), self.t("keyring.need_host"))
+            return
+        if keyring_helper.set_ssh_password(host, user, pwd):
+            messagebox.showinfo(self.t("msg.connection"), self.t("keyring.stored"))
+            self.set_status(self.t("keyring.stored"))
+        else:
+            messagebox.showerror(self.t("msg.connection"), self.t("keyring.failed"))
 
     def _save_connection_config_clicked(self):
         p = self._connection_config_path()
         try:
+            ssh_use_key = bool(self.var_ssh_use_key.get()) if hasattr(self, "var_ssh_use_key") else False
+            ssh_key_path = self.entry_ssh_key_path.get().strip() if hasattr(self, "entry_ssh_key_path") else ""
+            ssh_key_passphrase = self.entry_ssh_key_pass.get() if hasattr(self, "entry_ssh_key_pass") else ""
             payload = {
                 "ip": self.entry_ip.get().strip(),
+                "port": self.entry_port.get().strip() if hasattr(self, "entry_port") else "22",
                 "user": self.entry_user.get().strip(),
                 "password": self.entry_pwd.get(),
+                "ssh_use_key": ssh_use_key,
+                "ssh_key_path": ssh_key_path,
+                "ssh_key_passphrase": ssh_key_passphrase,
                 "ui_lang": getattr(self, "ui_lang", "de"),
             }
             with open(p, "w", encoding="utf-8") as f:

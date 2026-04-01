@@ -156,6 +156,9 @@ class MixinThemeUI:
         try:
             style.configure("ModernHiddenTabs.TNotebook", background=self.color_bg_left, borderwidth=0)
             style.layout("ModernHiddenTabs.TNotebook", [("Notebook.client", {"sticky": "nswe"})])
+            # Einige Tk-Themes zeigen sonst trotzdem eine (leere) Tab-Zeile.
+            style.layout("ModernHiddenTabs.TNotebook.Tab", [])
+            style.configure("ModernHiddenTabs.TNotebook.Tab", padding=[0, 0], borderwidth=0)
         except tk.TclError:
             pass
         
@@ -216,17 +219,79 @@ class MixinThemeUI:
         if self._photo_app_icon:
             tk.Label(brand_left, image=self._photo_app_icon, bg=self.color_header).pack(side=tk.LEFT)
         grid_loader = tk.Frame(self.header_frame, bg=self.color_header)
-        grid_loader.pack(side=tk.LEFT)
+        grid_loader.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        conn_row = tk.Frame(grid_loader, bg=self.color_header)
+        conn_row.grid(row=0, column=0, sticky="w")
+        key_row = tk.Frame(grid_loader, bg=self.color_header)
+        key_row.grid(row=1, column=0, sticky="w", pady=(8, 0))
+
+        self.entry_ip = self.add_grid_field(conn_row, self.t("header.nas_ip"), "192.168.2.168", 0, width=14)
+        self.entry_port = self.add_grid_field(conn_row, self.t("header.port"), "22", 1, width=7)
+        self.entry_user = self.add_grid_field(conn_row, self.t("header.user"), "papa", 2, width=12)
+        self.entry_pwd = self.add_grid_field(conn_row, self.t("header.password"), "", 3, is_pwd=True, width=12)
+        self.var_ssh_use_key = tk.BooleanVar(value=False)
+        ssh_key_frame = tk.Frame(key_row, bg=self.color_header)
+        ssh_key_frame.grid(row=0, column=0, padx=(10, 0), sticky="w")
+        tk.Checkbutton(
+            ssh_key_frame,
+            text=self.t("header.use_ssh_key"),
+            variable=self.var_ssh_use_key,
+            bg=self.color_header,
+            fg=self.color_header_subtle,
+            selectcolor=self.color_header,
+            activebackground=self.color_header,
+            activeforeground=self.color_header_subtle,
+            font=("Segoe UI", 8, "bold"),
+            relief="flat",
+            highlightthickness=0,
+        ).pack(anchor=tk.W)
+        ssh_key_inputs = tk.Frame(ssh_key_frame, bg=self.color_header)
+        ssh_key_inputs.pack(fill=tk.X, pady=(4, 0))
+        self.entry_ssh_key_path = tk.Entry(
+            ssh_key_inputs,
+            font=self.font_mono,
+            width=34,
+            bg=self.color_input_bg,
+            fg=self.color_input_fg,
+            insertbackground=self.color_input_fg,
+            relief="flat",
+            highlightbackground=self.color_border,
+            highlightthickness=1,
+        )
+        self.entry_ssh_key_path.pack(side=tk.LEFT, ipady=4)
+        self.entry_ssh_key_path.insert(0, "")
+        self.entry_ssh_key_pass = tk.Entry(
+            ssh_key_inputs,
+            show="*",
+            font=self.font_mono,
+            width=14,
+            bg=self.color_input_bg,
+            fg=self.color_input_fg,
+            insertbackground=self.color_input_fg,
+            relief="flat",
+            highlightbackground=self.color_border,
+            highlightthickness=1,
+        )
+        self.entry_ssh_key_pass.pack(side=tk.LEFT, padx=(8, 0), ipady=4)
+        self.entry_ssh_key_pass.insert(0, "")
+
+        hint_fr = tk.Frame(grid_loader, bg=self.color_header)
+        hint_fr.grid(row=2, column=0, sticky="w", pady=(8, 0))
+        tk.Label(
+            hint_fr,
+            text=self.t("header.security_hint"),
+            font=("Segoe UI", 8),
+            bg=self.color_header,
+            fg=self.color_header_subtle,
+            wraplength=560,
+            justify=tk.LEFT,
+        ).pack(anchor=tk.W)
+
+        self.btn_monitor = self.create_modern_btn(conn_row, self.t("header.live_monitor"), self.toggle_monitor, self.color_btn_blue, width=14)
+        self.btn_monitor.grid(row=0, column=4, padx=(16, 12), sticky="ns")
         
-        self.entry_ip = self.add_grid_field(grid_loader, self.t("header.nas_ip"), "192.168.2.168", 0)
-        self.entry_user = self.add_grid_field(grid_loader, self.t("header.user"), "papa", 1)
-        self.entry_pwd = self.add_grid_field(grid_loader, self.t("header.password"), "", 2, is_pwd=True)
-        
-        self.btn_monitor = self.create_modern_btn(grid_loader, self.t("header.live_monitor"), self.toggle_monitor, self.color_btn_blue, width=15)
-        self.btn_monitor.grid(row=0, column=3, padx=(20, 30), sticky="ns")
-        
-        self.dash_container = tk.Frame(grid_loader, bg=self.color_header)
-        self.dash_container.grid(row=0, column=4, sticky="ns", padx=(10, 0))
+        self.dash_container = tk.Frame(conn_row, bg=self.color_header)
+        self.dash_container.grid(row=0, column=5, sticky="ns", padx=(8, 0))
         self.setup_dashboard_ui()
         
         toggle_text = self.t("header.theme_light") if self.current_theme == "dark" else self.t("header.theme_dark")
@@ -243,6 +308,13 @@ class MixinThemeUI:
         self._paypal_label.bind("<Button-1>", lambda e: self._open_paypal_support())
         self._paypal_label.bind("<Enter>", lambda e: self._paypal_label.config(fg=_pp_hov))
         self._paypal_label.bind("<Leave>", lambda e: self._paypal_label.config(fg=_pp_fg))
+        self.create_modern_btn(
+            self.header_frame,
+            self.t("header.keyring_save"),
+            self._keyring_store_password_clicked,
+            self.color_header_subtle,
+            width=12,
+        ).pack(side=tk.RIGHT, padx=(6, 0))
         self.create_modern_btn(
             self.header_frame,
             self.t("header.save_connection"),
@@ -263,7 +335,7 @@ class MixinThemeUI:
         self.main_container = tk.Frame(self.root, bg=self.color_bg_left)
         self.main_container.pack(fill=tk.BOTH, expand=True)
 
-        self.sidebar = tk.Frame(self.main_container, width=232, bg=self.color_surface_alt, highlightthickness=0)
+        self.sidebar = tk.Frame(self.main_container, width=244, bg=self.color_surface_alt, highlightthickness=0)
         self.sidebar.pack(side=tk.LEFT, fill=tk.Y, padx=(14, 8), pady=14)
         self.sidebar.pack_propagate(False)
         self._sidebar_accent = tk.Frame(self.sidebar, bg=self.color_btn_blue, width=4)
@@ -272,7 +344,7 @@ class MixinThemeUI:
         self.sidebar_inner.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
         self.app_body = tk.Frame(self.main_container, bg=self.color_bg_left)
-        self.app_body.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(8, 14), pady=14)
+        self.app_body.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(6, 14), pady=14)
 
         self.notebook = ttk.Notebook(self.app_body)
         self.notebook.pack(fill=tk.BOTH, expand=True)
@@ -327,7 +399,8 @@ class MixinThemeUI:
         if self._photo_sidebar_icon:
             tk.Label(title_row, image=self._photo_sidebar_icon, bg=self.color_surface_alt).pack(side=tk.LEFT, padx=(0, 10))
         tk.Label(title_row, text="UGREEN NAS", bg=self.color_surface_alt, fg=self.color_text, font=("Segoe UI", 15, "bold")).pack(side=tk.LEFT)
-        tk.Label(sb, text=self.t("sidebar.subtitle"), bg=self.color_surface_alt, fg=self.color_text_muted, font=("Segoe UI", 9)).pack(anchor=tk.W, padx=18, pady=(0, 14))
+        tk.Label(sb, text=self.t("sidebar.subtitle"), bg=self.color_surface_alt, fg=self.color_text_muted, font=("Segoe UI", 9)).pack(anchor=tk.W, padx=18, pady=(0, 10))
+        tk.Label(sb, text="Navigation", bg=self.color_surface_alt, fg=self.color_text_muted, font=("Segoe UI", 8, "bold")).pack(anchor=tk.W, padx=18, pady=(0, 6))
 
         self.nav_buttons = {}
         nav_items = [
@@ -350,12 +423,13 @@ class MixinThemeUI:
                 radius=10,
                 font=self.font_bold,
             )
-            btn.pack(fill=tk.X, padx=10, pady=4)
+            btn.pack(fill=tk.X, padx=10, pady=3)
             btn.bind("<Leave>", lambda e, b=btn, k=key: self._nav_btn_leave(b, k), add="+")
             self.nav_buttons[key] = btn
 
-        tk.Frame(sb, bg=self.color_border, height=1).pack(fill=tk.X, padx=14, pady=14)
-        self.create_modern_btn(sb, self.t("sidebar.refresh_all"), self.refresh_all_panels, self.color_btn_blue).pack(fill=tk.X, padx=12, pady=(0, 8))
+        tk.Frame(sb, bg=self.color_border, height=1).pack(fill=tk.X, padx=14, pady=12)
+        tk.Label(sb, text="Werkzeuge", bg=self.color_surface_alt, fg=self.color_text_muted, font=("Segoe UI", 8, "bold")).pack(anchor=tk.W, padx=18, pady=(0, 6))
+        self.create_modern_btn(sb, self.t("sidebar.refresh_all"), self.refresh_all_panels, self.color_btn_blue).pack(fill=tk.X, padx=12, pady=(0, 6))
         self.create_modern_btn(sb, self.t("sidebar.health_snapshot"), self.save_health_snapshot, self.color_header).pack(fill=tk.X, padx=12)
 
     def setup_status_bar(self):
@@ -470,8 +544,12 @@ class MixinThemeUI:
     def rebuild_ui(self):
         state = {
             "ip": "",
+            "port": "22",
             "user": "",
             "pwd": "",
+            "ssh_use_key": False,
+            "ssh_key_path": "",
+            "ssh_key_pass": "",
             "filename": "",
             "editor": "",
             "tab_idx": 0
@@ -479,10 +557,18 @@ class MixinThemeUI:
         try:
             if hasattr(self, "entry_ip"):
                 state["ip"] = self.entry_ip.get()
+            if hasattr(self, "entry_port"):
+                state["port"] = self.entry_port.get()
             if hasattr(self, "entry_user"):
                 state["user"] = self.entry_user.get()
             if hasattr(self, "entry_pwd"):
                 state["pwd"] = self.entry_pwd.get()
+            if hasattr(self, "var_ssh_use_key"):
+                state["ssh_use_key"] = bool(self.var_ssh_use_key.get())
+            if hasattr(self, "entry_ssh_key_path"):
+                state["ssh_key_path"] = self.entry_ssh_key_path.get()
+            if hasattr(self, "entry_ssh_key_pass"):
+                state["ssh_key_pass"] = self.entry_ssh_key_pass.get()
             if hasattr(self, "entry_filename"):
                 state["filename"] = self.entry_filename.get()
             if hasattr(self, "text_editor"):
@@ -506,10 +592,17 @@ class MixinThemeUI:
         try:
             self.entry_ip.delete(0, tk.END)
             self.entry_ip.insert(0, state["ip"])
+            self.entry_port.delete(0, tk.END)
+            self.entry_port.insert(0, state["port"])
             self.entry_user.delete(0, tk.END)
             self.entry_user.insert(0, state["user"])
             self.entry_pwd.delete(0, tk.END)
             self.entry_pwd.insert(0, state["pwd"])
+            self.var_ssh_use_key.set(bool(state["ssh_use_key"]))
+            self.entry_ssh_key_path.delete(0, tk.END)
+            self.entry_ssh_key_path.insert(0, state["ssh_key_path"])
+            self.entry_ssh_key_pass.delete(0, tk.END)
+            self.entry_ssh_key_pass.insert(0, state["ssh_key_pass"])
             self.entry_filename.delete(0, tk.END)
             self.entry_filename.insert(0, state["filename"])
             self.text_editor.delete("1.0", tk.END)

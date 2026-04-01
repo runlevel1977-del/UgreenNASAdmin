@@ -4,6 +4,16 @@
 
 ## Deutsch
 
+### 22.1.0 (Public) — 2026-04-01
+
+#### Neu / Verbessert
+
+- **SSH:** Verbindung mit Kompression (`compress`), Fehlermeldungen DE/EN über `i18n`; Statuszeile nutzt übersetzte SSH-Texte.
+- **UI-Flüssigkeit:** NAS-Explorer Ordner aufklappen und Suche laufen im Hintergrund (kein Einfrieren); Docker Stats / Inspect / Logs ebenfalls asynchron.
+- **Sicherheit & Komfort:** Hinweis zu Klartext in `nas_admin_connection.json`; Button **🔐 PW Tresor** speichert das SSH-Passwort optional im OS-Tresor (`pip install keyring`). Leeres Passwort in der JSON wird beim Start aus dem Tresor geladen (gleiche IP/User).
+- **Doku:** Schritt-für-Schritt-Anleitung (Tresor, `pip`, EXE neu bauen) in **`README.md`** unter *SSH-Passwort im Windows-Tresor*.
+- **Tests:** Hilfsfunktion `looks_like_ssh_error_output` in `nas_utils` abgedeckt.
+
 ### 22.0.0 (Public) — 2026-03-30
 
 #### Neu
@@ -33,6 +43,16 @@
 ---
 
 ## English
+
+### 22.1.0 (Public) — 2026-04-01
+
+#### Added / improved
+
+- **SSH:** connection uses compression; error strings localized via `i18n`; status bar uses translated SSH messages.
+- **Responsiveness:** NAS Explorer expand + search off the main thread; Docker stats / inspect / logs fetched in background threads.
+- **Security / comfort:** note about plain-text `nas_admin_connection.json`; **🔐 PW vault** stores the SSH password in the OS credential store (`pip install keyring`). Empty JSON password loads from the vault on startup (same IP/user).
+- **Docs:** step-by-step (vault, `pip`, rebuild EXE) in **`README.md`** under *SSH password in the OS vault*.
+- **Tests:** `looks_like_ssh_error_output` in `nas_utils` covered.
 
 ### 22.0.0 (Public) — 2026-03-30
 
