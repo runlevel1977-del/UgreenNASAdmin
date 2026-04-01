@@ -22,6 +22,7 @@ a = Analysis(
         "ugreen_app.mixin_tabs_setup",
         "ugreen_app.mixin_storage_acl_snap",
         "ugreen_app.mixin_config_telegram",
+        "ugreen_app.keyring_helper",
         "ugreen_app.mixin_scripts_docker_monitor",
         "ugreen_app.mixin_explorer",
         "ugreen_app.mixin_transfer",
