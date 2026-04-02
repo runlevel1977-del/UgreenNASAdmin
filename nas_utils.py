@@ -38,12 +38,20 @@ def normalize_nas_tree_path(path: str) -> str:
     return p if p and p != "." else "/"
 
 
+def looks_like_ssh_error_output(text: str) -> bool:
+    """True if text looks like our SSHManager connection error (DE/EN)."""
+    if not text:
+        return False
+    lo = text.lower()
+    return "fehler bei ssh" in lo or "ssh connection error" in lo
+
+
 def explorer_sanitize_ls_line(line: str) -> str:
     s = (line or "").strip()
     if not s:
         return ""
     lo = s.lower()
-    if lo.startswith("fehler bei ssh"):
+    if lo.startswith("fehler bei ssh") or "ssh connection error" in lo:
         return ""
     if "[sudo]" in lo or "password for" in lo:
         return ""

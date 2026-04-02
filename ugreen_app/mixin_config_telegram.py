@@ -29,6 +29,7 @@ import urllib.parse
 import nas_ssh
 import nas_utils
 from ugreen_app._paramiko import _paramiko
+from ugreen_app import keyring_helper
 
 class MixinConfigTelegram:
     def _app_data_dir(self):
@@ -91,7 +92,12 @@ class MixinConfigTelegram:
                 self.entry_user.insert(0, str(data["user"]))
             if hasattr(self, "entry_pwd") and data.get("password") is not None:
                 self.entry_pwd.delete(0, tk.END)
-                self.entry_pwd.insert(0, str(data.get("password", "")))
+                pw = str(data.get("password", ""))
+                if not pw and data.get("ip") and data.get("user"):
+                    kr = keyring_helper.get_ssh_password(str(data["ip"]).strip(), str(data["user"]).strip())
+                    if kr:
+                        pw = kr
+                self.entry_pwd.insert(0, pw)
             if hasattr(self, "var_ssh_use_key"):
                 self.var_ssh_use_key.set(bool(data.get("ssh_use_key", False)))
             if hasattr(self, "entry_ssh_key_path") and data.get("ssh_key_path") is not None:
@@ -102,6 +108,25 @@ class MixinConfigTelegram:
                 self.entry_ssh_key_pass.insert(0, str(data.get("ssh_key_passphrase", "")))
         except Exception:
             pass
+
+    def _keyring_store_password_clicked(self):
+        if not keyring_helper.keyring_available():
+            messagebox.showinfo(self.t("msg.connection"), self.t("keyring.unavailable"))
+            return
+        host = self.entry_ip.get().strip() if hasattr(self, "entry_ip") else ""
+        user = self.entry_user.get().strip() if hasattr(self, "entry_user") else ""
+        pwd = self.entry_pwd.get() if hasattr(self, "entry_pwd") else ""
+        if not pwd:
+            messagebox.showinfo(self.t("msg.connection"), self.t("keyring.empty"))
+            return
+        if not host or not user:
+            messagebox.showinfo(self.t("msg.connection"), self.t("keyring.need_host"))
+            return
+        if keyring_helper.set_ssh_password(host, user, pwd):
+            messagebox.showinfo(self.t("msg.connection"), self.t("keyring.stored"))
+            self.set_status(self.t("keyring.stored"))
+        else:
+            messagebox.showerror(self.t("msg.connection"), self.t("keyring.failed"))
 
     def _save_connection_config_clicked(self):
         p = self._connection_config_path()
@@ -197,6 +222,8 @@ class MixinConfigTelegram:
         )
 
     def telegram_save_config(self):
+        if not self._danger_gate():
+            return
         try:
             cfg = self.telegram_collect_config_dict()
         except (ValueError, tk.TclError):
@@ -253,6 +280,8 @@ class MixinConfigTelegram:
             return False, str(e)
 
     def telegram_send_test(self):
+        if not self._danger_gate():
+            return
         if hasattr(self, "entry_telegram_token"):
             try:
                 cfg = self.telegram_collect_config_dict()
@@ -400,6 +429,8 @@ class MixinConfigTelegram:
             self.telegram_send_raw(f"🟠 {host}\nTemperatur-Warnung: ca. {tmax:.1f}°C (Schwelle {temp_max:.0f}°C).", cfg)
 
     def telegram_run_checks_manual(self):
+        if not self._danger_gate():
+            return
         try:
             cfg = self.telegram_collect_config_dict()
         except (ValueError, tk.TclError, AttributeError):

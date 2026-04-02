@@ -25,6 +25,14 @@ class TestNasUtils(unittest.TestCase):
         self.assertFalse(p[1])
         self.assertEqual(p[2], 1234)
 
+    def test_looks_like_ssh_error(self):
+        self.assertTrue(nas_utils.looks_like_ssh_error_output("Fehler bei SSH-Verbindung: x"))
+        self.assertTrue(nas_utils.looks_like_ssh_error_output("SSH connection error: timeout"))
+        self.assertFalse(nas_utils.looks_like_ssh_error_output("total 42"))
+
+    def test_sanitize_strips_en_ssh_error(self):
+        self.assertEqual(nas_utils.explorer_sanitize_ls_line("SSH connection error: no route"), "")
+
 
 if __name__ == "__main__":
     unittest.main()

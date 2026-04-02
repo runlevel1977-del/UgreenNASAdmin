@@ -58,7 +58,7 @@ class MixinExplorer:
             batch = paths[i : i + 32]
             args = " ".join(shlex.quote(p) for p in batch)
             out = self.run_ssh_cmd(f"LC_ALL=C du -sk {args} 2>/dev/null", False)
-            if "Fehler bei SSH" in out:
+            if nas_utils.looks_like_ssh_error_output(out):
                 continue
             for line in out.splitlines():
                 pr = nas_utils.parse_du_sk_line(line)
@@ -139,34 +139,50 @@ class MixinExplorer:
     def on_tree_expand(self, event):
         item = self.tree.focus()
         p = self.get_full_path(item)
-        
-        for c in self.tree.get_children(item): 
+
+        for c in self.tree.get_children(item):
             if self.tree.item(c, "text") == self.t("explorer.loading"):
                 self.tree.delete(c)
-                
-        res = self.run_ssh_cmd(f"LC_ALL=C ls -lnAp {shlex.quote(p)}", False)
 
-        self._nas_dir_fetch_seq += 1
-        seq = self._nas_dir_fetch_seq
-        folder_paths = []
+        load_ph = self.tree.insert(item, tk.END, text=self.t("explorer.loading"))
 
-        for line in res.splitlines():
-            parsed = self._explorer_parse_ls_long_line(line)
-            if not parsed:
-                continue
-            name, is_dir, size_b = parsed
-            if is_dir:
-                dir_path = self._normalize_nas_tree_path(f"{p.rstrip('/')}/{name}")
-                cached = self._nas_dir_size_cache.get(dir_path)
-                size_txt = self._fmt_bytes(cached) if cached is not None else "…"
-                x = self.tree.insert(item, tk.END, text=f"  📁 {name}", values=(self._explorer_type("folder"), size_txt))
-                self.tree.insert(x, tk.END, text=self.t("explorer.loading"))
-                folder_paths.append(dir_path)
-            else: 
-                self.tree.insert(item, tk.END, text=f"  📄 {name}", values=(self._explorer_type("file"), self._fmt_bytes(size_b)))
-        self.explorer_update_breadcrumb()
-        if folder_paths:
-            threading.Thread(target=self._nas_fetch_dir_sizes_thread, args=(seq, folder_paths), daemon=True).start()
+        def worker():
+            res = self.run_ssh_cmd(f"LC_ALL=C ls -lnAp {shlex.quote(p)}", False)
+
+            def apply_listing():
+                if not self.tree.exists(item):
+                    return
+                if self.tree.exists(load_ph):
+                    self.tree.delete(load_ph)
+                self._nas_dir_fetch_seq += 1
+                seq = self._nas_dir_fetch_seq
+                folder_paths = []
+                for line in res.splitlines():
+                    parsed = self._explorer_parse_ls_long_line(line)
+                    if not parsed:
+                        continue
+                    name, is_dir, size_b = parsed
+                    if is_dir:
+                        dir_path = self._normalize_nas_tree_path(f"{p.rstrip('/')}/{name}")
+                        cached = self._nas_dir_size_cache.get(dir_path)
+                        size_txt = self._fmt_bytes(cached) if cached is not None else "…"
+                        x = self.tree.insert(item, tk.END, text=f"  📁 {name}", values=(self._explorer_type("folder"), size_txt))
+                        self.tree.insert(x, tk.END, text=self.t("explorer.loading"))
+                        folder_paths.append(dir_path)
+                    else:
+                        self.tree.insert(
+                            item,
+                            tk.END,
+                            text=f"  📄 {name}",
+                            values=(self._explorer_type("file"), self._fmt_bytes(size_b)),
+                        )
+                self.explorer_update_breadcrumb()
+                if folder_paths:
+                    threading.Thread(target=self._nas_fetch_dir_sizes_thread, args=(seq, folder_paths), daemon=True).start()
+
+            self.root.after(0, apply_listing)
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def explorer_update_breadcrumb(self, event=None):
         sel = self.tree.selection()
@@ -186,29 +202,37 @@ class MixinExplorer:
         base_item = sel[0] if sel else ""
         base_path = self.get_full_path(base_item) if base_item else "/volume1"
         cmd = f"ls -1p {shlex.quote(base_path)}"
-        out = self.run_ssh_cmd(cmd, False)
-        hits = []
-        q_lower = q.lower()
-        for line in out.splitlines():
-            name = self._explorer_sanitize_ls_line(line)
-            if not name:
-                continue
-            name = name.rstrip("/")
-            if name and q_lower in name.lower():
-                hits.append(name)
-        if not hits:
-            messagebox.showinfo(self.t("msg.explorer_search"), self.t("msg.explorer_no_hits", base_path=base_path, q=q))
-            return
-        if len(hits) <= 20:
-            messagebox.showinfo(
-                self.t("msg.explorer_search"),
-                self.t("msg.explorer_hits_short", base_path=base_path, n=len(hits), listing="\n".join(hits)),
-            )
-        else:
-            messagebox.showinfo(
-                self.t("msg.explorer_search"),
-                self.t("msg.explorer_hits_trunc", base_path=base_path, n=len(hits), listing="\n".join(hits[:20])),
-            )
+
+        def worker():
+            out = self.run_ssh_cmd(cmd, False)
+            hits = []
+            q_lower = q.lower()
+            for line in out.splitlines():
+                name = self._explorer_sanitize_ls_line(line)
+                if not name:
+                    continue
+                name = name.rstrip("/")
+                if name and q_lower in name.lower():
+                    hits.append(name)
+
+            def show_result():
+                if not hits:
+                    messagebox.showinfo(self.t("msg.explorer_search"), self.t("msg.explorer_no_hits", base_path=base_path, q=q))
+                    return
+                if len(hits) <= 20:
+                    messagebox.showinfo(
+                        self.t("msg.explorer_search"),
+                        self.t("msg.explorer_hits_short", base_path=base_path, n=len(hits), listing="\n".join(hits)),
+                    )
+                else:
+                    messagebox.showinfo(
+                        self.t("msg.explorer_search"),
+                        self.t("msg.explorer_hits_trunc", base_path=base_path, n=len(hits), listing="\n".join(hits[:20])),
+                    )
+
+            self.root.after(0, show_result)
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def get_full_path(self, item_id):
         parts = []
@@ -230,6 +254,8 @@ class MixinExplorer:
         self.log_output.see(tk.END)
 
     def open_docker_creator(self):
+        if not self._danger_gate():
+            return
         dw = tk.Toplevel(self.root)
         dw.title(self.t("docker.dialog_title"))
         dw.geometry("850x650")
@@ -340,6 +366,8 @@ class MixinExplorer:
         self.text_editor.delete("1.0", tk.END)
 
     def delete_script(self):
+        if not self._danger_gate():
+            return
         sel = self.script_listbox.curselection()
         if sel:
             fn = self.script_listbox.get(sel[0]).strip()
@@ -349,12 +377,16 @@ class MixinExplorer:
                 self.clear_fields()
 
     def test_script_now(self):
+        if not self._danger_gate():
+            return
         fn = self.entry_filename.get().strip()
         if fn and fn != "STABLE_TASKS": 
             self.log(f"🚀 Testlauf (Host) {fn}...")
             self.log(self.run_ssh_cmd(f"bash /volume1/scripts/{fn}", True))
 
     def test_script_docker(self):
+        if not self._danger_gate():
+            return
         fn = self.entry_filename.get().strip()
         if fn and fn != "STABLE_TASKS": 
             self.log(f"🐳 Starte {fn} manuell in Docker...")
@@ -370,7 +402,9 @@ class MixinExplorer:
             
             self.root.after(1000, self.refresh_docker_list)
 
-    def open_powershell(self): 
+    def open_powershell(self):
+        if not self._danger_gate():
+            return
         try:
             port = int((self.entry_port.get() or "22").strip())
         except Exception:
@@ -393,6 +427,19 @@ class MixinExplorer:
                         pass
             except Exception:
                 pass
+            u = self.danger_functions_unlocked
+            if not u:
+                for idx in (1, 4, 5, 6):
+                    try:
+                        self.context_menu.entryconfig(idx, state=tk.DISABLED)
+                    except Exception:
+                        pass
+            else:
+                try:
+                    self.context_menu.entryconfig(1, state=tk.NORMAL)
+                    self.context_menu.entryconfig(6, state=tk.NORMAL)
+                except Exception:
+                    pass
             self.context_menu.post(event.x_root, event.y_root)
 
     def explorer_copy_path(self): 
@@ -402,6 +449,8 @@ class MixinExplorer:
             self.root.clipboard_append(self.get_full_path(sel[0]))
 
     def explorer_delete_item(self):
+        if not self._danger_gate():
+            return
         sel = self.tree.selection()
         if sel:
             paths = [self.get_full_path(x) for x in sel]
@@ -589,6 +638,10 @@ class MixinExplorer:
         row = self.tree_local.identify_row(event.y)
         if row:
             self.tree_local.selection_set(row)
+            try:
+                self.context_menu_local.entryconfig(3, state=(tk.NORMAL if self.danger_functions_unlocked else tk.DISABLED))
+            except Exception:
+                pass
             self.context_menu_local.post(event.x_root, event.y_root)
 
     def explorer_copy_path_local(self):
@@ -612,6 +665,8 @@ class MixinExplorer:
                 messagebox.showerror(self.t("msg.open"), str(e))
 
     def explorer_delete_local(self):
+        if not self._danger_gate():
+            return
         sel = self.tree_local.selection()
         if not sel:
             messagebox.showinfo(self.t("msg.pc_delete"), self.t("msg.pc_select_right"))
@@ -725,6 +780,8 @@ class MixinExplorer:
             n += 1
 
     def explorer_copy_local_to_nas(self):
+        if not self._danger_gate():
+            return
         sel = self.tree_local.selection()
         if not sel:
             messagebox.showinfo(self.t("msg.copy_to_nas"), self.t("msg.copy_nas_select_pc"))

@@ -90,7 +90,7 @@ class SSHManager:
             "auth_timeout": 30,
             "look_for_keys": False,
             "allow_agent": False,
-            "compress": False,
+            "compress": True,
         }
         key_path = (ssh_key_path or "").strip()
         if ssh_use_key and key_path:
@@ -115,8 +115,14 @@ class SSHManager:
         use_sudo: bool = False,
         set_status: Optional[Callable[[str, object], None]] = None,
         connected_flag: bool = True,
+        status_connected: Optional[str] = None,
+        status_failed: Optional[str] = None,
+        error_message_fmt: Optional[str] = None,
     ) -> str:
         """Führt Befehl aus. Bei sudo: Passwort über stdin an sudo -S (nicht in der Shell-Zeile)."""
+        ok_msg = status_connected or "SSH verbunden"
+        fail_msg = status_failed or "SSH Fehler"
+        err_fmt = error_message_fmt or "Fehler bei SSH-Verbindung: {err}"
         with self._lock:
             try:
                 self._ensure_client(
@@ -129,7 +135,7 @@ class SSHManager:
                     ssh_key_passphrase=ssh_key_passphrase,
                 )
                 if set_status:
-                    set_status("SSH verbunden", connected=connected_flag)
+                    set_status(ok_msg, connected=connected_flag)
                 if use_sudo:
                     inner = cmd
                     full = f"sudo -S bash -lc {shlex.quote(inner)}"
@@ -156,8 +162,8 @@ class SSHManager:
                 except Exception:
                     pass
                 if set_status:
-                    set_status("SSH Fehler", connected=False)
-                return f"Fehler bei SSH-Verbindung: {str(e)}"
+                    set_status(fail_msg, connected=False)
+                return err_fmt.format(err=str(e))
 
     def write_remote_file_sudo(
         self,

@@ -730,6 +730,8 @@ class MixinTransfer:
         return self.explorer_upload_files()
 
     def _start_upload_queue(self, remote_dir, items, title_suffix="Upload"):
+        if not self._danger_gate():
+            return
         # items: list[(local_path, remote_rel_path)]
         remote_dir = unicodedata.normalize("NFC", (remote_dir or "").strip())
         items = sorted(items, key=lambda it: (it[1].replace("\\", "/").lower(), it[0].lower()))

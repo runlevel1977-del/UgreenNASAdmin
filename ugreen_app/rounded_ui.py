@@ -122,6 +122,9 @@ class RoundedButton(tk.Canvas):
         self._pady = pady
         self._hovering = False
         self._parent_bg = _parent_bg(parent)
+        self._enabled = True
+        self._bg_saved = bg_color
+        self._fg_saved = fg_color
 
         f = tkfont.Font(font=self._font)
         tw = f.measure(text)
@@ -142,6 +145,8 @@ class RoundedButton(tk.Canvas):
             bg=self._parent_bg,
             cursor="hand2",
         )
+        self._disabled_bg = "#64748b"
+        self._disabled_fg = "#cbd5e1"
         self._draw()
         self.bind("<Button-1>", self._on_click)
         self.bind("<Enter>", self._on_enter)
@@ -163,6 +168,8 @@ class RoundedButton(tk.Canvas):
         self._draw()
 
     def _fill_color(self) -> str:
+        if not self._enabled:
+            return self._disabled_bg
         if self._hovering:
             return _adjust_hex(self._bg, 1.09)
         return self._bg
@@ -192,12 +199,13 @@ class RoundedButton(tk.Canvas):
         h = self._h
         if not self._draw_pill_image(w, h, fill):
             _draw_round_fill(self, 1, 1, w - 1, h - 1, self._radius, fill)
+        fg = self._disabled_fg if not self._enabled else self._fg
         if self._anchor == "w":
             self.create_text(
                 self._padx + 4,
                 self._h // 2,
                 text=self._text,
-                fill=self._fg,
+                fill=fg,
                 font=self._font,
                 anchor="w",
             )
@@ -206,16 +214,20 @@ class RoundedButton(tk.Canvas):
                 w // 2,
                 self._h // 2,
                 text=self._text,
-                fill=self._fg,
+                fill=fg,
                 font=self._font,
                 anchor="center",
             )
 
     def _on_click(self, _event=None):
+        if not self._enabled:
+            return
         if callable(self._cmd):
             self._cmd()
 
     def _on_enter(self, _event=None):
+        if not self._enabled:
+            return
         self._hovering = True
         self._draw()
 
@@ -226,6 +238,8 @@ class RoundedButton(tk.Canvas):
     def set_theme(self, bg: str, fg: str) -> None:
         self._bg = bg
         self._fg = fg
+        self._bg_saved = bg
+        self._fg_saved = fg
         self._hovering = False
         self._draw()
 
@@ -248,6 +262,24 @@ class RoundedButton(tk.Canvas):
 
     def set_hover(self, on: bool) -> None:
         self._hovering = bool(on)
+        self._draw()
+
+    def set_enabled(self, enabled: bool) -> None:
+        self._enabled = bool(enabled)
+        if self._enabled:
+            self._bg = self._bg_saved
+            self._fg = self._fg_saved
+            try:
+                self.config(cursor="hand2")
+            except tk.TclError:
+                pass
+        else:
+            self._hovering = False
+            try:
+                self.config(cursor="arrow")
+            except tk.TclError:
+                pass
+        self._last_draw_w = -1
         self._draw()
 
 

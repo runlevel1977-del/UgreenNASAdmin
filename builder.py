@@ -1,5 +1,6 @@
 import os
 import shutil
+import sys
 import time
 
 import PyInstaller.__main__
@@ -77,4 +78,5 @@ def build():
 if __name__ == "__main__":
     build()
     print("\n" + "=" * 60)
-    input("FERTIG. Druecke Enter zum Schliessen...")
+    if sys.stdin.isatty():
+        input("FERTIG. Druecke Enter zum Schliessen...")

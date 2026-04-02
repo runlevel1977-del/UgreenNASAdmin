@@ -58,6 +58,8 @@ class MixinStorageAclSnap:
         self.storage_refresh_shares()
 
     def storage_top20_folders(self):
+        if not self._danger_gate():
+            return
         if not hasattr(self, "storage_output"):
             return
         base = self.entry_storage_top_path.get().strip() or "/volume1"
@@ -92,6 +94,8 @@ class MixinStorageAclSnap:
         self.set_status("stat ausgeführt")
 
     def acl_chmod_755_path(self):
+        if not self._danger_gate():
+            return
         p = self._acl_target_path()
         if not p:
             return
@@ -102,6 +106,8 @@ class MixinStorageAclSnap:
         self.acl_show_stat()
 
     def acl_chmod_777_rec_path(self):
+        if not self._danger_gate():
+            return
         p = self._acl_target_path()
         if not p:
             return
@@ -114,6 +120,8 @@ class MixinStorageAclSnap:
         self.acl_show_stat()
 
     def acl_chmod_custom(self):
+        if not self._danger_gate():
+            return
         p = self._acl_target_path()
         if not p:
             return
@@ -128,6 +136,8 @@ class MixinStorageAclSnap:
         self.acl_show_stat()
 
     def acl_chown_apply(self):
+        if not self._danger_gate():
+            return
         p = self._acl_target_path()
         if not p:
             return
@@ -189,6 +199,8 @@ class MixinStorageAclSnap:
         self.snap_output.insert(tk.END, out or "(Keine Daten — Config anpassen oder snapper fehlt)\n")
 
     def snap_btrfs_create(self):
+        if not self._danger_gate():
+            return
         src = self.entry_snap_base.get().strip() or "/volume1"
         dest = simpledialog.askstring("Btrfs Snapshot", "Zielpfad für neuen Snapshot (Subvolume),\nz. B. /volume1/.snapshots/manual_2026:\n(leer = Abbruch)", parent=self.root)
         if not dest or not dest.strip():
@@ -202,6 +214,8 @@ class MixinStorageAclSnap:
         messagebox.showinfo("Btrfs", "Befehl ausgeführt (siehe Ausgabe).")
 
     def snap_zfs_create(self):
+        if not self._danger_gate():
+            return
         ds = simpledialog.askstring("ZFS Snapshot", "Dataset inkl. Pool, z. B. tank/volume1\n(leer = Abbruch)", parent=self.root)
         if not ds or not ds.strip():
             return
@@ -217,6 +231,8 @@ class MixinStorageAclSnap:
         messagebox.showinfo("ZFS", "Befehl ausgeführt.")
 
     def snap_snapper_create(self):
+        if not self._danger_gate():
+            return
         cfg = self.entry_snap_base.get().strip() or "root"
         if "/" in cfg:
             cfg = "root"
@@ -231,6 +247,8 @@ class MixinStorageAclSnap:
         self.snap_output.insert(tk.END, out)
 
     def snap_btrfs_delete(self):
+        if not self._danger_gate():
+            return
         p = simpledialog.askstring("Btrfs löschen", "Pfad des Subvolumes/Snapshots zum LÖSCHEN:", parent=self.root)
         if not p or not p.strip():
             return
@@ -242,6 +260,8 @@ class MixinStorageAclSnap:
         self.snap_output.insert(tk.END, out)
 
     def snap_zfs_delete(self):
+        if not self._danger_gate():
+            return
         name = simpledialog.askstring("ZFS löschen", "Vollständiger Snapshot-Name (pool/ds@tag):", parent=self.root)
         if not name or not name.strip():
             return
@@ -252,6 +272,8 @@ class MixinStorageAclSnap:
         self.snap_output.insert(tk.END, out)
 
     def snap_snapper_delete(self):
+        if not self._danger_gate():
+            return
         cfg = self.entry_snap_base.get().strip() or "root"
         if "/" in cfg or not re.match(r"^[\w.-]+$", cfg):
             cfg = "root"
@@ -293,6 +315,8 @@ class MixinStorageAclSnap:
         self._health_write(out.strip() if out.strip() else "Keine mdstat Daten")
 
     def health_reboot_nas(self):
+        if not self._danger_gate():
+            return
         if not messagebox.askyesno(self.t("msg.nas_reboot"), self.t("msg.nas_reboot_body")):
             return
         self._health_write("\n--- NEUSTART: sende reboot (sudo) ---")
@@ -303,6 +327,8 @@ class MixinStorageAclSnap:
         messagebox.showinfo(self.t("msg.nas_reboot"), self.t("msg.nas_reboot_sent"))
 
     def health_shutdown_nas(self):
+        if not self._danger_gate():
+            return
         if not messagebox.askyesno(self.t("msg.nas_shutdown"), self.t("msg.nas_shutdown_body")):
             return
         if not messagebox.askyesno(self.t("msg.last_confirm"), self.t("msg.nas_shutdown_last")):
@@ -347,6 +373,8 @@ class MixinStorageAclSnap:
             self._health_write("\n".join(cleaned).strip())
 
     def save_health_snapshot(self):
+        if not self._danger_gate():
+            return
         if not hasattr(self, "health_text"):
             self.switch_view("health")
             self.refresh_health_overview()
