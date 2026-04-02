@@ -222,6 +222,8 @@ class MixinConfigTelegram:
         )
 
     def telegram_save_config(self):
+        if not self._danger_gate():
+            return
         try:
             cfg = self.telegram_collect_config_dict()
         except (ValueError, tk.TclError):
@@ -278,6 +280,8 @@ class MixinConfigTelegram:
             return False, str(e)
 
     def telegram_send_test(self):
+        if not self._danger_gate():
+            return
         if hasattr(self, "entry_telegram_token"):
             try:
                 cfg = self.telegram_collect_config_dict()
@@ -425,6 +429,8 @@ class MixinConfigTelegram:
             self.telegram_send_raw(f"🟠 {host}\nTemperatur-Warnung: ca. {tmax:.1f}°C (Schwelle {temp_max:.0f}°C).", cfg)
 
     def telegram_run_checks_manual(self):
+        if not self._danger_gate():
+            return
         try:
             cfg = self.telegram_collect_config_dict()
         except (ValueError, tk.TclError, AttributeError):

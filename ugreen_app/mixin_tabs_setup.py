@@ -64,8 +64,12 @@ class MixinTabsSetup:
             (self.t("scripts.btn.ps_ssh"), self.open_powershell, self.color_header, "white"),
         ]
         
-        for txt, cmd, bg_col, fg_col in btns:
-            self.create_modern_btn(bc, txt, cmd, bg_col, fg_col).pack(fill=tk.X, pady=4)
+        _script_danger_idx = {2, 3, 5, 6, 7}
+        for i, (txt, cmd, bg_col, fg_col) in enumerate(btns):
+            btn = self.create_modern_btn(bc, txt, cmd, bg_col, fg_col)
+            btn.pack(fill=tk.X, pady=4)
+            if i in _script_danger_idx:
+                self._register_danger_rounded(btn)
         
         # Rechter Editor
         rs = tk.Frame(self.tab_scripts, bg=self.tab_colors["scripts"])
@@ -105,11 +109,11 @@ class MixinTabsSetup:
         er2 = tk.Frame(t, bg=self.color_surface_alt)
         er2.pack(fill=tk.X, pady=(10, 0))
         self.create_modern_btn(er1, self.t("explorer.scan"), self.scan_nas, self.color_btn_blue).pack(side=tk.LEFT)
-        self.create_modern_btn(er1, self.t("explorer.upload"), self.explorer_upload_files, self.color_user).pack(side=tk.LEFT, padx=(10, 0))
-        self.create_modern_btn(er1, self.t("explorer.perms755"), self.explorer_fix_perms_manual, self.color_cron).pack(side=tk.LEFT, padx=(10, 0))
-        self.create_modern_btn(er1, self.t("explorer.del_nas"), self.explorer_delete_item, self.color_root).pack(side=tk.LEFT, padx=(10, 0))
-        self.create_modern_btn(er1, self.t("explorer.del_pc"), self.explorer_delete_local, "#fecaca", self.color_root).pack(side=tk.LEFT, padx=(10, 0))
-        self.create_modern_btn(er2, self.t("explorer.copy_to_nas"), self.explorer_copy_local_to_nas, self.color_btn_blue).pack(side=tk.LEFT)
+        self._register_danger_rounded(self.create_modern_btn(er1, self.t("explorer.upload"), self.explorer_upload_files, self.color_user)).pack(side=tk.LEFT, padx=(10, 0))
+        self._register_danger_rounded(self.create_modern_btn(er1, self.t("explorer.perms755"), self.explorer_fix_perms_manual, self.color_cron)).pack(side=tk.LEFT, padx=(10, 0))
+        self._register_danger_rounded(self.create_modern_btn(er1, self.t("explorer.del_nas"), self.explorer_delete_item, self.color_root)).pack(side=tk.LEFT, padx=(10, 0))
+        self._register_danger_rounded(self.create_modern_btn(er1, self.t("explorer.del_pc"), self.explorer_delete_local, "#fecaca", self.color_root)).pack(side=tk.LEFT, padx=(10, 0))
+        self._register_danger_rounded(self.create_modern_btn(er2, self.t("explorer.copy_to_nas"), self.explorer_copy_local_to_nas, self.color_btn_blue)).pack(side=tk.LEFT)
         self.create_modern_btn(er2, self.t("explorer.copy_to_pc"), self.explorer_copy_nas_to_local, self.color_user).pack(side=tk.LEFT, padx=(10, 0))
         tk.Label(er2, text=self.t("explorer.search_label"), bg=self.color_surface_alt, fg=self.color_text_muted, font=self.font_base).pack(side=tk.LEFT, padx=(16, 8))
         self.explorer_search_var = tk.StringVar()
@@ -219,7 +223,9 @@ class MixinTabsSetup:
 
         docker_create_row = tk.Frame(left, bg=self.tab_colors["docker"])
         docker_create_row.pack(fill=tk.X, pady=(0, 8))
-        self.create_modern_btn(docker_create_row, self.t("docker.create"), self.open_docker_creator, self.color_btn_blue).pack(fill=tk.X)
+        self._register_danger_rounded(
+            self.create_modern_btn(docker_create_row, self.t("docker.create"), self.open_docker_creator, self.color_btn_blue)
+        ).pack(fill=tk.X)
         
         # Obere Docker-Tools (zwei Zeilen, damit nichts abgeschnitten wird)
         tool_top = tk.Frame(left, bg=self.color_surface_alt, pady=10, padx=10, highlightbackground=self.color_border, highlightthickness=1)
@@ -229,19 +235,21 @@ class MixinTabsSetup:
         row2 = tk.Frame(tool_top, bg=self.color_surface_alt)
         row2.pack(fill=tk.X, pady=(8, 0))
         self.create_modern_btn(row1, self.t("docker.list"), self.refresh_docker_list, self.color_text_muted).pack(side=tk.LEFT, padx=5)
-        self.create_modern_btn(row1, self.t("docker.start"), lambda: self.docker_action("start"), self.color_user).pack(side=tk.LEFT, padx=5)
-        self.create_modern_btn(row1, self.t("docker.stop"), lambda: self.docker_action("stop"), self.color_root).pack(side=tk.LEFT, padx=5)
-        self.create_modern_btn(row1, self.t("docker.restart"), lambda: self.docker_action("restart"), self.color_cron, "white").pack(side=tk.LEFT, padx=5)
-        self.create_modern_btn(row2, self.t("docker.stop_all"), self.docker_stop_all, self.color_root).pack(side=tk.LEFT, padx=5)
-        self.create_modern_btn(row2, self.t("docker.new"), self.open_docker_creator, "#3b82f6").pack(side=tk.LEFT, padx=5)
+        self._register_danger_rounded(self.create_modern_btn(row1, self.t("docker.start"), lambda: self.docker_action("start"), self.color_user)).pack(side=tk.LEFT, padx=5)
+        self._register_danger_rounded(self.create_modern_btn(row1, self.t("docker.stop"), lambda: self.docker_action("stop"), self.color_root)).pack(side=tk.LEFT, padx=5)
+        self._register_danger_rounded(self.create_modern_btn(row1, self.t("docker.restart"), lambda: self.docker_action("restart"), self.color_cron, "white")).pack(side=tk.LEFT, padx=5)
+        self._register_danger_rounded(self.create_modern_btn(row2, self.t("docker.stop_all"), self.docker_stop_all, self.color_root)).pack(side=tk.LEFT, padx=5)
+        self._register_danger_rounded(self.create_modern_btn(row2, self.t("docker.new"), self.open_docker_creator, "#3b82f6")).pack(side=tk.LEFT, padx=5)
         
         # Untere Docker-Tools (Erweitert)
         tool_bot = tk.Frame(left, bg=self.color_surface_alt, pady=10, padx=10, highlightbackground=self.color_border, highlightthickness=1)
         tool_bot.pack(fill=tk.X, pady=(0, 15))
         self.create_modern_btn(tool_bot, self.t("docker.stats"), self.show_docker_stats, self.color_header).pack(side=tk.LEFT, padx=5)
         self.create_modern_btn(tool_bot, self.t("docker.inspect"), self.show_docker_inspect, "#94a3b8", "white").pack(side=tk.LEFT, padx=5)
-        self.create_modern_btn(tool_bot, self.t("docker.delete"), lambda: self.docker_action("rm -f", confirm=True), self.color_btn_purple).pack(side=tk.LEFT, padx=5)
-        self.create_modern_btn(tool_bot, self.t("docker.fix777"), self.docker_fix_perms, self.color_cron).pack(side=tk.RIGHT, padx=5)
+        self._register_danger_rounded(
+            self.create_modern_btn(tool_bot, self.t("docker.delete"), lambda: self.docker_action("rm -f", confirm=True), self.color_btn_purple)
+        ).pack(side=tk.LEFT, padx=5)
+        self._register_danger_rounded(self.create_modern_btn(tool_bot, self.t("docker.fix777"), self.docker_fix_perms, self.color_cron)).pack(side=tk.RIGHT, padx=5)
 
         # Docker Liste
         tc = tk.Frame(left, highlightbackground=self.color_border, highlightthickness=1)
@@ -282,8 +290,8 @@ class MixinTabsSetup:
         # Buttons zuerst unten reservieren — sonst frisst die Klartext-Box den Platz und die Knöpfe rutschen aus dem sichtbaren Bereich
         btn_frame = tk.Frame(container, bg=self.color_surface)
         btn_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(8, 0))
-        self.create_modern_btn(btn_frame, self.t("sched.host_job"), self.add_to_stable_cron, self.color_user).pack(fill=tk.X, pady=(0, 8))
-        self.create_modern_btn(btn_frame, self.t("sched.docker_job"), self.add_to_docker_cron, self.color_btn_blue).pack(fill=tk.X)
+        self._register_danger_rounded(self.create_modern_btn(btn_frame, self.t("sched.host_job"), self.add_to_stable_cron, self.color_user)).pack(fill=tk.X, pady=(0, 8))
+        self._register_danger_rounded(self.create_modern_btn(btn_frame, self.t("sched.docker_job"), self.add_to_docker_cron, self.color_btn_blue)).pack(fill=tk.X)
 
         mid = tk.Frame(container, bg=self.color_surface)
         mid.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
@@ -311,10 +319,12 @@ class MixinTabsSetup:
             cb.bind("<<ComboboxSelected>>", lambda e: self.update_human_text())
             cb.bind("<KeyRelease>", lambda e: self.update_human_text())
             self.cron_fields[field_key] = cb
+            self._register_danger_ttk_combobox(cb, "readonly")
 
         self.var_first_week = tk.BooleanVar()
         chk = tk.Checkbutton(mid, text=self.t("sched.first_week"), variable=self.var_first_week, bg=self.color_surface, fg=self.color_text, selectcolor=self.color_surface_alt, activebackground=self.color_surface, activeforeground=self.color_text, font=('Segoe UI', 10), cursor="hand2", command=self.update_human_text, wraplength=self.drawer_width - 80, justify=tk.LEFT, anchor="w")
         chk.pack(anchor=tk.W, pady=(12, 6))
+        self._register_danger_tk_widget(chk)
         
         info_frame = tk.Frame(mid, bg=self.color_info_bg, pady=12, padx=14, highlightbackground=self.color_border, highlightthickness=1)
         info_frame.pack(fill=tk.BOTH, expand=True, pady=(8, 0))
@@ -351,14 +361,17 @@ class MixinTabsSetup:
         self.create_modern_btn(h1, self.t("health.raid"), self.health_check_raid, self.color_cron).pack(side=tk.LEFT, padx=4)
         self.create_modern_btn(h2, self.t("health.smart"), self.health_check_smart, self.color_btn_purple).pack(side=tk.LEFT, padx=4)
         self.create_modern_btn(h2, self.t("health.storage"), self.health_check_storage, self.color_user).pack(side=tk.LEFT, padx=4)
+        self._register_danger_rounded(
+            self.create_modern_btn(h2, self.t("health.report_save"), self.save_health_snapshot, self.color_header)
+        ).pack(side=tk.LEFT, padx=4)
 
         h3 = tk.Frame(top, bg=self.color_surface_alt)
         h3.pack(fill=tk.X, pady=(12, 0))
         tk.Label(h3, text=self.t("health.system_warn"), bg=self.color_surface_alt, fg=self.color_text_muted, font=("Segoe UI", 9)).pack(anchor=tk.W, pady=(0, 6))
         h3b = tk.Frame(h3, bg=self.color_surface_alt)
         h3b.pack(fill=tk.X)
-        self.create_modern_btn(h3b, self.t("health.reboot"), self.health_reboot_nas, self.color_cron).pack(side=tk.LEFT, padx=4)
-        self.create_modern_btn(h3b, self.t("health.shutdown"), self.health_shutdown_nas, self.color_root).pack(side=tk.LEFT, padx=4)
+        self._register_danger_rounded(self.create_modern_btn(h3b, self.t("health.reboot"), self.health_reboot_nas, self.color_cron)).pack(side=tk.LEFT, padx=4)
+        self._register_danger_rounded(self.create_modern_btn(h3b, self.t("health.shutdown"), self.health_shutdown_nas, self.color_root)).pack(side=tk.LEFT, padx=4)
 
         tele = tk.Frame(wrap, bg=self.color_surface_alt, highlightbackground=self.color_border, highlightthickness=1, padx=14, pady=12)
         tele.pack(fill=tk.X, pady=(0, 10))
@@ -405,9 +418,9 @@ class MixinTabsSetup:
 
         r6 = tk.Frame(tele, bg=self.color_surface_alt)
         r6.pack(fill=tk.X, pady=(12, 4))
-        self.create_modern_btn(r6, self.t("health.tg_save"), self.telegram_save_config, self.color_user).pack(side=tk.LEFT, padx=4)
-        self.create_modern_btn(r6, self.t("health.tg_test"), self.telegram_send_test, self.color_btn_blue).pack(side=tk.LEFT, padx=4)
-        self.create_modern_btn(r6, self.t("health.tg_check"), self.telegram_run_checks_manual, self.color_cron).pack(side=tk.LEFT, padx=4)
+        self._register_danger_rounded(self.create_modern_btn(r6, self.t("health.tg_save"), self.telegram_save_config, self.color_user)).pack(side=tk.LEFT, padx=4)
+        self._register_danger_rounded(self.create_modern_btn(r6, self.t("health.tg_test"), self.telegram_send_test, self.color_btn_blue)).pack(side=tk.LEFT, padx=4)
+        self._register_danger_rounded(self.create_modern_btn(r6, self.t("health.tg_check"), self.telegram_run_checks_manual, self.color_cron)).pack(side=tk.LEFT, padx=4)
         self.lbl_telegram_status = tk.Label(tele, text="", bg=self.color_surface_alt, fg=self.color_text_muted, font=("Segoe UI", 9), anchor="w")
         self.lbl_telegram_status.pack(fill=tk.X, pady=(8, 0))
         self.lbl_telegram_path = tk.Label(tele, text="", bg=self.color_surface_alt, fg=self.color_btn_blue, font=("Segoe UI", 8), anchor="w", justify=tk.LEFT, wraplength=920)
@@ -454,7 +467,9 @@ class MixinTabsSetup:
             bg=self.color_input_bg, fg=self.color_input_fg, insertbackground=self.color_input_fg)
         self.entry_storage_top_path.insert(0, "/volume1")
         self.entry_storage_top_path.pack(side=tk.LEFT, ipady=5, fill=tk.X, expand=True)
-        self.create_modern_btn(s2, self.t("storage.top20"), self.storage_top20_folders, self.color_cron).pack(side=tk.LEFT, padx=8)
+        self._register_danger_rounded(
+            self.create_modern_btn(s2, self.t("storage.top20"), self.storage_top20_folders, self.color_cron)
+        ).pack(side=tk.LEFT, padx=8)
         self.storage_output = scrolledtext.ScrolledText(
             wrap, height=22, bg=self.color_log_bg, fg=self.color_log_fg, insertbackground=self.color_log_fg,
             font=self.font_mono, relief="flat", highlightbackground=self.color_border, highlightthickness=1, padx=10, pady=10)
@@ -474,20 +489,22 @@ class MixinTabsSetup:
         row = tk.Frame(top, bg=self.color_surface_alt)
         row.pack(fill=tk.X, pady=4)
         self.create_modern_btn(row, self.t("acl.show"), self.acl_show_stat, self.color_btn_blue).pack(side=tk.LEFT, padx=4)
-        self.create_modern_btn(row, self.t("acl.chmod755"), self.acl_chmod_755_path, self.color_cron).pack(side=tk.LEFT, padx=4)
-        self.create_modern_btn(row, self.t("acl.chmod777"), self.acl_chmod_777_rec_path, self.color_root).pack(side=tk.LEFT, padx=4)
+        self._register_danger_rounded(self.create_modern_btn(row, self.t("acl.chmod755"), self.acl_chmod_755_path, self.color_cron)).pack(side=tk.LEFT, padx=4)
+        self._register_danger_rounded(self.create_modern_btn(row, self.t("acl.chmod777"), self.acl_chmod_777_rec_path, self.color_root)).pack(side=tk.LEFT, padx=4)
         row2 = tk.Frame(top, bg=self.color_surface_alt)
         row2.pack(fill=tk.X, pady=6)
         tk.Label(row2, text=self.t("acl.chmod_label"), bg=self.color_surface_alt, fg=self.color_text_muted).pack(side=tk.LEFT)
         self.entry_acl_mode = tk.Entry(row2, width=10, font=self.font_mono, bg=self.color_input_bg, fg=self.color_input_fg, insertbackground=self.color_input_fg, relief="flat", highlightbackground=self.color_border, highlightthickness=1)
         self.entry_acl_mode.insert(0, "755")
         self.entry_acl_mode.pack(side=tk.LEFT, padx=6, ipady=4)
-        self.create_modern_btn(row2, self.t("acl.chmod_apply"), self.acl_chmod_custom, self.color_user).pack(side=tk.LEFT, padx=6)
+        self._register_danger_tk_widget(self.entry_acl_mode)
+        self._register_danger_rounded(self.create_modern_btn(row2, self.t("acl.chmod_apply"), self.acl_chmod_custom, self.color_user)).pack(side=tk.LEFT, padx=6)
         tk.Label(row2, text=self.t("acl.chown_label"), bg=self.color_surface_alt, fg=self.color_text_muted).pack(side=tk.LEFT, padx=(16, 4))
         self.entry_acl_chown = tk.Entry(row2, width=22, font=self.font_mono, bg=self.color_input_bg, fg=self.color_input_fg, insertbackground=self.color_input_fg, relief="flat", highlightbackground=self.color_border, highlightthickness=1)
         self.entry_acl_chown.insert(0, "root:root")
         self.entry_acl_chown.pack(side=tk.LEFT, padx=4, ipady=4)
-        self.create_modern_btn(row2, self.t("acl.chown_apply"), self.acl_chown_apply, self.color_btn_purple).pack(side=tk.LEFT, padx=6)
+        self._register_danger_tk_widget(self.entry_acl_chown)
+        self._register_danger_rounded(self.create_modern_btn(row2, self.t("acl.chown_apply"), self.acl_chown_apply, self.color_btn_purple)).pack(side=tk.LEFT, padx=6)
         row3 = tk.Frame(top, bg=self.color_surface_alt)
         row3.pack(fill=tk.X, pady=8)
         self.create_modern_btn(row3, self.t("acl.users"), self.acl_list_users, self.color_header).pack(side=tk.LEFT, padx=4)
@@ -518,14 +535,14 @@ class MixinTabsSetup:
         self.entry_snap_base.pack(fill=tk.X, pady=4, ipady=5)
         r3 = tk.Frame(top, bg=self.color_surface_alt)
         r3.pack(fill=tk.X, pady=6)
-        self.create_modern_btn(r3, self.t("snap.btrfs_create"), self.snap_btrfs_create, self.color_user).pack(side=tk.LEFT, padx=4)
-        self.create_modern_btn(r3, self.t("snap.zfs_create"), self.snap_zfs_create, self.color_user).pack(side=tk.LEFT, padx=4)
-        self.create_modern_btn(r3, self.t("snap.snapper_create"), self.snap_snapper_create, self.color_user).pack(side=tk.LEFT, padx=4)
+        self._register_danger_rounded(self.create_modern_btn(r3, self.t("snap.btrfs_create"), self.snap_btrfs_create, self.color_user)).pack(side=tk.LEFT, padx=4)
+        self._register_danger_rounded(self.create_modern_btn(r3, self.t("snap.zfs_create"), self.snap_zfs_create, self.color_user)).pack(side=tk.LEFT, padx=4)
+        self._register_danger_rounded(self.create_modern_btn(r3, self.t("snap.snapper_create"), self.snap_snapper_create, self.color_user)).pack(side=tk.LEFT, padx=4)
         r4 = tk.Frame(top, bg=self.color_surface_alt)
         r4.pack(fill=tk.X, pady=4)
-        self.create_modern_btn(r4, self.t("snap.btrfs_del"), self.snap_btrfs_delete, self.color_root).pack(side=tk.LEFT, padx=4)
-        self.create_modern_btn(r4, self.t("snap.zfs_del"), self.snap_zfs_delete, self.color_root).pack(side=tk.LEFT, padx=4)
-        self.create_modern_btn(r4, self.t("snap.snapper_del"), self.snap_snapper_delete, self.color_root).pack(side=tk.LEFT, padx=4)
+        self._register_danger_rounded(self.create_modern_btn(r4, self.t("snap.btrfs_del"), self.snap_btrfs_delete, self.color_root)).pack(side=tk.LEFT, padx=4)
+        self._register_danger_rounded(self.create_modern_btn(r4, self.t("snap.zfs_del"), self.snap_zfs_delete, self.color_root)).pack(side=tk.LEFT, padx=4)
+        self._register_danger_rounded(self.create_modern_btn(r4, self.t("snap.snapper_del"), self.snap_snapper_delete, self.color_root)).pack(side=tk.LEFT, padx=4)
         self.snap_output = scrolledtext.ScrolledText(
             wrap, height=20, bg=self.color_log_bg, fg=self.color_log_fg, insertbackground=self.color_log_fg,
             font=self.font_mono, relief="flat", highlightbackground=self.color_border, highlightthickness=1, padx=10, pady=10)

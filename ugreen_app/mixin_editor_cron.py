@@ -86,6 +86,8 @@ class MixinEditorCron:
         self.sync_scheduler(os.path.basename(path))
 
     def explorer_fix_perms_manual(self):
+        if not self._danger_gate():
+            return
         sel = self.tree.selection()
         if sel:
             paths = [self.get_full_path(x) for x in sel]
@@ -96,6 +98,8 @@ class MixinEditorCron:
             self.set_status(self.t("msg.editor_cron_done", n=len(paths)))
 
     def save_script(self, as_root):
+        if not self._danger_gate():
+            return
         fn = self.entry_filename.get().strip()
         content = self.text_editor.get("1.0", tk.END).strip()
         
@@ -116,6 +120,7 @@ class MixinEditorCron:
                     self.entry_pwd.get(),
                     data,
                     path,
+                    **self._ssh_auth_payload(),
                 )
                 if not ok:
                     messagebox.showerror(self.t("msg.save_error"), self.t("msg.editor_save_user", err=err))
@@ -124,6 +129,8 @@ class MixinEditorCron:
             self.refresh_script_list()
 
     def write_root_file(self, target_path, content):
+        if not self._danger_gate():
+            return False
         data = (content + "\n").encode("utf-8")
         ok, err = self._ssh_mgr.write_remote_file_sudo(
             self.entry_ip.get(),
@@ -132,6 +139,7 @@ class MixinEditorCron:
             data,
             target_path.strip(),
             chmod_mode="644",
+            **self._ssh_auth_payload(),
         )
         if not ok:
             self.log(f"❌ Fehler beim Schreiben: {err}")
@@ -139,6 +147,8 @@ class MixinEditorCron:
         return True
 
     def add_to_stable_cron(self):
+        if not self._danger_gate():
+            return
         fn = self.entry_filename.get().strip()
         if not fn or fn == "STABLE_TASKS": return
         
@@ -158,6 +168,8 @@ class MixinEditorCron:
             self.root.after(500, lambda: self.sync_scheduler(fn))
 
     def add_to_docker_cron(self):
+        if not self._danger_gate():
+            return
         fn = self.entry_filename.get().strip()
         if not fn or fn == "STABLE_TASKS": return
         

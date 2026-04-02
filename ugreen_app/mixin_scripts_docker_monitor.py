@@ -122,6 +122,8 @@ class MixinScriptsDockerMonitor:
             self.txt_human_time.config(state="disabled")
 
     def docker_action(self, action, confirm=False):
+        if not self._danger_gate():
+            return
         sel = self.docker_tree.selection()
         if sel:
             name = self.docker_tree.item(sel[0], "text")
@@ -132,6 +134,8 @@ class MixinScriptsDockerMonitor:
             self.root.after(1000, self.refresh_docker_list)
 
     def docker_stop_all(self):
+        if not self._danger_gate():
+            return
         if not messagebox.askyesno(self.t("msg.docker_admin"), self.t("msg.docker_stop_all")):
             return
 
@@ -186,6 +190,8 @@ class MixinScriptsDockerMonitor:
             threading.Thread(target=worker, daemon=True).start()
 
     def docker_fix_perms(self):
+        if not self._danger_gate():
+            return
         res = self.run_ssh_cmd("docker inspect --format '{{ range .Mounts }}{{ .Source }} {{ end }}' $(docker ps -a -q)", True)
         for p in set(res.split()):
             if "/volume" in p: 
@@ -235,42 +241,49 @@ class MixinScriptsDockerMonitor:
             error_message_fmt=self.t("ssh.error"),
         )
 
-    def add_grid_field(self, parent, label, default, col, is_pwd=False, row=0, width=16):
+    def add_grid_field(self, parent, label, default, col, is_pwd=False, row=0, width=16, *, justify="center", padx=5):
         f = tk.Frame(parent, bg=self.color_header)
-        f.grid(row=row, column=col, padx=10, sticky="w")
+        f.grid(row=row, column=col, padx=padx, sticky="w")
         tk.Label(f, text=label, bg=self.color_header, fg=self.color_header_subtle, font=('Segoe UI', 8, 'bold')).pack(anchor=tk.W)
-        e = tk.Entry(f, show="*" if is_pwd else "", font=self.font_mono, justify='center', width=width,
+        e = tk.Entry(f, show="*" if is_pwd else "", font=self.font_mono, justify=justify, width=width,
                      bg=self.color_input_bg, fg=self.color_input_fg, insertbackground=self.color_input_fg, relief="flat", highlightbackground=self.color_border, highlightthickness=1)
         e.insert(0, default)
-        e.pack(pady=(4, 0), ipady=4)
+        e.pack(pady=(2, 0), ipady=3)
         return e
 
     def setup_dashboard_ui(self):
-        self.cpu_bars, self.cpu_labels = [], []
-        for i in range(4):
-            col_start = i * 3
-            tk.Label(self.dash_container, text=f"{self.t('dash.cpu')} {i+1}", bg=self.color_header, fg="#94a3b8", font=('Segoe UI', 8, 'bold')).grid(row=0, column=col_start, padx=(10,0))
-            bar = ttk.Progressbar(self.dash_container, length=40, orient=tk.HORIZONTAL)
-            bar.grid(row=0, column=col_start+1, padx=5)
-            lbl = tk.Label(self.dash_container, text="0%", bg=self.color_header, fg="white", width=4, font=self.font_mono)
-            lbl.grid(row=0, column=col_start+2)
-            self.cpu_bars.append(bar)
-            self.cpu_labels.append(lbl)
-            
-        tk.Label(self.dash_container, text=self.t("dash.ram"), bg=self.color_header, fg="#94a3b8", font=('Segoe UI', 8, 'bold')).grid(row=0, column=12, padx=(20,0))
-        self.ram_bar = ttk.Progressbar(self.dash_container, length=60, orient=tk.HORIZONTAL)
-        self.ram_bar.grid(row=0, column=13, padx=5)
-        self.ram_label = tk.Label(self.dash_container, text="0%", bg=self.color_header, fg="white", width=4, font=self.font_mono)
-        self.ram_label.grid(row=0, column=14)
+        try:
+            bg = self.dash_container.cget("bg")
+        except tk.TclError:
+            bg = self.color_surface_alt
+        fg_muted = self.color_text_muted
+        fg_val = self.color_text
+        self.dash_container.grid_columnconfigure(1, weight=1)
+
+        tk.Label(self.dash_container, text=self.t("dash.cpu"), bg=bg, fg=fg_muted, font=("Segoe UI", 8, "bold")).grid(
+            row=0, column=0, sticky="w", padx=(0, 6), pady=2
+        )
+        self.cpu_bar = ttk.Progressbar(self.dash_container, length=72, orient=tk.HORIZONTAL, mode="determinate")
+        self.cpu_bar.grid(row=0, column=1, sticky="ew", padx=4, pady=2)
+        self.cpu_label = tk.Label(self.dash_container, text="0%", bg=bg, fg=fg_val, width=4, font=self.font_mono)
+        self.cpu_label.grid(row=0, column=2, sticky="e", pady=2)
+
+        tk.Label(self.dash_container, text=self.t("dash.ram"), bg=bg, fg=fg_muted, font=("Segoe UI", 8, "bold")).grid(
+            row=1, column=0, sticky="w", padx=(0, 6), pady=2
+        )
+        self.ram_bar = ttk.Progressbar(self.dash_container, length=72, orient=tk.HORIZONTAL, mode="determinate")
+        self.ram_bar.grid(row=1, column=1, sticky="ew", padx=4, pady=2)
+        self.ram_label = tk.Label(self.dash_container, text="0%", bg=bg, fg=fg_val, width=4, font=self.font_mono)
+        self.ram_label.grid(row=1, column=2, sticky="e", pady=2)
 
     def toggle_monitor(self):
         if self.is_monitoring: 
             self.is_monitoring = False
-            self.btn_monitor.set_text(self.t("header.live_monitor"))
+            self.btn_monitor.set_text(self.t("sidebar.monitor_go"))
             self.btn_monitor.set_theme(self.color_btn_blue, "white")
         else:
             self.is_monitoring = True
-            self.btn_monitor.set_text(self.t("header.monitor_stop"))
+            self.btn_monitor.set_text(self.t("sidebar.monitor_stop"))
             self.btn_monitor.set_theme(self.color_root, "white")
             threading.Thread(target=self.monitor_loop, daemon=True).start()
 
@@ -283,22 +296,21 @@ class MixinScriptsDockerMonitor:
                 self.entry_ip.get(),
                 **self._ssh_connect_kwargs(timeout=5, banner_timeout=20, auth_timeout=20),
             )
-            last_idle, last_total = [0]*4, [0]*4
-            
+            last_idle, last_total = 0, 0
+
             while self.is_monitoring:
-                _, stdout, _ = ssh.exec_command("cat /proc/stat | grep '^cpu[0-9]'")
-                cpu_lines = stdout.readlines()
-                
-                for i, line in enumerate(cpu_lines[:4]):
-                    parts = list(map(int, line.split()[1:]))
-                    idle, total = parts[3], sum(parts)
-                    diff_idle, diff_total = idle - last_idle[i], total - last_total[i]
-                    
-                    if diff_total > 0:
-                        usage = 100 * (1 - diff_idle / diff_total)
-                        self.root.after(0, lambda v=usage, idx=i: self.update_stat_ui(idx, v))
-                        
-                    last_idle[i], last_total[i] = idle, total
+                _, stdout, _ = ssh.exec_command("grep '^cpu ' /proc/stat | head -1")
+                line = stdout.readline()
+                if line:
+                    parts = line.split()
+                    if len(parts) >= 5:
+                        nums = list(map(int, parts[1:]))
+                        idle, total = nums[3], sum(nums)
+                        diff_idle, diff_total = idle - last_idle, total - last_total
+                        if diff_total > 0:
+                            usage = 100 * (1 - diff_idle / diff_total)
+                            self.root.after(0, lambda v=usage: self.update_cpu_ui(v))
+                        last_idle, last_total = idle, total
                     
                 _, stdout, _ = ssh.exec_command("free | grep Mem")
                 ram_line = stdout.read().decode().split()
@@ -314,12 +326,15 @@ class MixinScriptsDockerMonitor:
             self.root.after(0, lambda: self._reset_monitor_btn())
 
     def _reset_monitor_btn(self):
-        self.btn_monitor.set_text(self.t("header.live_monitor"))
+        self.btn_monitor.set_text(self.t("sidebar.monitor_go"))
         self.btn_monitor.set_theme(self.color_btn_blue, "white")
 
-    def update_stat_ui(self, idx, val): 
-        self.cpu_bars[idx]['value'] = val
-        self.cpu_labels[idx].config(text=f"{int(val)}%")
+    def update_cpu_ui(self, val):
+        try:
+            self.cpu_bar["value"] = val
+            self.cpu_label.config(text=f"{int(val)}%")
+        except (tk.TclError, AttributeError):
+            pass
         
     def update_ram_ui(self, val): 
         self.ram_bar['value'] = val
