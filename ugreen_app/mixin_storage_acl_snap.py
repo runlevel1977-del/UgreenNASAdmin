@@ -58,6 +58,8 @@ class MixinStorageAclSnap:
         self.storage_refresh_shares()
 
     def storage_top20_folders(self):
+        if not self._danger_gate():
+            return
         if not hasattr(self, "storage_output"):
             return
         base = self.entry_storage_top_path.get().strip() or "/volume1"
@@ -92,6 +94,8 @@ class MixinStorageAclSnap:
         self.set_status("stat ausgeführt")
 
     def acl_chmod_755_path(self):
+        if not self._danger_gate():
+            return
         p = self._acl_target_path()
         if not p:
             return
@@ -102,6 +106,8 @@ class MixinStorageAclSnap:
         self.acl_show_stat()
 
     def acl_chmod_777_rec_path(self):
+        if not self._danger_gate():
+            return
         p = self._acl_target_path()
         if not p:
             return
@@ -114,6 +120,8 @@ class MixinStorageAclSnap:
         self.acl_show_stat()
 
     def acl_chmod_custom(self):
+        if not self._danger_gate():
+            return
         p = self._acl_target_path()
         if not p:
             return
@@ -128,6 +136,8 @@ class MixinStorageAclSnap:
         self.acl_show_stat()
 
     def acl_chown_apply(self):
+        if not self._danger_gate():
+            return
         p = self._acl_target_path()
         if not p:
             return
@@ -189,6 +199,8 @@ class MixinStorageAclSnap:
         self.snap_output.insert(tk.END, out or "(Keine Daten — Config anpassen oder snapper fehlt)\n")
 
     def snap_btrfs_create(self):
+        if not self._danger_gate():
+            return
         src = self.entry_snap_base.get().strip() or "/volume1"
         dest = simpledialog.askstring("Btrfs Snapshot", "Zielpfad für neuen Snapshot (Subvolume),\nz. B. /volume1/.snapshots/manual_2026:\n(leer = Abbruch)", parent=self.root)
         if not dest or not dest.strip():
@@ -202,6 +214,8 @@ class MixinStorageAclSnap:
         messagebox.showinfo("Btrfs", "Befehl ausgeführt (siehe Ausgabe).")
 
     def snap_zfs_create(self):
+        if not self._danger_gate():
+            return
         ds = simpledialog.askstring("ZFS Snapshot", "Dataset inkl. Pool, z. B. tank/volume1\n(leer = Abbruch)", parent=self.root)
         if not ds or not ds.strip():
             return
@@ -217,6 +231,8 @@ class MixinStorageAclSnap:
         messagebox.showinfo("ZFS", "Befehl ausgeführt.")
 
     def snap_snapper_create(self):
+        if not self._danger_gate():
+            return
         cfg = self.entry_snap_base.get().strip() or "root"
         if "/" in cfg:
             cfg = "root"
@@ -231,6 +247,8 @@ class MixinStorageAclSnap:
         self.snap_output.insert(tk.END, out)
 
     def snap_btrfs_delete(self):
+        if not self._danger_gate():
+            return
         p = simpledialog.askstring("Btrfs löschen", "Pfad des Subvolumes/Snapshots zum LÖSCHEN:", parent=self.root)
         if not p or not p.strip():
             return
@@ -242,6 +260,8 @@ class MixinStorageAclSnap:
         self.snap_output.insert(tk.END, out)
 
     def snap_zfs_delete(self):
+        if not self._danger_gate():
+            return
         name = simpledialog.askstring("ZFS löschen", "Vollständiger Snapshot-Name (pool/ds@tag):", parent=self.root)
         if not name or not name.strip():
             return
@@ -252,6 +272,8 @@ class MixinStorageAclSnap:
         self.snap_output.insert(tk.END, out)
 
     def snap_snapper_delete(self):
+        if not self._danger_gate():
+            return
         cfg = self.entry_snap_base.get().strip() or "root"
         if "/" in cfg or not re.match(r"^[\w.-]+$", cfg):
             cfg = "root"
@@ -293,6 +315,8 @@ class MixinStorageAclSnap:
         self._health_write(out.strip() if out.strip() else "Keine mdstat Daten")
 
     def health_reboot_nas(self):
+        if not self._danger_gate():
+            return
         if not messagebox.askyesno(self.t("msg.nas_reboot"), self.t("msg.nas_reboot_body")):
             return
         self._health_write("\n--- NEUSTART: sende reboot (sudo) ---")
@@ -303,6 +327,8 @@ class MixinStorageAclSnap:
         messagebox.showinfo(self.t("msg.nas_reboot"), self.t("msg.nas_reboot_sent"))
 
     def health_shutdown_nas(self):
+        if not self._danger_gate():
+            return
         if not messagebox.askyesno(self.t("msg.nas_shutdown"), self.t("msg.nas_shutdown_body")):
             return
         if not messagebox.askyesno(self.t("msg.last_confirm"), self.t("msg.nas_shutdown_last")):
@@ -316,18 +342,39 @@ class MixinStorageAclSnap:
 
     def health_check_smart(self):
         self._health_write("\n--- SMART ---")
-        disks = self.run_ssh_cmd("ls /dev/sd? 2>/dev/null", True)
-        disk_list = [d.strip() for d in disks.splitlines() if d.strip()]
+        disks = self.run_ssh_cmd("lsblk -d -n -o NAME,TYPE 2>/dev/null | awk '$2==\"disk\"{print \"/dev/\"$1}'", True)
+        disk_list = []
+        for line in disks.splitlines():
+            d = (line or "").strip()
+            lo = d.lower()
+            if not d:
+                continue
+            if "[sudo]" in lo or "password for" in lo:
+                continue
+            if re.fullmatch(r"/dev/sd[a-z]+", d) or re.fullmatch(r"/dev/nvme\d+n\d+", d):
+                disk_list.append(d)
         if not disk_list:
-            self._health_write("Keine /dev/sdX Datenträger gefunden.")
+            self._health_write("Keine unterstuetzten Datentraeger (/dev/sdX, /dev/nvmeXnY) gefunden.")
             return
         for d in disk_list[:6]:
             self._health_write(f"\n{d}")
-            cmd = f"smartctl -H {d} 2>/dev/null || sudo smartctl -H {d} 2>/dev/null || echo 'smartctl nicht verfuegbar'"
+            cmd = (
+                f"(smartctl -H {d} 2>/dev/null || sudo smartctl -H {d} 2>/dev/null || echo 'smartctl nicht verfuegbar'); "
+                f"echo '--- Attribute ---'; "
+                f"(smartctl -A {d} 2>/dev/null || sudo smartctl -A {d} 2>/dev/null || echo 'SMART Attribute nicht verfuegbar')"
+            )
             out = self.run_ssh_cmd(cmd, True)
-            self._health_write(out.strip())
+            cleaned = []
+            for line in out.splitlines():
+                lo = (line or "").lower()
+                if "[sudo]" in lo or "password for" in lo:
+                    continue
+                cleaned.append(line)
+            self._health_write("\n".join(cleaned).strip())
 
     def save_health_snapshot(self):
+        if not self._danger_gate():
+            return
         if not hasattr(self, "health_text"):
             self.switch_view("health")
             self.refresh_health_overview()
@@ -336,7 +383,59 @@ class MixinStorageAclSnap:
             messagebox.showinfo(self.t("msg.health_snapshot"), self.t("msg.health_no_data"))
             return
         ts = time.strftime("%Y%m%d_%H%M%S")
-        target = os.path.join(self._app_data_dir(), f"health_snapshot_{ts}.txt")
+        target = filedialog.asksaveasfilename(
+            title=self.t("msg.health_snapshot"),
+            defaultextension=".txt",
+            initialfile=f"health_report_{ts}.txt",
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+        )
+        if not target:
+            self.set_status("Speichern abgebrochen")
+            return
+        local_now = time.strftime("%Y-%m-%d %H:%M:%S")
+        nas_host = self.run_ssh_cmd("hostname 2>/dev/null", True).strip()
+        nas_time_raw = self.run_ssh_cmd("date '+%Y-%m-%d %H:%M:%S %Z' 2>/dev/null", True)
+        nas_time = ""
+        for line in nas_time_raw.splitlines():
+            lo = (line or "").lower()
+            if not line.strip():
+                continue
+            if "[sudo]" in lo or "password for" in lo:
+                continue
+            nas_time = line.strip()
+            break
+
+        disk_count = len(
+            re.findall(r"^/dev/(?:sd[a-z]+|nvme\d+n\d+)\s*$", content, flags=re.MULTILINE)
+        )
+        smart_passed = len(re.findall(r"SMART overall-health.*PASSED", content))
+        smart_failed = len(re.findall(r"SMART overall-health.*FAILED", content))
+        issue_count = len(
+            re.findall(
+                r"(FAILED|smartctl nicht verfuegbar|SMART Attribute nicht verfuegbar|ERROR:)",
+                content,
+                flags=re.IGNORECASE,
+            )
+        )
+        header = [
+            "Ugreen NAS Admin - Health Report",
+            "=" * 40,
+            f"Erstellt am (lokal): {local_now}",
+            f"NAS Host: {nas_host or '-'}",
+            f"NAS Zeit: {nas_time or '-'}",
+            "",
+            "Kurzuebersicht:",
+            f"- Gepruefte Disks: {disk_count}",
+            f"- SMART PASSED: {smart_passed}",
+            f"- SMART FAILED: {smart_failed}",
+            f"- Auffaellige Meldungen: {issue_count}",
+            "",
+            "Details:",
+            "-" * 40,
+            "",
+        ]
         with open(target, "w", encoding="utf-8") as f:
+            f.write("\n".join(header))
             f.write(content + "\n")
+        self.set_status("Health-Bericht gespeichert")
         messagebox.showinfo(self.t("msg.health_snapshot"), self.t("msg.health_saved_path", path=target))

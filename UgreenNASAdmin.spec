@@ -18,6 +18,7 @@ a = Analysis(
         "ugreen_app",
         "ugreen_app._paramiko",
         "ugreen_app.nas_manager",
+        "ugreen_app.mixin_safety_lock",
         "ugreen_app.mixin_theme_ui",
         "ugreen_app.mixin_tabs_setup",
         "ugreen_app.mixin_storage_acl_snap",

@@ -208,33 +208,94 @@ class MixinThemeUI:
             pass
 
     def setup_ui(self):
+        self._reset_danger_widget_registry()
         self.root.title(self.t("app.title", ver=self._app_version))
         self.apply_modern_ttk_styles()
 
         # --- HEADER ---
-        self.header_frame = tk.Frame(self.root, bg=self.color_header, pady=16, padx=22)
+        # Rechte Aktionen zuerst packen, damit ihre Breite reserviert bleibt (sonst frisst
+        # die Mitte mit Dashboard alles und die Buttons rutschen bei schmalem Fenster weg).
+        self.header_frame = tk.Frame(self.root, bg=self.color_header, pady=6, padx=14)
         self.header_frame.pack(side=tk.TOP, fill=tk.X)
+        self.header_frame.grid_columnconfigure(1, weight=1)
+        self.header_frame.grid_rowconfigure(0, weight=0)
+
+        header_right_outer = tk.Frame(self.header_frame, bg=self.color_header)
+        header_right_outer.grid(row=0, column=2, rowspan=2, sticky="nsew", padx=(8, 0))
+        header_right_outer.grid_columnconfigure(0, weight=1)
+        header_right_outer.grid_rowconfigure(0, weight=1)
+        tk.Frame(header_right_outer, bg=self.color_header).grid(row=0, column=0, sticky="nsew")
+        header_right = tk.Frame(header_right_outer, bg=self.color_header)
+        header_right.grid(row=1, column=0, sticky="se")
+
+        toggle_text = self.t("header.theme_light") if self.current_theme == "dark" else self.t("header.theme_dark")
+        _pp_fg, _pp_hov = "#93c5fd", "#bfdbfe"
+        self.btn_danger_power = self.create_modern_btn(
+            header_right,
+            self.t("header.danger_unlock"),
+            self.on_header_danger_power_click,
+            "#dc2626",
+            "white",
+            width=12,
+        )
+        self.btn_danger_power.pack(side=tk.LEFT, padx=(0, 4))
+        self.btn_theme_toggle = self.create_modern_btn(header_right, toggle_text, self.toggle_theme, self.color_btn_purple, width=9)
+        self.btn_theme_toggle.pack(side=tk.LEFT, padx=(0, 4))
+        self.create_modern_btn(
+            header_right,
+            self.t("header.save_connection"),
+            self._save_connection_config_clicked,
+            self.color_header_subtle,
+            width=15,
+        ).pack(side=tk.LEFT, padx=(0, 4))
+        self.create_modern_btn(
+            header_right,
+            self.t("header.keyring_save"),
+            self._keyring_store_password_clicked,
+            self.color_header_subtle,
+            width=10,
+        ).pack(side=tk.LEFT, padx=(0, 4))
+        self._paypal_label = tk.Label(
+            header_right,
+            text=self.t("header.coffee"),
+            bg=self.color_header,
+            fg=_pp_fg,
+            font=("Segoe UI", 9),
+            cursor="hand2",
+        )
+        self._paypal_label.pack(side=tk.LEFT, padx=(4, 0))
+        self._paypal_label.bind("<Button-1>", lambda e: self._open_paypal_support())
+        self._paypal_label.bind("<Enter>", lambda e: self._paypal_label.config(fg=_pp_hov))
+        self._paypal_label.bind("<Leave>", lambda e: self._paypal_label.config(fg=_pp_fg))
+
         brand_left = tk.Frame(self.header_frame, bg=self.color_header)
-        brand_left.pack(side=tk.LEFT, padx=(0, 16))
+        brand_left.grid(row=0, column=0, rowspan=2, sticky="nw", padx=(0, 10), pady=(0, 0))
         if self._photo_app_icon:
             tk.Label(brand_left, image=self._photo_app_icon, bg=self.color_header).pack(side=tk.LEFT)
-        grid_loader = tk.Frame(self.header_frame, bg=self.color_header)
-        grid_loader.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        conn_row = tk.Frame(grid_loader, bg=self.color_header)
-        conn_row.grid(row=0, column=0, sticky="w")
-        key_row = tk.Frame(grid_loader, bg=self.color_header)
-        key_row.grid(row=1, column=0, sticky="w", pady=(8, 0))
 
-        self.entry_ip = self.add_grid_field(conn_row, self.t("header.nas_ip"), "192.168.2.168", 0, width=14)
-        self.entry_port = self.add_grid_field(conn_row, self.t("header.port"), "22", 1, width=7)
-        self.entry_user = self.add_grid_field(conn_row, self.t("header.user"), "papa", 2, width=12)
+        grid_loader = tk.Frame(self.header_frame, bg=self.color_header)
+        grid_loader.grid(row=0, column=1, sticky="ew")
+        grid_loader.grid_columnconfigure(0, weight=1)
+
+        conn_row = tk.Frame(grid_loader, bg=self.color_header)
+        conn_row.grid(row=0, column=0, sticky="ew")
+        # SSH-Key-Spalte: keine weight=1 — sonst wird das Feld maximiert endlos breit.
+        # Feste Zeichenbreite + Mindestpixel, normal groß genug, maximiert nicht zu lang.
+        conn_row.grid_columnconfigure(4, weight=0, minsize=200)
+        conn_row.grid_columnconfigure(6, weight=1)
+
+        # Kompakt, aber IPv4 und typische User/Pfade lesbar; weniger Abstand zwischen Spalten (add_grid_field padx).
+        self.entry_ip = self.add_grid_field(conn_row, self.t("header.nas_ip"), "192.168.2.168", 0, width=16, justify="left")
+        self.entry_port = self.add_grid_field(conn_row, self.t("header.port"), "22", 1, width=6)
+        self.entry_user = self.add_grid_field(conn_row, self.t("header.user"), "papa", 2, width=12, justify="left")
         self.entry_pwd = self.add_grid_field(conn_row, self.t("header.password"), "", 3, is_pwd=True, width=12)
+
         self.var_ssh_use_key = tk.BooleanVar(value=False)
-        ssh_key_frame = tk.Frame(key_row, bg=self.color_header)
-        ssh_key_frame.grid(row=0, column=0, padx=(10, 0), sticky="w")
+        f_ssh = tk.Frame(conn_row, bg=self.color_header)
+        f_ssh.grid(row=0, column=4, padx=(4, 4), sticky="nw")
         tk.Checkbutton(
-            ssh_key_frame,
-            text=self.t("header.use_ssh_key"),
+            f_ssh,
+            text=self.t("header.ssh_key_toggle"),
             variable=self.var_ssh_use_key,
             bg=self.color_header,
             fg=self.color_header_subtle,
@@ -245,12 +306,12 @@ class MixinThemeUI:
             relief="flat",
             highlightthickness=0,
         ).pack(anchor=tk.W)
-        ssh_key_inputs = tk.Frame(ssh_key_frame, bg=self.color_header)
-        ssh_key_inputs.pack(fill=tk.X, pady=(4, 0))
+        # width = Zeichen (Monospace): sichtbarer Pfad ohne maximiert „endlos“ breit zu werden.
         self.entry_ssh_key_path = tk.Entry(
-            ssh_key_inputs,
+            f_ssh,
             font=self.font_mono,
-            width=34,
+            width=28,
+            justify="left",
             bg=self.color_input_bg,
             fg=self.color_input_fg,
             insertbackground=self.color_input_fg,
@@ -258,13 +319,24 @@ class MixinThemeUI:
             highlightbackground=self.color_border,
             highlightthickness=1,
         )
-        self.entry_ssh_key_path.pack(side=tk.LEFT, ipady=4)
+        self.entry_ssh_key_path.pack(anchor=tk.W, pady=(2, 0), ipady=3)
         self.entry_ssh_key_path.insert(0, "")
+
+        f_keypass = tk.Frame(conn_row, bg=self.color_header)
+        f_keypass.grid(row=0, column=5, padx=(0, 4), sticky="nw")
+        tk.Label(
+            f_keypass,
+            text=self.t("header.ssh_key_pass_label"),
+            bg=self.color_header,
+            fg=self.color_header_subtle,
+            font=("Segoe UI", 8, "bold"),
+        ).pack(anchor=tk.W)
         self.entry_ssh_key_pass = tk.Entry(
-            ssh_key_inputs,
+            f_keypass,
             show="*",
             font=self.font_mono,
-            width=14,
+            width=11,
+            justify="center",
             bg=self.color_input_bg,
             fg=self.color_input_fg,
             insertbackground=self.color_input_fg,
@@ -272,58 +344,34 @@ class MixinThemeUI:
             highlightbackground=self.color_border,
             highlightthickness=1,
         )
-        self.entry_ssh_key_pass.pack(side=tk.LEFT, padx=(8, 0), ipady=4)
+        self.entry_ssh_key_pass.pack(pady=(2, 0), ipady=3)
         self.entry_ssh_key_pass.insert(0, "")
 
-        hint_fr = tk.Frame(grid_loader, bg=self.color_header)
-        hint_fr.grid(row=2, column=0, sticky="w", pady=(8, 0))
-        tk.Label(
+        tk.Frame(conn_row, bg=self.color_header).grid(row=0, column=6, sticky="nsew")
+
+        hint_fr = tk.Frame(self.header_frame, bg=self.color_header)
+        hint_fr.grid(row=1, column=1, sticky="ew", pady=(4, 0))
+        self._header_hint_label = tk.Label(
             hint_fr,
             text=self.t("header.security_hint"),
             font=("Segoe UI", 8),
             bg=self.color_header,
             fg=self.color_header_subtle,
-            wraplength=560,
+            wraplength=520,
             justify=tk.LEFT,
-        ).pack(anchor=tk.W)
-
-        self.btn_monitor = self.create_modern_btn(conn_row, self.t("header.live_monitor"), self.toggle_monitor, self.color_btn_blue, width=14)
-        self.btn_monitor.grid(row=0, column=4, padx=(16, 12), sticky="ns")
-        
-        self.dash_container = tk.Frame(conn_row, bg=self.color_header)
-        self.dash_container.grid(row=0, column=5, sticky="ns", padx=(8, 0))
-        self.setup_dashboard_ui()
-        
-        toggle_text = self.t("header.theme_light") if self.current_theme == "dark" else self.t("header.theme_dark")
-        _pp_fg, _pp_hov = "#93c5fd", "#bfdbfe"
-        self._paypal_label = tk.Label(
-            self.header_frame,
-            text=self.t("header.coffee"),
-            bg=self.color_header,
-            fg=_pp_fg,
-            font=("Segoe UI", 9),
-            cursor="hand2",
         )
-        self._paypal_label.pack(side=tk.RIGHT, padx=(10, 0))
-        self._paypal_label.bind("<Button-1>", lambda e: self._open_paypal_support())
-        self._paypal_label.bind("<Enter>", lambda e: self._paypal_label.config(fg=_pp_hov))
-        self._paypal_label.bind("<Leave>", lambda e: self._paypal_label.config(fg=_pp_fg))
-        self.create_modern_btn(
-            self.header_frame,
-            self.t("header.keyring_save"),
-            self._keyring_store_password_clicked,
-            self.color_header_subtle,
-            width=12,
-        ).pack(side=tk.RIGHT, padx=(6, 0))
-        self.create_modern_btn(
-            self.header_frame,
-            self.t("header.save_connection"),
-            self._save_connection_config_clicked,
-            self.color_header_subtle,
-            width=18,
-        ).pack(side=tk.RIGHT, padx=(10, 0))
-        self.btn_theme_toggle = self.create_modern_btn(self.header_frame, toggle_text, self.toggle_theme, self.color_btn_purple, width=10)
-        self.btn_theme_toggle.pack(side=tk.RIGHT, padx=(10, 0))
+        self._header_hint_label.pack(anchor=tk.W)
+
+        def _sync_header_hint_wrap(_event=None):
+            try:
+                w = int(self.header_frame.winfo_width() or 0)
+                if w > 120:
+                    self._header_hint_label.config(wraplength=max(280, w - 80))
+            except tk.TclError:
+                pass
+
+        self.header_frame.bind("<Configure>", _sync_header_hint_wrap, add="+")
+        self.root.after(200, _sync_header_hint_wrap)
 
         tk.Frame(self.root, bg=self.color_border, height=1).pack(side=tk.TOP, fill=tk.X)
 
@@ -380,6 +428,7 @@ class MixinThemeUI:
                                               bg=self.color_cron, fg="white", font=('Segoe UI', 9, 'bold'), 
                                               relief="flat", cursor="hand2", width=2, borderwidth=0)
         self.btn_scheduler_toggle.place(relx=1.0, rely=0.5, anchor=tk.E)
+        self._register_danger_tk_button(self.btn_scheduler_toggle)
 
         self.setup_script_tab()
         self.setup_explorer_tab()
@@ -391,6 +440,7 @@ class MixinThemeUI:
         self.setup_scheduler_ui()
         self.setup_sidebar_nav()
         self._sync_sidebar_with_tab()
+        self._apply_danger_lock_ui()
 
     def setup_sidebar_nav(self):
         sb = getattr(self, "sidebar_inner", self.sidebar)
@@ -430,7 +480,34 @@ class MixinThemeUI:
         tk.Frame(sb, bg=self.color_border, height=1).pack(fill=tk.X, padx=14, pady=12)
         tk.Label(sb, text="Werkzeuge", bg=self.color_surface_alt, fg=self.color_text_muted, font=("Segoe UI", 8, "bold")).pack(anchor=tk.W, padx=18, pady=(0, 6))
         self.create_modern_btn(sb, self.t("sidebar.refresh_all"), self.refresh_all_panels, self.color_btn_blue).pack(fill=tk.X, padx=12, pady=(0, 6))
-        self.create_modern_btn(sb, self.t("sidebar.health_snapshot"), self.save_health_snapshot, self.color_header).pack(fill=tk.X, padx=12)
+        self._register_danger_rounded(
+            self.create_modern_btn(sb, self.t("sidebar.health_snapshot"), self.save_health_snapshot, self.color_header)
+        ).pack(fill=tk.X, padx=12)
+
+        self._setup_sidebar_monitor(sb)
+
+    def _setup_sidebar_monitor(self, sb):
+        """Live-Monitor unten in der Sidebar (über der Statusleiste / Sprachumschaltung)."""
+        wrap = tk.Frame(sb, bg=self.color_surface_alt)
+        wrap.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=(12, 14))
+        tk.Label(
+            wrap,
+            text=self.t("sidebar.monitor_section"),
+            bg=self.color_surface_alt,
+            fg=self.color_text_muted,
+            font=("Segoe UI", 8, "bold"),
+        ).pack(anchor=tk.W, pady=(0, 6))
+        self.btn_monitor = self.create_modern_btn(
+            wrap,
+            self.t("sidebar.monitor_go"),
+            self.toggle_monitor,
+            self.color_btn_blue,
+            width=8,
+        )
+        self.btn_monitor.pack(fill=tk.X, pady=(0, 8))
+        self.dash_container = tk.Frame(wrap, bg=self.color_surface_alt)
+        self.dash_container.pack(fill=tk.X)
+        self.setup_dashboard_ui()
 
     def setup_status_bar(self):
         self.status_bar = tk.Frame(self.root, bg=self.color_surface_alt, highlightbackground=self.color_border, highlightthickness=1)

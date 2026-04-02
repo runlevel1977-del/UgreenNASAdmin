@@ -8,19 +8,29 @@
 
 ## Screenshots / App-Bilder
 
-Diese Bilder erscheinen auf der **GitHub-Startseite** des öffentlichen Repos (README) und in der Vorschau, sobald die Dateien unter `images/` committed sind.
+Diese Bilder liegen unter **`images/`** (z. B. `1.png` … `6.png`) und können auf der **GitHub-Startseite** eingebunden werden, sobald sie committed sind. **Keine echten Passwörter oder privaten IPs** in den Bildern.
 
 <p align="center">
   <img src="images/1.png" alt="Ugreen NAS Admin — Hauptansicht" width="820" />
 </p>
-<p align="center"><sub>Hauptfenster mit Verbindungszeile (u. a. optional 🔐 PW Tresor, v22.1+) · Main window with connection bar</sub></p>
+<p align="center"><sub>Überblick / Overview (v22.2+)</sub></p>
 
 <p align="center">
   <img src="images/2.png" alt="Ugreen NAS Admin — Ansicht 2" width="400" />
   &nbsp;&nbsp;
   <img src="images/3.png" alt="Ugreen NAS Admin — Ansicht 3" width="400" />
 </p>
-<p align="center"><sub>Weitere Ansichten · Additional views</sub></p>
+<p align="center"><sub>Weitere Bereiche · More areas</sub></p>
+
+<p align="center">
+  <img src="images/4.png" alt="Ugreen NAS Admin — Ansicht 4" width="400" />
+  &nbsp;&nbsp;
+  <img src="images/5.png" alt="Ugreen NAS Admin — Ansicht 5" width="400" />
+</p>
+<p align="center">
+  <img src="images/6.png" alt="Ugreen NAS Admin — Ansicht 6" width="820" />
+</p>
+<p align="center"><sub>z. B. Docker, Explorer, Sidebar mit Live-Monitor · e.g. Docker, Explorer, sidebar with live monitor</sub></p>
 
 ---
 
@@ -32,6 +42,32 @@ Diese Bilder erscheinen auf der **GitHub-Startseite** des öffentlichen Repos (R
 
 - **Nicht löschen.** Bei Updates: Inhalt aus dem Hauptprojekt hierher spiegeln (siehe unten), dann bauen oder starten.
 - Enthält alle Dateien, die zum **Starten** (`python ugreen_nas_admin.py`) und zum **Bauen der EXE** (`python builder.py` / PyInstaller) nötig sind.
+
+### Verbindung zur NAS (Kopfzeile der App)
+
+Oben im Fenster trägst du die **SSH-Verbindung zum NAS** ein (gilt für alle Tabs, die Befehle per SSH ausführen):
+
+| Feld / Option | Bedeutung |
+|---------------|-----------|
+| **NAS IP** | Hostname oder IPv4/IPv6 des NAS (wie du auch in PuTTY/Terminal eintragen würdest). |
+| **SSH Port** | SSH-Port des NAS — **Standard ist 22**. Wenn dein NAS einen anderen Port nutzt (z. B. 2222), hier eintragen. Wird mit **„Verbindung speichern“** in `nas_admin_connection.json` abgelegt. |
+| **User** | Linux-SSH-Benutzer auf dem NAS (z. B. `papa` / `root`, je nach deinem Setup). |
+| **Passwort** | Passwort für diesen SSH-User — wird für Login und oft für **`sudo -S`** (Befehle mit Adminrechten) verwendet. **Hinweis Klartext:** siehe Abschnitt *SSH-Passwort im Windows-Tresor* weiter unten. |
+| **SSH-Key** (Checkbox) | Wenn aktiv, nutzt die App **Schlüsseldatei + optional Passphrase** (je nach Server auch mit User/Passwort kombinierbar). |
+| **Pfad** (unter der Checkbox) | Vollständiger Pfad zur **privaten** Schlüsseldatei auf **deinem PC** (z. B. `C:\Users\…\.ssh\id_ed25519`). Feld hat eine **feste Breite**; längere Pfade kannst du im Feld scrollen. |
+| **Passphrase** | Optional: Passphrase des Schlüssels, falls der Key verschlüsselt ist. |
+
+**💾 Verbindung speichern** legt IP, Port, User, Passwort, SSH-Key-Optionen und UI-Sprache in **`nas_admin_connection.json`** neben der EXE bzw. im Startordner ab (Passwort dort im Klartext, sofern du nicht den Tresor nutzt).
+
+**Rechts in der Kopfzeile:** **⚠ Volle Rechte**, **Thema**, **Verbindung speichern**, **🔐 PW Tresor**, **Coffee** — am **unteren Rand** des Kopfbereichs ausgerichtet (inkl. Hinweiszeile darunter).
+
+**Live-Monitor** (CPU gesamt + RAM) sitzt **unten in der linken Sidebar** über der Statuszeile (**DE/EN**). **Sprache** und Verbindungsstatus bleiben in der **Statusleiste** unten.
+
+### Eingeschränkter Modus & „Volle Rechte“ (ab v22.2)
+
+- **Standard:** Viele **gefährliche** Aktionen (Löschen, Uploads, Docker-Eingriffe, Cron im Planer, ACL-Schreiben, Snapshots anlegen/löschen, NAS-Neustart/-shutdown, u. a.) sind **deaktiviert** bzw. ausgegraut.
+- **⚠ Volle Rechte** im Header: nach Bestätigung der Warnung werden diese Funktionen **freigeschaltet**. **🔒 Einschränken** kann den sicheren Modus wieder aktivieren.
+- Details: **`CHANGELOG.md`** unter Version **22.2.0**.
 
 ### Inhalt (Kurz)
 
@@ -115,6 +151,32 @@ This folder has a **separate** `.git` and is what you **publish to GitHub** for 
 
 - **Do not delete it.** On updates: mirror changed files from the main project into this folder (see below), then run or build.
 - It contains everything required to **run** the app (`python ugreen_nas_admin.py`) and to **build the EXE** (`python builder.py` / PyInstaller).
+
+### Connection to the NAS (header bar)
+
+At the top of the window you enter the **SSH connection** used by every tab that runs remote commands:
+
+| Field / option | Meaning |
+|----------------|---------|
+| **NAS IP** | Hostname or IP of the NAS (same as in PuTTY/Terminal). |
+| **SSH port** | SSH port on the NAS — **default 22**. If your NAS uses another port (e.g. 2222), set it here. Saved with **“Save connection”** into `nas_admin_connection.json`. |
+| **User** | Linux SSH account on the NAS. |
+| **Password** | Password for that user — used for login and often for **`sudo -S`** (privileged commands). **Plain text note:** see *SSH password in the OS vault* below. |
+| **Use SSH key** (checkbox) | When enabled, authentication uses your **private key file** (server must accept key auth). |
+| **Key path** | Full path to the private key on **your Windows PC** (e.g. `C:\Users\…\.ssh\id_ed25519`). |
+| **Key passphrase** | Optional passphrase if the key is encrypted. |
+
+**💾 Save connection** stores IP, port, user, password, SSH-key settings, and UI language in **`nas_admin_connection.json`** next to the EXE (password in plain text unless you use the vault).
+
+**Right side of the header:** **⚠ Full access**, **theme**, **save connection**, **🔐 PW vault**, **Coffee** — aligned to the **bottom** of the full header block (including the hint row below the fields).
+
+**Live monitor** (aggregate **CPU** + **RAM**) is at the **bottom of the left sidebar**, above the status bar (**DE/EN**). **Language** and connection status stay in the **status bar**.
+
+### Restricted mode & “Full access” (v22.2+)
+
+- **By default**, many **risky** actions are **disabled** / grayed out (delete, uploads, Docker changes, planner cron jobs, ACL writes, snapshot create/delete, NAS reboot/shutdown, etc.).
+- **⚠ Full access** in the header: after you confirm the warning, those features **unlock**. **🔒 Restrict** can turn safe mode back on.
+- Details: **`CHANGELOG.md`** section **22.2.0**.
 
 ### Contents (overview)
 

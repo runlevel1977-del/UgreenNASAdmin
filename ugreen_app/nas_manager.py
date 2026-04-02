@@ -29,6 +29,7 @@ import urllib.parse
 import nas_ssh
 import nas_utils
 from ugreen_app._paramiko import _paramiko
+from ugreen_app.mixin_safety_lock import MixinSafetyLock
 from ugreen_app.mixin_theme_ui import MixinThemeUI
 from ugreen_app.mixin_tabs_setup import MixinTabsSetup
 from ugreen_app.mixin_storage_acl_snap import MixinStorageAclSnap
@@ -39,9 +40,10 @@ from ugreen_app.mixin_transfer import MixinTransfer
 from ugreen_app.mixin_editor_cron import MixinEditorCron
 from ugreen_app.i18n import cron_mappings_for_lang, translate
 
-__version__ = "22.1.0"
+__version__ = "22.2.0"
 
 class NASManager(
+    MixinSafetyLock,
     MixinThemeUI,
     MixinTabsSetup,
     MixinStorageAclSnap,
@@ -63,12 +65,12 @@ class NASManager(
         except Exception:
             pass
 
-        # Fenster-Setup (breiter = Planer + Sidebar + Hauptbereich ohne abgeschnittene Buttons)
-        self.base_width = 1360
+        # Fenster-Setup (breiter = Header-Felder + Sidebar + Hauptbereich ohne Abschneiden)
+        self.base_width = 1500
         self.drawer_width = 640
         self.height = 1020
         self.root.geometry(f"{self.base_width}x{self.height}")
-        self.root.minsize(1280, 900)
+        self.root.minsize(1260, 900)
         self.scheduler_expanded = False
         self.is_monitoring = False
         self.current_theme = "light"
@@ -89,6 +91,7 @@ class NASManager(
         self._ssh_mgr = nas_ssh.SSHManager()
         self._nas_dir_fetch_seq = 0
 
+        self._init_danger_lock_state()
         self.setup_ui()
         self._load_connection_config()
         self.root.protocol("WM_DELETE_WINDOW", self._on_app_close)
