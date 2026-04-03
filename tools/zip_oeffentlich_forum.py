@@ -29,7 +29,13 @@ def zip_tree(*, include_exe: bool) -> Path:
             rel = path.relative_to(PUBLIC)
             parts = rel.parts
             if any(p in SKIP_DIR_NAMES for p in parts):
-                continue
+                # dist/ sonst leer im Archiv; mit EXE: genau die PyInstaller-EXE mitnehmen
+                if not (
+                    include_exe
+                    and parts == ("dist", "UgreenNASAdmin.exe")
+                    and path.is_file()
+                ):
+                    continue
             if path.suffix.lower() in SKIP_SUFFIXES:
                 continue
             if not include_exe and path.suffix.lower() == ".exe":

@@ -30,3 +30,9 @@ Desktop **control center** for a Ugreen NAS over SSH: scripts, explorer (upload/
 Do **not** commit `nas_admin_connection.json` or `telegram_notify.json` (ignored via `.gitignore`).
 
 **Hinweis:** Wenn dein bisheriges GitHub-Repo noch den **kompletten** Ordner enthält: entweder auf **Private** stellen und ein **neues leeres public** Repo für nur `öffentlich/` anlegen, oder Inhalt des public Repos bewusst ersetzen (nur `öffentlich/` pushen — ggf. mit neuer Repo-URL).
+
+## Lizenz / License
+
+Deutsch: Dieses Projekt steht unter der MIT-Lizenz. Details siehe Datei `LICENSE`.
+
+English: This project is licensed under the MIT License. See the `LICENSE` file for details.
