@@ -245,3 +245,7 @@ Without extra packages, **“Save connection”** still stores the password **in
 **Note:** the first `pip install` may sit on “Collecting …” for several minutes — usually network/PyPI, not a hang.
 
 > **Screenshots:** In a **public** GitHub repo, images are always downloadable. Do not show real passwords or private IPs.
+
+## License
+
+This project is licensed under the MIT License. See the `LICENSE` file in this folder for details.
