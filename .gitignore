@@ -6,6 +6,7 @@ nas_admin_connection.json
 nas_watch_local.json
 nas_daily_report_local.json
 telegram_notify.json
+last_github_update_check.txt
 .env.web
 
 # Python
