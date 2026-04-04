@@ -5,6 +5,8 @@ PROJECT = os.path.abspath(SPECPATH)
 MAIN = os.path.join(PROJECT, "ugreen_nas_admin.py")
 ICON = os.path.join(PROJECT, "nas_icon.ico")
 PNG = os.path.join(PROJECT, "nas_icon_app.png")
+NAS_WATCH = os.path.join(PROJECT, "ugreen_app", "resources", "nas_central_watch.py")
+NAS_DAILY = os.path.join(PROJECT, "ugreen_app", "resources", "nas_daily_report.py")
 
 a = Analysis(
     [MAIN],
@@ -13,6 +15,8 @@ a = Analysis(
     datas=[
         (ICON, "."),
         (PNG, "."),
+        (NAS_WATCH, "ugreen_app/resources"),
+        (NAS_DAILY, "ugreen_app/resources"),
     ],
     hiddenimports=[
         "ugreen_app",
@@ -32,6 +36,8 @@ a = Analysis(
         "PIL.Image",
         "PIL.ImageDraw",
         "PIL.ImageTk",
+        "ugreen_app.mixin_nas_watch_deploy",
+        "ugreen_app.docker_deploy_wizard",
         "ugreen_app.mixin_editor_cron",
         "ugreen_app.transfer_log",
         "ugreen_app.tooltip",

@@ -1,5 +1,10 @@
+# NAS-Diagnose (Hardware/Software — nur lokal, nicht veröffentlichen)
+docs/nas_diagnose*.txt
+
 # Secrets & local config (never commit)
 nas_admin_connection.json
+nas_watch_local.json
+nas_daily_report_local.json
 telegram_notify.json
 .env.web
 

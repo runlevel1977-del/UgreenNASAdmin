@@ -11,8 +11,8 @@ if not PUBLIC.is_dir():
     PUBLIC = next((d for d in ROOT.iterdir() if d.is_dir() and "ffentlich" in d.name), PUBLIC)
 SKIP_DIR_NAMES = {".git", "__pycache__", "build", "dist"}
 SKIP_SUFFIXES = {".pyc", ".pyo"}
-OUT = ROOT / "UgreenNASAdmin_v22.2.0_oeffentlich_forum.zip"
-OUT_WITH_EXE = ROOT / "UgreenNASAdmin_v22.2.0_oeffentlich_mit_EXE.zip"
+OUT = ROOT / "UgreenNASAdmin_v22.5.0_oeffentlich_forum.zip"
+OUT_WITH_EXE = ROOT / "UgreenNASAdmin_v22.5.0_oeffentlich_mit_EXE.zip"
 
 
 def zip_tree(*, include_exe: bool) -> Path:

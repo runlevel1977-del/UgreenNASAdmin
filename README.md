@@ -6,13 +6,13 @@ Desktop **control center** for a Ugreen NAS over SSH: scripts, explorer (upload/
 
 - **Entwicklung aus dem Projektroot:** `python -m pip install -r öffentlich/requirements.txt` (oder eigene Umgebung), dann `python ugreen_nas_admin.py`.
 - **Früherer Docker-Web-Stack auf dem NAS entfernen:** siehe [`NAS_WEB_STACK_ENTFERNEN.md`](NAS_WEB_STACK_ENTFERNEN.md).
-- **Öffentliche Release-Quelle / EXE bauen:** Ordner **`öffentlich/`** — siehe [`öffentlich/README.md`](öffentlich/README.md) und [`öffentlich/CHANGELOG.md`](öffentlich/CHANGELOG.md).
+- **Öffentliche Release-Quelle / EXE bauen:** Ordner **`öffentlich/`** — siehe [`öffentlich/README.md`](öffentlich/README.md) (u. a. **Benachrichtigungen**, **Funktionsliste**, Screenshots inkl. **System & Health**) und [`öffentlich/CHANGELOG.md`](öffentlich/CHANGELOG.md). Release-ZIP: `python tools/zip_oeffentlich_forum.py` → **`UgreenNASAdmin_v22.5.0_oeffentlich_mit_EXE.zip`** (Quellen + `dist/UgreenNASAdmin.exe` + `images/`).
 - **Optional SSH-Passwort im Windows-Tresor (`keyring`):** ab v22.1 — Anleitung im Abschnitt *SSH-Passwort im Windows-Tresor* in [`öffentlich/README.md`](öffentlich/README.md).
 
 ## English
 
 - **Run from repo root:** `python -m pip install -r öffentlich/requirements.txt`, then `python ugreen_nas_admin.py`.
-- **Public release / build EXE:** see folder **`öffentlich/`** — [`öffentlich/README.md`](öffentlich/README.md), [`öffentlich/CHANGELOG.md`](öffentlich/CHANGELOG.md).
+- **Public release / build EXE:** see **`öffentlich/`** — [`öffentlich/README.md`](öffentlich/README.md) (notifications setup, feature list, screenshots including **System & Health**), [`öffentlich/CHANGELOG.md`](öffentlich/CHANGELOG.md). Zip: `python tools/zip_oeffentlich_forum.py` → **`UgreenNASAdmin_v22.5.0_oeffentlich_mit_EXE.zip`** (sources + `dist/UgreenNASAdmin.exe` + `images/`).
 - **Optional SSH password in OS vault (`keyring`):** v22.1+ — see *SSH password in the OS vault* in [`öffentlich/README.md`](öffentlich/README.md).
 
 ## GitHub — zwei getrennte Repos (privat / öffentlich)
