@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import posixpath
+import shlex
 import shutil
 import shlex
 import stat
@@ -88,6 +89,20 @@ class MixinScriptsDockerMonitor:
                 kwargs["passphrase"] = auth["ssh_key_passphrase"]
         return kwargs
 
+    def schedule_update_human_text(self):
+        """Cron-Klartext: Tastatur-Events entprellen (weniger UI-Last beim Tippen)."""
+        jid = getattr(self, "_human_text_job", None)
+        if jid is not None:
+            try:
+                self.root.after_cancel(jid)
+            except Exception:
+                pass
+        self._human_text_job = self.root.after(90, self._apply_scheduled_human_text)
+
+    def _apply_scheduled_human_text(self):
+        self._human_text_job = None
+        self.update_human_text()
+
     def update_human_text(self):
         m = self.get_cron_val("Minute", self.cron_fields["Minute"].get())
         h = self.get_cron_val("Stunde", self.cron_fields["Stunde"].get())
@@ -126,11 +141,17 @@ class MixinScriptsDockerMonitor:
             return
         sel = self.docker_tree.selection()
         if sel:
-            name = self.docker_tree.item(sel[0], "text")
-            if confirm:
+            name = (self.docker_tree.item(sel[0], "text") or "").strip()
+            if confirm or action == "rm -f":
                 if not messagebox.askyesno(self.t("msg.docker_admin"), self.t("msg.docker_rm", name=name)):
                     return
-            self.run_ssh_cmd(f"docker {action} {name}", True)
+            elif action == "stop":
+                if not messagebox.askyesno(self.t("msg.docker_admin"), self.t("msg.docker_stop_confirm", name=name)):
+                    return
+            elif action == "restart":
+                if not messagebox.askyesno(self.t("msg.docker_admin"), self.t("msg.docker_restart_confirm", name=name)):
+                    return
+            self.run_ssh_cmd(f"docker {action} {shlex.quote(name)}", True)
             self.root.after(1000, self.refresh_docker_list)
 
     def docker_stop_all(self):
@@ -163,6 +184,7 @@ class MixinScriptsDockerMonitor:
             res = self.run_ssh_cmd(
                 "docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}'",
                 True,
+                update_status=False,
             )
 
             def apply():
@@ -180,7 +202,7 @@ class MixinScriptsDockerMonitor:
             self.docker_log_view.insert("1.0", self.t("docker.log_inspect", name=name) + "\n")
 
             def worker():
-                res = self.run_ssh_cmd(f"docker inspect {name}", True)
+                res = self.run_ssh_cmd(f"docker inspect {name}", True, update_status=False)
 
                 def apply():
                     self.docker_log_view.insert(tk.END, res)
@@ -198,9 +220,16 @@ class MixinScriptsDockerMonitor:
                 self.run_ssh_cmd(f"chmod -R 777 {p}", True)
         messagebox.showinfo(self.t("msg.docker_admin"), self.t("msg.docker_chmod_ok"))
 
-    def refresh_docker_list(self):
+    def refresh_docker_list(self, *, ssh_output=None, update_status=True):
+        if ssh_output is None:
+            res = self.run_ssh_cmd(
+                "docker ps -a --format '{{.Names}}|{{.Status}}|{{.Image}}'",
+                True,
+                update_status=update_status,
+            )
+        else:
+            res = ssh_output
         self.docker_tree.delete(*self.docker_tree.get_children())
-        res = self.run_ssh_cmd("docker ps -a --format '{{.Names}}|{{.Status}}|{{.Image}}'", True)
         for line in res.splitlines():
             if "|" in line:
                 n, s, i = line.split("|")
@@ -212,7 +241,7 @@ class MixinScriptsDockerMonitor:
             name = self.docker_tree.item(sel[0], "text").strip()
 
             def worker():
-                res = self.run_ssh_cmd(f"docker logs --tail 100 {name}", True)
+                res = self.run_ssh_cmd(f"docker logs --tail 100 {name}", True, update_status=False)
 
                 def apply():
                     self.docker_log_view.delete("1.0", tk.END)
@@ -223,7 +252,7 @@ class MixinScriptsDockerMonitor:
 
             threading.Thread(target=worker, daemon=True).start()
 
-    def run_ssh_cmd(self, cmd, use_sudo=False):
+    def run_ssh_cmd(self, cmd, use_sudo=False, *, update_status=True):
         auth = self._ssh_auth_payload()
         return self._ssh_mgr.run(
             self.entry_ip.get(),
@@ -235,7 +264,7 @@ class MixinScriptsDockerMonitor:
             ssh_key_path=auth["ssh_key_path"],
             ssh_key_passphrase=auth["ssh_key_passphrase"],
             use_sudo=use_sudo,
-            set_status=self.set_status,
+            set_status=self.set_status if update_status else None,
             status_connected=self.t("status.ssh_connected"),
             status_failed=self.t("status.ssh_failed"),
             error_message_fmt=self.t("ssh.error"),
@@ -299,26 +328,31 @@ class MixinScriptsDockerMonitor:
             last_idle, last_total = 0, 0
 
             while self.is_monitoring:
-                _, stdout, _ = ssh.exec_command("grep '^cpu ' /proc/stat | head -1")
-                line = stdout.readline()
-                if line:
-                    parts = line.split()
-                    if len(parts) >= 5:
-                        nums = list(map(int, parts[1:]))
+                _, stdout, _ = ssh.exec_command(
+                    "grep '^cpu ' /proc/stat | head -1; echo __UG_MEM__; free | grep Mem"
+                )
+                raw = stdout.read().decode(errors="replace")
+                chunks = raw.split("__UG_MEM__", 1)
+                cpu_lines = (chunks[0] or "").strip().splitlines()
+                mem_toks = (chunks[1] or "").strip().split()
+                usage = None
+                line0 = cpu_lines[0] if cpu_lines else ""
+                if line0:
+                    sp = line0.split()
+                    if len(sp) >= 5:
+                        nums = list(map(int, sp[1:]))
                         idle, total = nums[3], sum(nums)
                         diff_idle, diff_total = idle - last_idle, total - last_total
                         if diff_total > 0:
                             usage = 100 * (1 - diff_idle / diff_total)
-                            self.root.after(0, lambda v=usage: self.update_cpu_ui(v))
                         last_idle, last_total = idle, total
-                    
-                _, stdout, _ = ssh.exec_command("free | grep Mem")
-                ram_line = stdout.read().decode().split()
-                
-                if len(ram_line) >= 3:
-                    ram_usage = (int(ram_line[2]) / int(ram_line[1])) * 100
-                    self.root.after(0, lambda v=ram_usage: self.update_ram_ui(v))
-                    
+                ram_usage = None
+                if len(mem_toks) >= 3:
+                    ram_usage = (int(mem_toks[2]) / int(mem_toks[1])) * 100
+                self.root.after(
+                    0,
+                    lambda u=usage, r=ram_usage: self.update_monitor_ui(u, r),
+                )
                 time.sleep(1)
             ssh.close()
         except Exception as e: 
@@ -335,14 +369,33 @@ class MixinScriptsDockerMonitor:
             self.cpu_label.config(text=f"{int(val)}%")
         except (tk.TclError, AttributeError):
             pass
-        
-    def update_ram_ui(self, val): 
-        self.ram_bar['value'] = val
-        self.ram_label.config(text=f"{int(val)}%")
 
-    def refresh_script_list(self):
-        res = self.run_ssh_cmd("ls /volume1/scripts/")
+    def update_ram_ui(self, val):
+        try:
+            self.ram_bar["value"] = val
+            self.ram_label.config(text=f"{int(val)}%")
+        except (tk.TclError, AttributeError):
+            pass
+
+    def update_monitor_ui(self, cpu_val, ram_val):
+        """Ein Tk-Tick pro Messung; keine Redraws wenn Anzeige-% unverändert."""
+        if cpu_val is not None:
+            ci = int(cpu_val)
+            if ci != getattr(self, "_mon_last_cpu_i", -9999):
+                self._mon_last_cpu_i = ci
+                self.update_cpu_ui(cpu_val)
+        if ram_val is not None:
+            ri = int(ram_val)
+            if ri != getattr(self, "_mon_last_ram_i", -9999):
+                self._mon_last_ram_i = ri
+                self.update_ram_ui(ram_val)
+
+    def refresh_script_list(self, *, ssh_output=None, update_status=True):
+        if ssh_output is None:
+            res = self.run_ssh_cmd("ls /volume1/scripts/", update_status=update_status)
+        else:
+            res = ssh_output
         self.script_listbox.delete(0, tk.END)
-        for f in res.splitlines(): 
+        for f in res.splitlines():
             if f and "ls:" not in f:
                 self.script_listbox.insert(tk.END, f"  {f.strip()}")

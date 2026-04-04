@@ -29,6 +29,7 @@ import urllib.parse
 import nas_ssh
 import nas_utils
 from ugreen_app._paramiko import _paramiko
+from ugreen_app import docker_deploy_wizard as _ddw
 
 class MixinExplorer:
     def _explorer_type(self, kind):
@@ -57,7 +58,7 @@ class MixinExplorer:
                 return
             batch = paths[i : i + 32]
             args = " ".join(shlex.quote(p) for p in batch)
-            out = self.run_ssh_cmd(f"LC_ALL=C du -sk {args} 2>/dev/null", False)
+            out = self.run_ssh_cmd(f"LC_ALL=C du -sk {args} 2>/dev/null", False, update_status=False)
             if nas_utils.looks_like_ssh_error_output(out):
                 continue
             for line in out.splitlines():
@@ -100,26 +101,50 @@ class MixinExplorer:
 
         def worker():
             cache = {}
+            aborted = False
+            root_norm = os.path.normpath(root)
+            max_files = 6000
+            max_depth = 6
+            file_count = 0
             try:
-                for cur, _dirs, files in os.walk(root, topdown=True):
+                for cur, dirs, files in os.walk(root, topdown=True):
+                    try:
+                        rel = os.path.relpath(cur, root_norm)
+                        depth = 0 if rel in (".", "") else rel.count(os.sep) + 1
+                    except ValueError:
+                        depth = 99
+                    if depth >= max_depth:
+                        dirs[:] = []
                     total = 0
                     for fn in files:
+                        if file_count >= max_files:
+                            aborted = True
+                            break
                         fp = os.path.join(cur, fn)
                         try:
                             total += int(os.path.getsize(self._win_long_path_local(fp)))
                         except OSError:
                             continue
+                        file_count += 1
+                    if aborted:
+                        break
                     cache[os.path.normpath(cur)] = total
-                # Bottom-up akkumulieren: Eltern erhalten Summen der Unterordner.
-                for cur in sorted(cache.keys(), key=lambda p: len(p), reverse=True):
-                    parent = os.path.normpath(os.path.dirname(cur))
-                    if parent != cur and parent.startswith(root):
-                        cache[parent] = cache.get(parent, 0) + cache[cur]
+                if not aborted:
+                    for cur in sorted(cache.keys(), key=lambda p: len(p), reverse=True):
+                        parent = os.path.normpath(os.path.dirname(cur))
+                        if parent != cur and (
+                            parent == root_norm
+                            or parent.startswith(root_norm + os.sep)
+                        ):
+                            cache[parent] = cache.get(parent, 0) + cache[cur]
             finally:
                 if seq == getattr(self, "_local_size_preload_seq", 0):
-                    self._local_dir_size_cache = cache
                     self._local_size_preload_running = False
-                    self.root.after(0, self._refresh_visible_local_size_cells)
+                    if not aborted and cache:
+                        self._local_dir_size_cache = cache
+                        self.root.after(0, self._refresh_visible_local_size_cells)
+                    elif not aborted and not cache:
+                        self._local_dir_size_cache = {}
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -147,7 +172,7 @@ class MixinExplorer:
         load_ph = self.tree.insert(item, tk.END, text=self.t("explorer.loading"))
 
         def worker():
-            res = self.run_ssh_cmd(f"LC_ALL=C ls -lnAp {shlex.quote(p)}", False)
+            res = self.run_ssh_cmd(f"LC_ALL=C ls -lnAp {shlex.quote(p)}", False, update_status=False)
 
             def apply_listing():
                 if not self.tree.exists(item):
@@ -204,7 +229,7 @@ class MixinExplorer:
         cmd = f"ls -1p {shlex.quote(base_path)}"
 
         def worker():
-            out = self.run_ssh_cmd(cmd, False)
+            out = self.run_ssh_cmd(cmd, False, update_status=False)
             hits = []
             q_lower = q.lower()
             for line in out.splitlines():
@@ -258,65 +283,269 @@ class MixinExplorer:
             return
         dw = tk.Toplevel(self.root)
         dw.title(self.t("docker.dialog_title"))
-        dw.geometry("850x650")
+        dw.geometry("880x680")
+        dw.minsize(520, 380)
         dw.configure(bg=self.color_surface_alt)
-        
+        dw.transient(self.root)
+
+        # Native tk.Button (relief=RAISED): wie früher klare Pack-Reihenfolge — alles sichtbar unter Windows.
+        def _dock_btn(parent, text, command):
+            return tk.Button(
+                parent,
+                text=text,
+                command=command,
+                font=self.font_bold,
+                padx=10,
+                pady=5,
+                relief=tk.RAISED,
+                borderwidth=2,
+                cursor="hand2",
+            )
+
         header = tk.Frame(dw, bg=self.color_btn_blue, pady=12)
-        header.pack(fill=tk.X)
         tk.Label(header, text=self.t("docker.dialog_hint"), bg=self.color_btn_blue, fg="white", font=self.font_head).pack()
 
-        txt_frame = tk.Frame(dw, bg=self.color_surface_alt, padx=20, pady=20)
-        txt_frame.pack(fill=tk.BOTH, expand=True)
-        txt = scrolledtext.ScrolledText(txt_frame, font=self.font_mono, bg=self.color_editor_bg, fg=self.color_editor_fg, insertbackground=self.color_editor_fg, relief="flat", highlightbackground=self.color_border, highlightthickness=1)
+        txt_frame = tk.Frame(dw, bg=self.color_surface_alt, padx=16, pady=10)
+        txt = scrolledtext.ScrolledText(
+            txt_frame,
+            font=self.font_mono,
+            height=22,
+            width=82,
+            bg=self.color_editor_bg,
+            fg=self.color_editor_fg,
+            insertbackground=self.color_editor_fg,
+            relief="flat",
+            highlightbackground=self.color_border,
+            highlightthickness=1,
+            wrap=tk.WORD,
+        )
         txt.pack(fill=tk.BOTH, expand=True)
-        
-        def run_it():
-            content = txt.get("1.0", tk.END).strip()
-            if not content: return
 
-            is_yaml = content.startswith("version:") or "services:" in content
-            
+        var_mkdir = tk.BooleanVar(value=True)
+        btn_bar = tk.Frame(dw, bg=self.color_surface_alt, pady=12, padx=16)
+        tools = tk.Frame(btn_bar, bg=self.color_surface_alt)
+        tools.pack(fill=tk.X)
+        start_row = tk.Frame(btn_bar, bg=self.color_surface_alt)
+        start_row.pack(fill=tk.X, pady=(10, 0))
+
+        dw._wiz_vars_list = []
+        dw._wiz_entries = {}
+        dw._wiz_is_compose = False
+        dw._wiz_vars_win = None
+
+        def _close_vars_win():
+            w = getattr(dw, "_wiz_vars_win", None)
+            if w is not None and w.winfo_exists():
+                try:
+                    w.unbind_all("<MouseWheel>")
+                except Exception:
+                    pass
+                w.destroy()
+            dw._wiz_vars_win = None
+
+        def _destroy_dw():
+            _close_vars_win()
+            dw.destroy()
+
+        def load_file():
+            p = filedialog.askopenfilename(
+                parent=dw,
+                title=self.t("docker.wizard.load_title"),
+                filetypes=[
+                    (self.t("docker.wizard.ftypes"), "*.yml *.yaml *.txt *.sh"),
+                    (self.t("msg.open"), "*.*"),
+                ],
+            )
+            if not p:
+                return
+            try:
+                with open(p, encoding="utf-8", errors="replace") as f:
+                    txt.delete("1.0", tk.END)
+                    txt.insert("1.0", f.read())
+            except OSError as e:
+                messagebox.showerror(self.t("docker.wizard.load_title"), str(e))
+
+        def open_vars_window(vl):
+            _close_vars_win()
+            vw = tk.Toplevel(dw)
+            dw._wiz_vars_win = vw
+            vw.title(self.t("docker.wizard.vars_window_title"))
+            vw.configure(bg=self.color_surface_alt)
+            vw.geometry("860x480")
+            vw.transient(dw)
+            tk.Label(
+                vw,
+                text=self.t("docker.wizard.form_title"),
+                bg=self.color_surface_alt,
+                fg=self.color_text_muted,
+                font=("Segoe UI", 9, "bold"),
+                anchor="w",
+            ).pack(fill=tk.X, padx=12, pady=(10, 4))
+
+            form_outer = tk.Frame(vw, bg=self.color_surface_alt, padx=12, pady=(0, 8))
+            form_outer.pack(fill=tk.BOTH, expand=True)
+            canvas = tk.Canvas(form_outer, bg=self.color_surface_alt, highlightthickness=0, height=320)
+            vsb = ttk.Scrollbar(form_outer, orient="vertical", command=canvas.yview)
+            form_inner = tk.Frame(canvas, bg=self.color_surface_alt)
+
+            def _form_canvas_scrollregion(_event=None):
+                box = canvas.bbox("all")
+                if box:
+                    canvas.configure(scrollregion=box)
+
+            form_inner.bind("<Configure>", _form_canvas_scrollregion)
+            cw = canvas.create_window((0, 0), window=form_inner, anchor="nw")
+
+            def _canvas_resize(event):
+                canvas.itemconfig(cw, width=event.width)
+
+            canvas.bind("<Configure>", _canvas_resize)
+            canvas.configure(yscrollcommand=vsb.set)
+            canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            vsb.pack(side=tk.RIGHT, fill=tk.Y)
+
+            def _wheel_canvas(e):
+                canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
+
+            def _wheel_bind(_):
+                vw.bind_all("<MouseWheel>", _wheel_canvas)
+
+            def _wheel_unbind(_):
+                try:
+                    vw.unbind_all("<MouseWheel>")
+                except Exception:
+                    pass
+
+            canvas.bind("<Enter>", _wheel_bind)
+            canvas.bind("<Leave>", _wheel_unbind)
+
+            for v in vl:
+                row = tk.Frame(form_inner, bg=self.color_surface_alt)
+                row.pack(fill=tk.X, pady=3)
+                if v.kind == "placeholder":
+                    lab = self.t("docker.wizard.lbl.placeholder", name=v.name)
+                elif v.kind == "volume":
+                    lab = self.t("docker.wizard.lbl.volume", name=v.name)
+                elif v.kind == "port":
+                    lab = self.t("docker.wizard.lbl.port", map=v.name, cport=v.port_container)
+                else:
+                    lab = self.t("docker.wizard.lbl.env", key=v.env_key)
+                tk.Label(row, text=lab, bg=self.color_surface_alt, fg=self.color_text_muted, width=28, anchor="w", font=("Segoe UI", 9)).pack(side=tk.LEFT, padx=(0, 8))
+                sv = tk.StringVar(value=v.default)
+                dw._wiz_entries[v.id] = sv
+                tk.Entry(
+                    row,
+                    textvariable=sv,
+                    font=self.font_mono,
+                    relief="flat",
+                    highlightbackground=self.color_border,
+                    highlightthickness=1,
+                    bg=self.color_input_bg,
+                    fg=self.color_input_fg,
+                    insertbackground=self.color_input_fg,
+                ).pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=3)
+            canvas.update_idletasks()
+            _form_canvas_scrollregion()
+
+            def _on_vars_close():
+                _wheel_unbind(None)
+                if dw._wiz_vars_win is vw:
+                    dw._wiz_vars_win = None
+                vw.destroy()
+
+            bf = tk.Frame(vw, bg=self.color_surface_alt, pady=8)
+            bf.pack(fill=tk.X, side=tk.BOTTOM)
+            _dock_btn(bf, "OK", _on_vars_close).pack(side=tk.RIGHT, padx=12)
+            vw.protocol("WM_DELETE_WINDOW", _on_vars_close)
+
+        def scan_vars():
+            _close_vars_win()
+            raw = txt.get("1.0", tk.END).strip()
+            dw._wiz_entries.clear()
+            if not raw:
+                messagebox.showinfo(self.t("docker.wizard.scan"), self.t("docker.wizard.empty"))
+                return
+            vl, is_comp = _ddw.analyze_docker_text(raw)
+            dw._wiz_vars_list = vl
+            dw._wiz_is_compose = is_comp
+            if not vl:
+                dw._wiz_vars_list = []
+                messagebox.showinfo(self.t("docker.wizard.scan"), self.t("docker.wizard.none"))
+                return
+            open_vars_window(vl)
+
+        def run_it():
+            raw = txt.get("1.0", tk.END).strip()
+            if not raw:
+                return
+            vl = dw._wiz_vars_list
+            vals = {k: sv.get() for k, sv in dw._wiz_entries.items()}
+            content = raw
+            if vl and dw._wiz_entries:
+                content = _ddw.apply_docker_vars(content, vl, vals)
+                self.log(self.t("docker.wizard.log_applied"))
+
+            is_yaml = content.startswith("version:") or "services:" in content or content.lstrip().startswith("services:")
+
             if is_yaml:
-                self.log("📄 Modus: Docker-Compose (YAML) erkannt")
+                self.log("📄 Modus: Docker-Compose (YAML)")
                 temp_yaml = "/volume1/docker/temp_deploy.yaml"
                 self.run_ssh_cmd("mkdir -p /volume1/docker", True)
-                
-                # Sicherer Transfer via Base64
+
                 b64_content = base64.b64encode(content.encode()).decode()
                 self.run_ssh_cmd(f"echo '{b64_content}' | base64 -d > {temp_yaml}", True)
-                
-                # Pfade im YAML finden (Regex verbessert)
-                volume_matches = re.findall(r'-\s+([\w\-/]+):', content)
-                
-                # FIX: Probiert 'docker compose' UND 'docker-compose'
+
+                volume_matches = _ddw.list_bind_host_paths(content)
+
                 final_cmd = f"docker compose -f {temp_yaml} up -d || docker-compose -f {temp_yaml} up -d"
             else:
-                self.log("🚀 Modus: Docker CLI (Run) erkannt")
-                volume_matches = re.findall(r'-v\s+([\w\-/]+):', content)
+                self.log("🚀 Modus: Docker CLI (Run)")
+                volume_matches = _ddw.list_bind_host_paths(content)
                 final_cmd = content
 
-            if volume_matches:
-                self.log(f"🛠️ Prüfe {len(volume_matches)} Pfad(e)...")
+            if var_mkdir.get() and volume_matches:
+                self.log(self.t("docker.wizard.log_mkdir", n=len(volume_matches)))
                 for host_path in volume_matches:
-                    if host_path.startswith('/'):
-                        # Erstellt Ordner und gibt Rechte
-                        self.run_ssh_cmd(f"mkdir -p {host_path} && chmod 777 {host_path}", True)
-                        self.log(f"✅ Bereit: {host_path}")
+                    if host_path.startswith("/"):
+                        self.run_ssh_cmd(f"mkdir -p {shlex.quote(host_path)} && chmod 777 {shlex.quote(host_path)}", True)
+                        self.log(f"✅ {host_path}")
 
             self.log("⏳ Sende Befehl an NAS...")
             res = self.run_ssh_cmd(final_cmd, True)
-            
+
             if res:
-                self.log(f"📝 Rückmeldung: {res[:150]}...")
-            
+                self.log(f"📝 Rückmeldung: {res[:200]}...")
+
             messagebox.showinfo(self.t("msg.docker_status"), self.t("msg.docker_status_done"))
+            _close_vars_win()
             dw.destroy()
-            # Liste nach 2 Sekunden aktualisieren
             self.root.after(2000, self.refresh_docker_list)
 
-        btn_frame = tk.Frame(dw, bg=self.color_surface_alt, pady=15)
-        btn_frame.pack(fill=tk.X, side=tk.BOTTOM)
-        self.create_modern_btn(btn_frame, self.t("docker.btn_start_container"), run_it, "#10b981").pack(pady=10, fill=tk.X, padx=20)
+        _dock_btn(tools, self.t("docker.wizard.load_file"), load_file).pack(side=tk.LEFT, padx=(0, 8))
+        _dock_btn(tools, self.t("docker.wizard.scan"), scan_vars).pack(side=tk.LEFT, padx=(0, 8))
+        tk.Checkbutton(
+            tools,
+            text=self.t("docker.wizard.mkdir"),
+            variable=var_mkdir,
+            bg=self.color_surface_alt,
+            fg=self.color_text,
+            selectcolor=self.color_surface,
+            activebackground=self.color_surface_alt,
+            font=self.font_base,
+        ).pack(side=tk.LEFT, padx=(12, 0))
+        _dock_btn(start_row, self.t("docker.btn_start_container"), run_it).pack(fill=tk.X)
+
+        # Wie im ursprünglichen Commit: zuerst Header + Editor, Leiste zuletzt mit side=BOTTOM.
+        header.pack(fill=tk.X)
+        txt_frame.pack(fill=tk.BOTH, expand=True)
+        btn_bar.pack(fill=tk.X, side=tk.BOTTOM)
+
+        dw.protocol("WM_DELETE_WINDOW", _destroy_dw)
+        try:
+            dw.lift()
+            txt.focus_set()
+        except Exception:
+            pass
 
     def backup_scripts_to_local(self):
         import datetime
@@ -355,7 +584,7 @@ class MixinExplorer:
             self.scheduler_expanded = False
 
     def edit_cronjobs(self):
-        res = self.run_ssh_cmd(f"cat {self.stable_cron_path}", True)
+        res = self._sanitize_stable_cron_text(self.run_ssh_cmd(f"cat {self.stable_cron_path}", True))
         self.entry_filename.delete(0, tk.END)
         self.entry_filename.insert(0, "STABLE_TASKS")
         self.text_editor.delete("1.0", tk.END)
@@ -544,6 +773,15 @@ class MixinExplorer:
         if hasattr(self, "lbl_explorer_path_local"):
             self.lbl_explorer_path_local.config(text=cwd)
         self._refresh_visible_local_size_cells()
+        self.root.after(100, lambda t=token, c=cwd: self._local_deferred_size_preload(t, c))
+
+    def _local_deferred_size_preload(self, token, cwd):
+        if token != getattr(self, "_local_refresh_token", 0):
+            return
+        cur = os.path.normpath(self.explorer_local_cwd or "")
+        if os.path.normpath(cwd or "") != cur:
+            return
+        self._start_local_size_preload(cwd)
 
     def explorer_local_refresh(self):
         if not hasattr(self, "tree_local"):
@@ -576,7 +814,6 @@ class MixinExplorer:
             self.tree_local.delete(x)
         if hasattr(self, "lbl_explorer_path_local"):
             self.lbl_explorer_path_local.config(text=self.t("explorer.local_path_loading", cwd=cwd))
-        self._start_local_size_preload(cwd)
 
         def work():
             try:

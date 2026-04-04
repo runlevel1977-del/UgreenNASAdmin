@@ -53,7 +53,28 @@ class MixinStorageAclSnap:
         self.storage_output.see(tk.END)
         self.set_status("Speicher: Freigaben aktualisiert")
 
-    def storage_refresh_all(self):
+    def storage_refresh_all(self, *, _prefetch=None, update_status=True):
+        if not hasattr(self, "storage_output"):
+            return
+        if _prefetch is not None:
+            vol, smb, nfs = _prefetch
+            self.storage_output.delete("1.0", tk.END)
+            self.storage_output.insert(tk.END, "=== VOLUMES (df -h, ohne tmpfs) ===\n\n")
+            self.storage_output.insert(tk.END, (vol or "").strip() or "(Keine Ausgabe)\n")
+            self.storage_output.insert(tk.END, "\n\n=== SAMBA (testparm / smb.conf Auszug) ===\n\n")
+            self.storage_output.insert(
+                tk.END,
+                smb.strip() if (smb or "").strip() else "(Nicht lesbar oder nicht installiert)\n",
+            )
+            self.storage_output.insert(tk.END, "\n\n=== NFS (exportfs / exports) ===\n\n")
+            self.storage_output.insert(
+                tk.END,
+                nfs.strip() if (nfs or "").strip() else "(Keine exports / kein Zugriff)\n",
+            )
+            self.storage_output.see(tk.END)
+            if update_status:
+                self.set_status("Speicher: aktualisiert")
+            return
         self.storage_refresh_volumes()
         self.storage_refresh_shares()
 
@@ -293,16 +314,30 @@ class MixinStorageAclSnap:
         self.health_text.insert(tk.END, text + "\n")
         self.health_text.see(tk.END)
 
-    def refresh_health_overview(self):
+    def refresh_health_overview(self, *, _prefetch=None, update_status=True):
         self._health_write("\n=== HEALTH OVERVIEW ===")
-        self.set_status(self.t("status.health_loading"))
-        host = self.run_ssh_cmd("hostname && uptime", True)
+        if _prefetch is not None:
+            host, cpu, df_out, md_out = _prefetch
+        else:
+            if update_status:
+                self.set_status(self.t("status.health_loading"))
+            host = self.run_ssh_cmd("hostname && uptime", True, update_status=update_status)
+            cpu = self.run_ssh_cmd("cat /proc/loadavg", True, update_status=update_status)
+            df_out = self.run_ssh_cmd(
+                "df -h | grep -E 'Filesystem|/volume|/dev/'", True, update_status=update_status
+            )
+            md_out = self.run_ssh_cmd("cat /proc/mdstat", True, update_status=update_status)
         self._health_write(host.strip())
-        cpu = self.run_ssh_cmd("cat /proc/loadavg", True)
         self._health_write(f"Loadavg: {cpu.strip()}")
-        self.health_check_storage()
-        self.health_check_raid()
-        self.set_status(self.t("status.health_done"), connected=("Fehler bei SSH-Verbindung" not in host))
+        self._health_write("\n--- STORAGE ---")
+        self._health_write(df_out.strip() if df_out.strip() else "Keine Daten")
+        self._health_write("\n--- RAID ---")
+        self._health_write(md_out.strip() if md_out.strip() else "Keine mdstat Daten")
+        if update_status:
+            self.set_status(
+                self.t("status.health_done"),
+                connected=("Fehler bei SSH-Verbindung" not in host),
+            )
 
     def health_check_storage(self):
         self._health_write("\n--- STORAGE ---")

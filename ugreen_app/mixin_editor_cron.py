@@ -31,6 +31,18 @@ import nas_utils
 from ugreen_app._paramiko import _paramiko
 
 class MixinEditorCron:
+    @staticmethod
+    def _sanitize_stable_cron_text(text: str) -> str:
+        """Entfernt Zeilen wie `[sudo] password for …` (stderr von sudo -S oder einmal falsch mitgespeichert)."""
+        if not (text or "").strip():
+            return text or ""
+        lines = []
+        for line in text.splitlines():
+            if line.strip().lower().startswith("[sudo]"):
+                continue
+            lines.append(line)
+        return "\n".join(lines)
+
     def load_selected_script(self, event):
         sel = self.script_listbox.curselection()
         if sel:
@@ -45,7 +57,7 @@ class MixinEditorCron:
 
     def sync_scheduler(self, script_name):
         self.lbl_target_script.config(text=f"Ziel-Skript: {script_name}", fg=self.color_user)
-        res = self.run_ssh_cmd(f"cat {self.stable_cron_path}", True)
+        res = self._sanitize_stable_cron_text(self.run_ssh_cmd(f"cat {self.stable_cron_path}", True))
         found = False
         
         for line in res.splitlines():
@@ -101,6 +113,9 @@ class MixinEditorCron:
         if not self._danger_gate():
             return
         fn = self.entry_filename.get().strip()
+        if not fn:
+            messagebox.showwarning(self.t("msg.save_error"), self.t("msg.editor_save_no_fn"))
+            return
         content = self.text_editor.get("1.0", tk.END).strip()
         
         if fn == "STABLE_TASKS": 
@@ -153,13 +168,17 @@ class MixinEditorCron:
         if not fn or fn == "STABLE_TASKS": return
         
         v = [self.get_cron_val(k, self.cron_fields[k].get()) for k in ["Minute", "Stunde", "Tag", "Monat", "Wochentag"]]
-        cmd = f"/bin/bash /volume1/scripts/{fn}"
-        
-        if self.var_first_week.get(): 
+        script_path = posixpath.join("/volume1/scripts", posixpath.basename(fn))
+        if fn.lower().endswith(".py"):
+            cmd = f"/usr/bin/python3 {shlex.quote(script_path)}"
+        else:
+            cmd = f"/bin/bash {shlex.quote(script_path)}"
+
+        if self.var_first_week.get():
             cmd = f"[ $(date +\\%d) -le 7 ] && {cmd}"
-            
+
         new_line = f"{' '.join(v)} root {cmd}"
-        curr = self.run_ssh_cmd(f"cat {self.stable_cron_path}", True)
+        curr = self._sanitize_stable_cron_text(self.run_ssh_cmd(f"cat {self.stable_cron_path}", True))
         lines = [l.strip() for l in curr.splitlines() if l.strip() and fn not in l]
         lines.append(f"# Job (Host): {fn}\n{new_line}")
         
@@ -184,7 +203,7 @@ class MixinEditorCron:
             cmd = f"[ $(date +\\%d) -le 7 ] && {cmd}"
             
         new_line = f"{' '.join(v)} root {cmd}"
-        curr = self.run_ssh_cmd(f"cat {self.stable_cron_path}", True)
+        curr = self._sanitize_stable_cron_text(self.run_ssh_cmd(f"cat {self.stable_cron_path}", True))
         lines = [l.strip() for l in curr.splitlines() if l.strip() and fn not in l]
         lines.append(f"# Job (Docker): {fn}\n{new_line}")
         

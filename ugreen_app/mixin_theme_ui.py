@@ -362,16 +362,19 @@ class MixinThemeUI:
         )
         self._header_hint_label.pack(anchor=tk.W)
 
-        def _sync_header_hint_wrap(_event=None):
-            try:
-                w = int(self.header_frame.winfo_width() or 0)
-                if w > 120:
-                    self._header_hint_label.config(wraplength=max(280, w - 80))
-            except tk.TclError:
-                pass
+        self._header_hint_wrap_job = None
 
-        self.header_frame.bind("<Configure>", _sync_header_hint_wrap, add="+")
-        self.root.after(200, _sync_header_hint_wrap)
+        def _schedule_header_hint_wrap(_event=None):
+            jid = self._header_hint_wrap_job
+            if jid is not None:
+                try:
+                    self.root.after_cancel(jid)
+                except Exception:
+                    pass
+            self._header_hint_wrap_job = self.root.after(100, self._apply_header_hint_wrap)
+
+        self.header_frame.bind("<Configure>", _schedule_header_hint_wrap, add="+")
+        self.root.after(200, self._apply_header_hint_wrap)
 
         tk.Frame(self.root, bg=self.color_border, height=1).pack(side=tk.TOP, fill=tk.X)
 
@@ -579,29 +582,93 @@ class MixinThemeUI:
         else:
             btn.set_theme(self.color_surface_alt, self.color_text)
 
+    def _apply_header_hint_wrap(self):
+        self._header_hint_wrap_job = None
+        try:
+            w = int(self.header_frame.winfo_width() or 0)
+            if w > 120:
+                self._header_hint_label.config(wraplength=max(280, w - 80))
+        except tk.TclError:
+            pass
+
     def refresh_all_panels(self):
         self.set_status(self.t("status.refreshing"))
-        try:
-            self.refresh_script_list()
-        except Exception:
-            pass
-        try:
-            self.scan_nas()
-        except Exception:
-            pass
-        try:
-            self.refresh_docker_list()
-        except Exception:
-            pass
-        try:
-            self.refresh_health_overview()
-        except Exception:
-            pass
-        try:
-            self.storage_refresh_all()
-        except Exception:
-            pass
-        self.set_status(self.t("status.refreshed"))
+        self._refresh_all_token = getattr(self, "_refresh_all_token", 0) + 1
+        token = self._refresh_all_token
+
+        def worker():
+            if token != self._refresh_all_token:
+                return
+            try:
+                script_out = self.run_ssh_cmd("ls /volume1/scripts/", update_status=False)
+            except Exception:
+                script_out = ""
+            try:
+                docker_out = self.run_ssh_cmd(
+                    "docker ps -a --format '{{.Names}}|{{.Status}}|{{.Image}}'",
+                    True,
+                    update_status=False,
+                )
+            except Exception:
+                docker_out = ""
+            try:
+                host = self.run_ssh_cmd("hostname && uptime", True, update_status=False)
+                cpu = self.run_ssh_cmd("cat /proc/loadavg", True, update_status=False)
+                df_out = self.run_ssh_cmd(
+                    "df -h | grep -E 'Filesystem|/volume|/dev/'", True, update_status=False
+                )
+                md_out = self.run_ssh_cmd("cat /proc/mdstat", True, update_status=False)
+                health_pref = (host, cpu, df_out, md_out)
+            except Exception:
+                health_pref = ("", "", "", "")
+            try:
+                vol = self.run_ssh_cmd(
+                    "df -h -x tmpfs -x devtmpfs 2>/dev/null || df -h 2>/dev/null",
+                    True,
+                    update_status=False,
+                )
+                smb = self.run_ssh_cmd(
+                    "testparm -s 2>/dev/null | head -250 || cat /etc/samba/smb.conf 2>/dev/null | head -250",
+                    True,
+                    update_status=False,
+                )
+                nfs = self.run_ssh_cmd(
+                    "exportfs -v 2>/dev/null; echo '---'; cat /etc/exports 2>/dev/null",
+                    True,
+                    update_status=False,
+                )
+                storage_pref = (vol, smb, nfs)
+            except Exception:
+                storage_pref = ("", "", "")
+
+            def apply():
+                if token != self._refresh_all_token:
+                    return
+                try:
+                    self.refresh_script_list(ssh_output=script_out, update_status=False)
+                except Exception:
+                    pass
+                try:
+                    self.scan_nas()
+                except Exception:
+                    pass
+                try:
+                    self.refresh_docker_list(ssh_output=docker_out, update_status=False)
+                except Exception:
+                    pass
+                try:
+                    self.refresh_health_overview(_prefetch=health_pref, update_status=False)
+                except Exception:
+                    pass
+                try:
+                    self.storage_refresh_all(_prefetch=storage_pref, update_status=False)
+                except Exception:
+                    pass
+                self.set_status(self.t("status.refreshed"))
+
+            self.root.after(0, apply)
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def toggle_ui_language(self):
         from ugreen_app.i18n import cron_mappings_for_lang

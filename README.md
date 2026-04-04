@@ -32,6 +32,16 @@ Diese Bilder liegen unter **`images/`** (z. B. `1.png` … `6.png`) und könne
 </p>
 <p align="center"><sub>z. B. Docker, Explorer, Sidebar mit Live-Monitor · e.g. Docker, Explorer, sidebar with live monitor</sub></p>
 
+<p align="center">
+  <img src="images/health_system_1.png" alt="System & Health — Übersicht" width="400" />
+  &nbsp;&nbsp;
+  <img src="images/health_system_2.png" alt="System & Health — Wächter" width="400" />
+</p>
+<p align="center">
+  <img src="images/health_system_3.png" alt="System & Health — Tagesbericht" width="820" />
+</p>
+<p align="center"><sub>Tab System &amp; Health (Telegram, NAS-Zentral-Wächter, Tagesbericht) · System &amp; Health tab</sub></p>
+
 ---
 
 ## Deutsch
@@ -136,6 +146,39 @@ Ohne Zusatzpaket bleibt alles wie bisher: **„Verbindung speichern“** schreib
 **Hinweis:** Erster `pip install` kann auf „Collecting …“ einige Minuten stehen — das ist meist Netzwerk/PyPI, kein Fehler.
 
 > **Hinweis zu Screenshots:** In einem **öffentlichen** GitHub-Repository sind Bilder immer herunterladbar. Keine echten Passwörter oder private IPs sichtbar machen.
+
+### Benachrichtigungen einrichten (Telegram & E-Mail)
+
+**A) Schnellüberwachung vom PC (Telegram-Wächter im Tab „System & Health“)**  
+1. Bei [@BotFather](https://t.me/BotFather) einen Bot anlegen und das **Bot-Token** kopieren.  
+2. **Chat-ID** ermitteln (z. B. Nachricht an den Bot schicken, dann `getUpdates` in der Bot-API prüfen, oder Hilfs-Bots nutzen — nur vertrauenswürdige Tools verwenden).  
+3. In der App: **„Volle Rechte“** aktivieren, im Bereich **Telegram** Token und Chat-ID eintragen, **Speichern** — es entsteht `telegram_notify.json` neben der EXE.  
+4. **Intervall** und **Schwellen** (Speicher warn/kritisch, Temperatur, …) setzen, optional **„Wächter aktiv“**, erneut speichern. Der Wächter läuft **solange die App offen ist** und sendet bei Auffälligkeiten Nachrichten nach Telegram.
+
+**B) Unabhängig vom PC: NAS-Zentral-Wächter + optional E-Mail (läuft auf dem NAS per Cron)**  
+1. Gleiche **Telegram**-Daten wie oben in der App pflegen (oder nur E-Mail-Kanal wählen).  
+2. Im Bereich **NAS-Zentral-Wächter** Kanal **Telegram**, **E-Mail** oder **Beides** wählen.  
+3. **E-Mail:** SMTP-Host, Port, Benutzer/Passwort falls nötig, **Von** / **An**, TLS: **STARTTLS** (z. B. Port 587) oder **SMTPS** (z. B. Port 465, Häkchen **SMTPS**).  
+4. **„Auf NAS installieren“** — Skript und Konfiguration werden per SSH nach **`/volume1/scripts/`** geschrieben.  
+5. Auf dem NAS einen **Cron-Job** eintragen (Hinweis steht im Dialog), z. B. alle 5 Minuten `python3` mit `ugreen_watch.py`.  
+6. **„Test“** in der App: prüft u. a. SMTP (`--smtp-test`) und einen Lauf mit `--once`.  
+7. **DNS auf dem NAS:** Wenn der SMTP-Hostname nicht aufgelöst wird, am NAS DNS setzen (Router) oder **SMTP per IP** eintragen.
+
+**Tagesbericht (Info, kein Alarm):** separater Bereich unter dem Zentral-Wächter — **„Auf NAS installieren“**, Cron **täglich** (z. B. morgens), nutzt dieselben Kanal-/SMTP-Einstellungen. **Berichtssprache** entspricht der **UI-Sprache (DE/EN) beim Installieren**.
+
+### Funktionsliste der App (Kurzüberblick)
+
+| Bereich | Funktionen |
+|--------|------------|
+| **Allgemein** | SSH-Verbindung (IP, Port, User, Passwort, optional **SSH-Key**), **Verbindung speichern**, optional **🔐 PW Tresor** (`keyring`), **DE/EN**, **Hell/Dunkel**, **Live-Monitor** (CPU/RAM), Statuszeile, **eingeschränkter Modus** / **Volle Rechte** |
+| **Scripte** | Verzeichnis `/volume1/scripts/`, Dateien **lesen/speichern** (root oder Benutzer), **chmod 755**, **Cron** (`/etc/cron.d/…`, stabile Jobs, **STABLE_TASKS**), Shortcuts |
+| **Explorer** | NAS-Baum + **Dieser PC**, **Upload/Download**, **Kopieren** NAS↔PC, Ordner rekursiv, Fortschritt, Suche, Ordnergrößen, Kontextmenü (Löschen mit Freigabe) |
+| **Docker** | Container-Liste, **Start/Stop/Restart/Entfernen** (mit Rückfragen), **Stats / Logs / Inspect**, Berechtigungen Host-Mounts, **Assistent „Neuer Container/Stack“** (Compose/`docker run`, Variablen, `mkdir` auf NAS) |
+| **System & Health** | **Refresh**, RAID, SMART, Speicher, Bericht, **Snapshot speichern**, **NAS neustarten/herunterfahren** (mit Sicherheitsdialogen), **Telegram-Wächter** (PC-Sitzung), **NAS-Zentral-Wächter** + **Tagesbericht** (Installation auf NAS) |
+| **Speicher** | Übersicht, **Samba testparm**, **NFS exports** |
+| **Rechte (ACL)** | Pfad wählen, ACL anzeigen/setzen (mit Freigabe) |
+| **Snapshots** | Btrfs / ZFS / Snapper — je nach NAS angebunden |
+| **Zeitpläne** | Cron-Editor und Host-Jobs (mit Freigabe) |
 
 ---
 
@@ -245,6 +288,39 @@ Without extra packages, **“Save connection”** still stores the password **in
 **Note:** the first `pip install` may sit on “Collecting …” for several minutes — usually network/PyPI, not a hang.
 
 > **Screenshots:** In a **public** GitHub repo, images are always downloadable. Do not show real passwords or private IPs.
+
+### Setting up notifications (Telegram & email)
+
+**A) Quick monitoring from the PC (Telegram guard in “System & Health”)**  
+1. Create a bot with [@BotFather](https://t.me/BotFather) and copy the **bot token**.  
+2. Find your **chat ID** (e.g. message the bot and inspect `getUpdates`, or use a trusted helper — avoid shady bots).  
+3. In the app: enable **“Full access”**, open the **Telegram** section, enter token and chat ID, **Save** — this creates `telegram_notify.json` next to the EXE.  
+4. Set **interval** and **thresholds** (disk warn/critical, temperature, …), optionally enable **“Guard enabled”**, save again. The guard runs **while the app is open** and sends Telegram alerts when something looks wrong.
+
+**B) Independent of the PC: NAS central watch + optional email (cron on the NAS)**  
+1. Maintain the same **Telegram** fields in the app (or choose **email** channel only).  
+2. In **NAS central watch**, pick channel **Telegram**, **Email**, or **Both**.  
+3. **Email:** SMTP host, port, credentials if required, **From** / **To**, TLS: **STARTTLS** (e.g. port 587) or **SMTPS** (e.g. port 465 + **SMTPS** checkbox).  
+4. **“Install on NAS”** — script and config are written via SSH to **`/volume1/scripts/`**.  
+5. Add a **cron** job on the NAS (example in the dialog), e.g. every 5 minutes running `python3` with `ugreen_watch.py`.  
+6. **“Test”** in the app: runs SMTP test (`--smtp-test`) and a `--once` pass.  
+7. **DNS on the NAS:** if the SMTP hostname does not resolve, fix NAS DNS (router) or use the **SMTP server IP**.
+
+**Daily report (informational, not an alarm):** section below the central watch — **“Install on NAS”**, set **daily** cron (e.g. morning). Uses the same channel/SMTP settings. **Report language** follows **UI language (DE/EN) at install time**.
+
+### App feature list (overview)
+
+| Area | Features |
+|------|----------|
+| **General** | SSH (IP, port, user, password, optional **SSH key**), **save connection**, optional **🔐 PW vault** (`keyring`), **DE/EN**, **light/dark** theme, **live monitor** (CPU/RAM), status bar, **restricted mode** / **full access** |
+| **Scripts** | `/volume1/scripts/` listing, **read/save** (root or user), **chmod 755**, **cron** (`/etc/cron.d/…`, stable jobs, **STABLE_TASKS**), shortcuts |
+| **Explorer** | NAS tree + **This PC**, **upload/download**, **copy** NAS↔PC, recursive folders, progress, search, folder sizes, context menu (delete with gate) |
+| **Docker** | Container list, **start/stop/restart/remove** (with prompts), **stats / logs / inspect**, fix host mount perms, **“New container/stack” wizard** (Compose/`docker run`, variables, `mkdir` on NAS) |
+| **System & Health** | **Refresh**, RAID, SMART, storage, report, **save health snapshot**, **NAS reboot/shutdown** (safety prompts), **Telegram guard** (while app runs), **NAS central watch** + **daily report** (install on NAS) |
+| **Storage** | Overview, **Samba testparm**, **NFS exports** |
+| **ACL** | Path, view/set ACL (with gate) |
+| **Snapshots** | Btrfs / ZFS / Snapper — depending on NAS |
+| **Schedules** | Cron editor and host jobs (with gate) |
 
 ## License
 
