@@ -10,3 +10,4 @@ __pycache__/
 nas_admin_connection.json
 telegram_notify.json
 nas_watch_local.json
+last_github_update_check.txt
