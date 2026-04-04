@@ -39,6 +39,7 @@ from ugreen_app.mixin_nas_watch_deploy import MixinNasWatchDeploy
 from ugreen_app.mixin_explorer import MixinExplorer
 from ugreen_app.mixin_transfer import MixinTransfer
 from ugreen_app.mixin_editor_cron import MixinEditorCron
+from ugreen_app.mixin_update_check import MixinUpdateCheck
 from ugreen_app.i18n import cron_mappings_for_lang, translate
 
 __version__ = "22.5.0"
@@ -54,6 +55,7 @@ class NASManager(
     MixinExplorer,
     MixinTransfer,
     MixinEditorCron,
+    MixinUpdateCheck,
 ):
     def __init__(self, root):
         self.root = root
@@ -98,6 +100,7 @@ class NASManager(
         self._load_connection_config()
         self.root.protocol("WM_DELETE_WINDOW", self._on_app_close)
         self.root.after(1500, self.telegram_restart_monitor)
+        self._schedule_update_check_delayed()
 
     def t(self, key, **kwargs):
         return translate(self.ui_lang, key, **kwargs)
