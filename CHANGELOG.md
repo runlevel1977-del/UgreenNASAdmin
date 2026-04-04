@@ -4,6 +4,8 @@
 
 _(noch nicht veröffentlicht)_
 
+- **Update-Hinweis:** ca. **4,5 s** nach Start (Hintergrund, **kein** Blockieren der UI) Abfrage von **GitHub Releases** (`runlevel1977-del/UgreenNASAdmin`); bei neuerer Version als `__version__` Dialog mit Link. Cooldown **24 h** (`last_github_update_check.txt`). Siehe `.cursor/rules/github_release_update_check.mdc`.
+
 ## 22.5.0 — 2026-04-04
 
 ### Deutsch (ausführlich)
