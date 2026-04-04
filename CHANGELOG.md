@@ -1,216 +1,113 @@
 # Changelog — Ugreen NAS Admin
 
----
+## Unreleased
 
-## Deutsch
+_(noch nicht veröffentlicht)_
 
-### 22.2.0 (Public) — 2026-04-01
+## 22.5.0 — 2026-04-04
 
-Größeres UI-/Sicherheits-Update: **eingeschränkter Standardmodus**, schlankerer **Header**, **Live-Monitor** in der Sidebar, feste **SSH-Key-Feldbreite**, größere **Startfensterbreite**.
+### Deutsch (ausführlich)
 
-#### Sicherheit: „Volle Rechte“ / Restricted Mode
+- **Öffentliches Release-Paket:** Forum-/Release-ZIP (**`UgreenNASAdmin_v22.5.0_oeffentlich_mit_EXE.zip`**) enthält neben Quellen und **`dist/UgreenNASAdmin.exe`** den Ordner **`images/`** inkl. **drei neuen Screenshots** zum Tab **System & Health** (`health_system_1.png`–`health_system_3.png`, einheitliche Dateinamen ohne Leerzeichen). Die bisherigen Übersichtsbilder **`1.png`–`6.png`** bleiben erhalten.
+- **Dokumentation (`öffentlich/README.md` + Root-`README.md`):** Kurzanleitung **Einrichten der Benachrichtigungen** (Telegram-Wächter, NAS-Zentral-Wächter mit **E-Mail/Telegram**, Hinweise zu SMTP/SMTPS und DNS auf dem NAS) auf **Deutsch und Englisch**; neue **Funktionsliste** der App (DE/EN).
+- **Internationalisierung:** Upload-/Download-**Dialoge** und zugehörige **Transfer-Log**-Texte über **`i18n`** (keine fest eingebauten deutschen `messagebox`-Titel mehr in diesen Pfaden); **Telegram:** manuelle NAS-Prüfung, Teststatus und **Testnachrichtentext** folgen der UI-Sprache.
+- **Stabilität (Tk/Windows):** SSH-Befehle aus **Hintergrund-Threads** rufen die Statuszeile nicht mehr mit **`update_status=True`** auf (**Explorer** Verzeichnisgrößen/Aufklappen/Suche, **Transfer** Abbruch-Cleanup, **Docker** Stats/Inspect/Logs, **Telegram-Wächter** Prüfschleife) — reduziert Risiko von UI-Freezes analog zur bereits behobenen NAS-Wächter-Installation.
+- **NAS-Zentral-Wächter / Tagesbericht (Kontext Release):** Fortführung der zuvor dokumentierten Features: **SMTPS (Port 465)**, **`--smtp-test`**, robusterer **E-Mail-Betreff**, optional **SSH-Login-Fehler** in der Auswertung, **Tagesbericht** (`nas_daily_report.py`) mit **`message_lang`**, gekürzter Berichtsinhalt und Emojis; **PyInstaller**-`datas` enthalten **`nas_central_watch.py`** und **`nas_daily_report.py`** (siehe `.spec`).
+- **SSH / Zeitpläne:** Bei **`sudo -S`** liefert die App den Befehlsausgang ohne angehängte **stderr**-Zeilen (z. B. `[sudo] password for …`), damit **`/etc/cron.d/papa_jobs`** im Editor stabil bleibt; sudo-Zeilen werden beim Lesen von Cron-Text verworfen (`nas_ssh.run`, `_sanitize_stable_cron_text`).
+- **Scripte-Tab:** **„💾 Speichern“** (root), **„💾 Als Benutzer“** und **Strg+S** speichern den Editor (u. a. **STABLE_TASKS**).
+- **Docker-Assistent:** **Zwei Schritte** (Editor → Weiter → Scan/mkdir/Start), **grid**-Layout, **`tk.Button`**, Mindesthöhe Editor.
+- **System & Health (Layout):** Aktionsleiste, scrollbares Panel für Telegram/Wächter/Tagesbericht, Mausrad-Scroll, Telegram **Cooldown** neben **Temp max**, NAS-Wächter-Checkboxen kompakt.
 
-- **Standard:** Viele **riskante Aktionen** sind **deaktiviert** (ausgegraute Buttons, gesperrte Planer-Steuerelemente, eingeschränkte Kontextmenüs), bis du sie bewusst freischaltest.
-- **Roter Header-Button** „**⚠ Volle Rechte**“ / „**⚠ Full access**“: Nach Bestätigung des Dialogs **„Vorsicht: Absolute Rechte“** werden u. a. Löschen, Uploads, Docker-Aktionen (Start/Stop/Löschen/…), Cron-/Planer-Jobs, ACL-Schreibzugriffe, Snapshot anlegen/löschen, NAS-Neustart/Herunterfahren, Telegram-Aktionen im Health-Tab, Health-Snapshot speichern und ähnliche Funktionen **bedienbar**.
-- **Erneuter Klick** (orange „**🔒 Einschränken**“ / „**🔒 Restrict**“) kann den eingeschränkten Modus **wieder aktivieren** (mit Bestätigung).
-- **Technik:** Modul `ugreen_app/mixin_safety_lock.py`; abgerundete Buttons unterstützen **`set_enabled()`** in `rounded_ui.py`; zusätzlich **`_danger_gate()`** an zentralen Einstiegspunkten (z. B. `write_root_file`, Upload-Queue, Docker, Explorer-Löschen, …), falls eine Aktion die UI umgeht.
-- **Session:** Freischaltung gilt für die **laufende Sitzung** (kein separates JSON-Flag); nach **Theme-/Sprachwechsel** bleibt der Zustand erhalten, die UI wird neu aufgebaut.
+### English (summary)
 
-#### Kopfzeile (Header)
+- **Public zip:** includes **`images/`** with three **System & Health** screenshots (`health_system_1.png`–`3.png`); README updates (notification setup **DE/EN**, feature list **DE/EN**).
+- **i18n:** transfer/telegram dialogs and log strings; no hardcoded German in those UI paths.
+- **Threading:** `run_ssh_cmd(..., update_status=False)` from worker threads in explorer, transfer cleanup, docker log/stats/inspect, telegram guard checks — fewer Tk freezes on Windows.
 
-- **Eine Zeile** für **NAS-IP, SSH-Port, User, Passwort, SSH-Key (Checkbox + Pfad), Passphrase** — kompaktere Abstände, **linksbündige** IP/User für bessere Lesbarkeit.
-- **SSH-Key-Pfad:** **Feste Zeichenbreite** (wächst nicht unbegrenzt bei maximiertem Fenster); freier Platz wandert in eine **Leerspalte** rechts der Passphrase statt einen Riesen-Eintrag zu erzeugen.
-- **Hinweistext** (Klartext-JSON / Tresor): **`wraplength`** passt sich der **Headerbreite** an (`Configure`-Event).
-- **Rechte Aktionen** (Volle Rechte, Theme, Verbindung speichern, PW-Tresor, Coffee): per **Grid** am **unteren Rand des gesamten Kopfbereichs** (inkl. Hinweiszeile) ausgerichtet — optisch eine Linie mit den Eingabefeldern.
-- **Startbreite** Standard **1500 px**, **`minsize`** Breite **1260 px** (siehe `nas_manager.py`).
+### Build
 
-#### Live-Monitor
+- **`UgreenNASAdmin.spec`:** `nas_daily_report.py` in **`datas`** (bereits im Hauptprojekt; öffentliche `.spec` angeglichen).
+- **`tools/zip_oeffentlich_forum.py`:** Ausgabearchive auf **v22.5.0** umbenannt.
 
-- Aus dem Header in die **linke Sidebar** unten verlegt (**über** der Statusleiste mit DE/EN), Abschnitt **„Live-Monitor“**.
-- **Kleinerer Start-Button** (kurze Beschriftung **„▶ Live“** / **„⏹ Stop“**).
-- **CPU:** nur noch **Gesamt-CPU** (Zeile `cpu` in `/proc/stat`), **keine** Einzelkerne mehr.
-- **RAM:** unverändert über `free` (ein Balken + Prozent).
+## 22.4.0 — 2026-04-03
 
-#### Internationalisierung (`i18n.py`)
+### Neu
 
-- Neue Schlüssel u. a. für Sicherheitsdialoge, Sidebar-Monitor, kompakte SSH-Key-Labels (**„SSH-Key“**, **„Passphrase“**).
+- **Docker-Assistent („Neuer Docker“):** Nach **„Variablen scannen“** werden u. a. **`${PLATZHALTER}`** / `$VAR`, **Compose-Volume-Hostpfade**, **`type: bind` → `source:`**, **`-v`/`--volume`**, **Host-Ports** (`-p` / `ports:`) und **`-e KEY=` mit Pfad/leer** als Formularfelder angeboten; nach Ausfüllen werden Werte eingesetzt, optional **Host-Ordner auf dem NAS** angelegt, dann Compose oder `docker run` ausgeführt. Modul **`ugreen_app/docker_deploy_wizard.py`**, Tests **`tests/test_docker_deploy_wizard.py`**.
 
-#### Build / PyInstaller
+### Build
 
-- **`UgreenNASAdmin.spec`:** Hidden Import **`ugreen_app.mixin_safety_lock`**.
+- PyInstaller Hidden Import **`ugreen_app.docker_deploy_wizard`**.
 
-#### Dokumentation & Screenshots
+### Behoben
 
-- **`README.md`:** Aktualisiert (Header, Sicherheitsmodus, Live-Monitor, Screenshots **1.png–6.png** unter `images/`).
-- **`images/`:** bis zu sechs App-Screenshots für GitHub-README (keine echten Passwörter/IPs in den Bildern).
+- **`nas_ssh.write_remote_file_sudo`:** SFTP versucht nacheinander **relativen Dateinamen** (SFTP-Chroot), **`$HOME/…`**, **`/tmp`**, dann `sudo mv`. Schlägt SFTP komplett fehl, **Fallback ohne SFTP:** `sudo python3 -c …` schreibt die Datei per **Base64** direkt nach Ziel + `chmod` — **„Auf NAS installieren“** auch bei restriktivem SFTP.
+- **Zeitpläne (stabile Cron-Zeilen):** Endet der Skriptname mit **`.py`**, wird in **`/etc/cron.d/papa_jobs`** jetzt **`/usr/bin/python3 …`** statt **`/bin/bash …`** geschrieben; Pfad mit **`posixpath.basename`** + **`shlex.quote`** (`mixin_editor_cron.add_to_stable_cron`).
 
----
+### Entfernt
 
-### 22.1.0 (Public) — 2026-04-01
+- Browser-/Docker-Web-Stack (`web/`, `docker-compose.web.yml`, zugehörige Deploy-Doku und Skripte). Betrieb nur noch über die Desktop-App (`ugreen_nas_admin.py` / `öffentlich/`).
 
-Ausführliche Übersicht der Änderungen gegenüber 22.0.0 (Verbindungsfelder **NAS-IP / SSH-Port / User / Passwort / SSH-Key** gab es schon früher; sie sind in **`README.md`** unter *Verbindung zur NAS (Kopfzeile)* beschrieben).
+## 22.3.0 — 2026-04-03
 
-#### SSH (`nas_ssh.py`, `run_ssh_cmd`)
+### Neu / geändert
 
-- **Kompression:** Paramiko-Verbindung nutzt **`compress=True`** (kann bei vielen/kleinen SSH-Antworten die Last etwas reduzieren).
-- **Wiederverwendung:** unverändert eine SSH-Sitzung pro Kontext mit Lock (kein Verbindungschaos bei schnellen Klicks).
-- **Lokalisierte Texte:** `SSHManager.run()` akzeptiert jetzt optionale Parameter **`status_connected`**, **`status_failed`**, **`error_message_fmt`**; die App übergibt Übersetzungen aus **`i18n`** (`status.ssh_connected`, `status.ssh_failed`, `ssh.error`). Fehler wie „SSH connection error: …“ / „Fehler bei SSH-Verbindung: …“ folgen der gewählten Sprache (DE/EN).
-- **Rückwärtskompatibel:** Ohne diese Parameter bleiben die bisherigen deutschen Standardstrings.
+- **NAS-Zentral-Wächter:** Python-Skript `ugreen_app/resources/nas_central_watch.py` — läuft **auf dem NAS** (Cron), prüft Speicher, RAID, Temperatur, **Docker** (exited/restarting/unhealthy, Pflicht-Container), optional **systemd failed**; Benachrichtigung per **Telegram**, **E-Mail** oder **beides**; optional **docker start** für konfigurierte Namen (mit Cooldown). Im Tab **System & Health:** Bereich zum Konfigurieren, **Auf NAS installieren** (nach `/volume1/scripts/`), **Test (--once)**. Lokale UI-Werte in `nas_watch_local.json` (gitignored).
+- **Docker:** **Stop** und **Restart** mit **zusätzlicher Bestätigung**; Container-Namen per `shlex.quote` an `docker` übergeben.
 
-#### Oberfläche & Reaktionszeit
+### Build
 
-- **NAS-Explorer:** Beim **Aufklappen** eines Ordners läuft `ls` per SSH in einem **Hintergrundthread**; die Treeview wird per **`after(0)`** auf dem UI-Thread aktualisiert (kurz „Lade…“ als Platzhalter). Die UI friert nicht mehr während des Verzeichnislistings ein.
-- **NAS-Explorer — Suche:** `ls` + Auswertung der Treffer ebenfalls im **Hintergrund**; Meldungsdialoge nur noch vom Hauptthread.
-- **Docker-Tab:** **Stats**, **Inspect** und **Container-Logs** holen die SSH-Ausgabe im Hintergrund und schreiben ins Log-Fenster, wenn die Daten da sind (kein langes Blockieren beim Klick).
-- **Docker-Log-Überschrift:** einheitlich über **`i18n`** (`docker.logs_banner` / `docker.log_loading_stats` wo zutreffend).
+- PyInstaller: `datas` für `ugreen_app/resources/nas_central_watch.py`, Hidden Import `ugreen_app.mixin_nas_watch_deploy`.
 
-#### Sicherheit & Passwort
+## 22.2.0 — 2026-04-01
 
-- **Hinweistext** unter der Verbindungszeile: erklärt, dass **„Verbindung speichern“** das Passwort in **`nas_admin_connection.json` im Klartext** ablegt und weist auf den **optionalen OS-Tresor** hin.
-- **Button „🔐 PW Tresor“ / „🔐 PW vault“:** speichert das aktuelle SSH-Passwort über das optionale Paket **`keyring`** in der **Windows-Anmeldeinformationsverwaltung** (Dienstname `UgreenNASAdmin`, Schlüssel `user@host`).
-- **Laden:** Ist in der JSON das Passwort **leer**, aber IP und User gesetzt, wird beim Start aus dem Tresor gelesen (gleiche Kombination).
-- **Neues Modul** `ugreen_app/keyring_helper.py` (Try/Import `keyring`; ohne Paket nur Hinweisdialog).
-- **PyInstaller:** `ugreen_app.keyring_helper` als **Hidden Import** in **`UgreenNASAdmin.spec`**, damit die gebaute EXE das Modul findet (trotzdem: `pip install keyring` vor dem Build, wenn der Tresor in der EXE funktionieren soll).
+### Kurzüberblick
 
-#### Hilfsfunktionen (`nas_utils.py`)
+Ausführlich im öffentlichen Baum: **`öffentlich/CHANGELOG.md`** (DE + EN) und **`öffentlich/README.md`**.
 
-- **`looks_like_ssh_error_output(text)`:** erkennt typische SSH-Verbindungsfehler-Strings (DE und EN), damit Explorer/Du-Hintergrundjobs fehlerhafte Ausgaben nicht als Dateilisten interpretieren.
-- **`explorer_sanitize_ls_line`:** filtert zusätzlich englische SSH-Fehlerzeilen (konsistent zu den neuen Übersetzungen).
+- **Sicherheit:** Standard **eingeschränkter Modus**; Header-Button **„Volle Rechte“ / „Full access“** schaltet riskante Aktionen nach Bestätigung frei; **`mixin_safety_lock`**, **`_danger_gate()`**, **`RoundedButton.set_enabled`**.
+- **UI:** **Live-Monitor** (CPU gesamt + RAM) unten in der **Sidebar**; kompakter **Header** (eine Zeile Verbindungsfelder, SSH-Key-Pfad fester Breite, Hinweis mit dynamischem **wraplength**); rechte Buttons unten am Kopfbereich ausgerichtet; Startgeometrie **1500×1020**, **minsize** Breite **1260**.
+- **i18n:** neue Texte für Sicherheitsdialoge, Sidebar-Monitor, SSH-Key-Labels.
+- **Build:** PyInstaller **Hidden Import** `ugreen_app.mixin_safety_lock`.
+- **Doku:** README mit Screenshots **`images/1.png`–`6.png`**, Release-Paket unter **`öffentlich/release/UgreenNASAdmin_v22.2.0/`** (EXE + CHANGELOG + README.txt).
 
-#### Qualität / Tests (nur Quellbaum mit `tests/`)
+## 22.1.0 — 2026-04-01
 
-- Zusätzliche Unit-Tests für **`looks_like_ssh_error_output`** und Sanitize-Verhalten (im **privaten** Hauptprojekt unter `tests/`; die öffentliche ZIP-Quelle enthält die Tests optional nicht).
+### Verbessert (Kurzüberblick)
 
-#### Dokumentation & GitHub-README
+Ausführlich im öffentlichen **`öffentlich/CHANGELOG.md`** und in **`öffentlich/README.md`** (u. a. *Verbindung zur NAS* mit **SSH-Port** und **SSH-Key**).
 
-- **`README.md`:** Abschnitt **Screenshots / App-Bilder** oben (zentrierte Vorschau für GitHub); ausführlicher Abschnitt **SSH-Passwort im Windows-Tresor**; **Verbindung zur NAS (Kopfzeile)** mit SSH-Port und SSH-Key; Hinweise zu öffentlichen Screenshots.
-- **`requirements.txt`:** Kommentar zu optionalem **`pip install keyring`**.
-- Dieses **CHANGELOG:** ausführliche Release-Notiz für 22.1.0.
+- **SSH (`nas_ssh`):** `compress=True`; optional lokalisierte Status-/Fehlertexte (`i18n`); `run_ssh_cmd` übergibt Übersetzungen.
+- **UI:** Explorer Aufklappen + Suche im Thread; Docker Stats/Inspect/Logs asynchron; Docker-Überschriften über `i18n`.
+- **Sicherheit:** Kopfzeilen-Hinweis Klartext-JSON; **🔐 PW Tresor** + `keyring_helper`; optional `keyring`; Hidden Import in `.spec`.
+- **`nas_utils`:** `looks_like_ssh_error_output`, erweiterte Sanitize für EN-SSH-Fehler.
+- **Doku / GitHub:** README-Screenshots oben, Tresor-Anleitung, Verbindungstabelle; CHANGELOG 22.1.0 ausführlich.
+- **Tests:** `tests/test_nas_utils.py` erweitert (nur im privaten Baum).
 
-### 22.0.0 (Public) — 2026-03-30
+## 22.0.0 (Public) — 2026-03-30
 
-#### Neu
+### Neu
 
-- Ordner **`öffentlich/`**: enthält alle zum **Starten** und **Bauen** der App nötigen Dateien (Release-Quelle für öffentliche Versionen). Siehe `README.md` — **Ordner nicht löschen**; bei Änderungen im Hauptprojekt Inhalt bei Bedarf spiegeln.
+- Ordner **`öffentlich/`**: enthält alle zum **Starten** und **Bauen** der App nötigen Dateien (Release-Quelle für öffentliche Versionen). Siehe `öffentlich/README.md` — **Ordner nicht löschen**; bei Änderungen im Hauptprojekt Inhalt bei Bedarf spiegeln.
 - **Öffentliche Version** mit zweisprachiger Oberfläche **Deutsch / Englisch**.
-- **Sprach-Umschalter** `DE / EN` unten links in die Statusleiste; Umschalten lädt die UI neu (gleiche Session, Verbindungsdaten bleiben erhalten).
+- **Sprach-Umschalter** `DE / EN` unten links in der Statusleiste; Umschalten lädt die UI neu (gleiche Session, Verbindungsdaten bleiben erhalten).
 - **Persistenz:** `ui_lang` wird in `nas_admin_connection.json` neben IP/User/Passwort gespeichert (beim „Verbindung speichern“ mit abgelegt).
 - **Übersetzungen** zentral in `ugreen_app/i18n.py` (UI-Texte, Cron-Klartext-Mappings, häufige Dialoge).
 - **Versionsnummer** und Fenstertitel nutzen die gleiche Quelle (`__version__`).
 - **NAS Explorer (Tab):** Zwei-Spalten-Ansicht (NAS-Baum / **Dieser PC**) zum **Hoch- und Herunterladen** sowie **Kopieren** zwischen NAS und lokalem Rechner — über Werkzeugleiste, Kontextmenü und Direktaktionen (z. B. Upload einzelner Dateien oder ganzer Ordner, „Auf NAS kopieren“ / „Auf PC kopieren“), inkl. Fortschrittsanzeige bei Übertragungen.
 
-#### Geändert (gegenüber 21.2.0)
+### Geändert (gegenüber 21.2.0)
 
 - Hauptfenster, Sidebar, alle Tab-Bereiche (Scripts, Explorer, Docker, Health/Telegram, Speicher, ACL, Snapshots, Planer), Statuszeile und viele Meldungen sind **sprachabhängig**.
 - Cron-/Planer-Klartext und Combobox-Bezeichnungen folgen der gewählten Sprache.
 - Abgerundete Buttons (Pillow) unverändert nutzbar; PyInstaller: `ugreen_app.i18n` als Hidden Import ergänzt.
 
-#### Hinweis
+### Hinweis
 
 - Einzelne tiefe Dialoge (z. B. einige Snapper/Btrfs-Eingaben) können noch deutsche Standardtexte zeigen; die zentralen Pfade sind übersetzt.
 
-#### 21.2.0 und älter
+---
+
+## 21.2.0 und älter
 
 - Vorherige Versionen ohne integrierte DE/EN-Umschaltung; siehe Git/Backup bzw. interne Release-Notizen.
-
----
-
-## English
-
-### 22.2.0 (Public) — 2026-04-01
-
-Major UI/safety update: **restricted default mode**, slimmer **header**, **live monitor** in the sidebar, fixed-width **SSH key path**, larger **default window width**.
-
-#### Safety: “Full access” / restricted mode
-
-- **By default**, many **risky actions** are **disabled** (grayed buttons, planner controls locked, context menus trimmed) until you explicitly unlock.
-- **Red header button** “**⚠ Full access**”: after confirming **“Caution: full privileges”**, destructive operations (delete, uploads, Docker start/stop/rm/…, cron/planner jobs, ACL writes, snapshot create/delete, NAS reboot/shutdown, Telegram actions on the Health tab, saving health snapshots, etc.) become **available**.
-- **Second click** (amber “**🔒 Restrict**”) can **re-enable** restriction (with confirmation).
-- **Implementation:** `ugreen_app/mixin_safety_lock.py`; rounded buttons support **`set_enabled()`** in `rounded_ui.py`; **`_danger_gate()`** on key entry points as a backstop.
-- **Session-only** unlock (no separate JSON flag); **theme/language rebuild** keeps state and reapplies UI.
-
-#### Header
-
-- **Single row** for **NAS IP, SSH port, user, password, SSH key (checkbox + path), passphrase** — tighter spacing, **left-aligned** IP/user.
-- **SSH key path:** **Fixed character width** (does not grow without bound when maximized); extra space goes to a **spacer column** after passphrase.
-- **Security hint** under the row: **`wraplength`** tracks **header width**.
-- **Right-side actions** aligned to the **bottom of the full header block** (including the hint row) via **grid**.
-- **Default width** **1500 px**, **minimum width** **1260 px** (`nas_manager.py`).
-
-#### Live monitor
-
-- Moved from the header to the **bottom of the left sidebar** (above the status bar / language toggle), section **“Live monitor”**.
-- **Smaller button** (“**▶ Live**” / “**⏹ Stop**”).
-- **CPU:** **aggregate only** (`cpu` line in `/proc/stat`), **no** per-core bars.
-- **RAM:** unchanged (`free` — one bar + percent).
-
-#### i18n
-
-- New keys for safety dialogs, sidebar monitor, compact SSH labels.
-
-#### Build / PyInstaller
-
-- **`UgreenNASAdmin.spec`:** hidden import **`ugreen_app.mixin_safety_lock`**.
-
-#### Docs & screenshots
-
-- **`README.md`** updated (header, safety mode, live monitor, screenshots **1.png–6.png** in `images/`).
-
----
-
-### 22.1.0 (Public) — 2026-04-01
-
-Detailed changes vs 22.0.0. (**NAS IP / SSH port / user / password / SSH key** fields already existed in earlier releases; see **`README.md`** → *Connection to the NAS (header bar)*.)
-
-#### SSH (`nas_ssh.py`, `run_ssh_cmd`)
-
-- **Compression:** Paramiko uses **`compress=True`** (may reduce traffic for chatty sessions).
-- **Session reuse:** unchanged — one SSH session per context with a lock.
-- **Localized strings:** `SSHManager.run()` now accepts optional **`status_connected`**, **`status_failed`**, **`error_message_fmt`**; the app passes strings from **`i18n`** (`status.ssh_connected`, `status.ssh_failed`, `ssh.error`). Error messages follow DE/EN.
-- **Backward compatible:** omitting those parameters keeps the previous German defaults.
-
-#### UI & responsiveness
-
-- **NAS Explorer — expand:** remote `ls` runs in a **worker thread**; the tree updates via **`after(0)`** (short “loading…” placeholder). The window stays responsive.
-- **NAS Explorer — search:** remote listing + hit filtering in a **background thread**; message boxes only from the main thread.
-- **Docker tab:** **Stats**, **Inspect**, and **container logs** fetch SSH output in the **background** and append when ready.
-- **Docker strings:** headings use **`i18n`** (`docker.logs_banner`, `docker.log_loading_stats` where applicable).
-
-#### Security & password
-
-- **Hint** under the connection row explains plain-text **`nas_admin_connection.json`** and points to the **optional OS vault**.
-- **“🔐 PW vault”** stores the current SSH password via **`keyring`** in **Windows Credential Manager** (service `UgreenNASAdmin`, account `user@host`).
-- **Load:** if the JSON password is **empty** but IP and user are set, the password is read from the vault on startup (same pair).
-- **New module** `ugreen_app/keyring_helper.py` (optional `keyring`; without package, info dialog only).
-- **PyInstaller:** `ugreen_app.keyring_helper` as **hidden import** in **`UgreenNASAdmin.spec`** (still run `pip install keyring` before build if you want vault support in the EXE).
-
-#### Helpers (`nas_utils.py`)
-
-- **`looks_like_ssh_error_output(text)`** detects typical SSH error strings (DE/EN).
-- **`explorer_sanitize_ls_line`** also filters English SSH error lines.
-
-#### Docs
-
-- **`README.md`:** screenshots block, vault section, connection table with SSH port and key.
-- **`requirements.txt`:** note on optional **`keyring`**.
-
-### 22.0.0 (Public) — 2026-03-30
-
-#### New
-
-- **`öffentlich/`** folder as the canonical public release source.
-- **DE/EN UI** with **language toggle** in the status bar; **`ui_lang`** persisted in **`nas_admin_connection.json`**.
-- **Translations** in **`ugreen_app/i18n.py`**.
-- **NAS Explorer** two-pane (NAS / **This PC**), upload/download/copy, progress UI.
-
-#### Changed
-
-- Tabs, sidebar, planner, status bar largely localized; PyInstaller hidden import **`ugreen_app.i18n`**.
-
-#### Note
-
-- Some deep dialogs (e.g. Snapper/Btrfs prompts) may still show German defaults.
-
-#### 21.2.0 and older
-
-- See internal notes / backups.

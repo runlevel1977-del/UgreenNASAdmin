@@ -9,3 +9,4 @@ __pycache__/
 # Sensible lokale Konfiguration (nie committen)
 nas_admin_connection.json
 telegram_notify.json
+nas_watch_local.json

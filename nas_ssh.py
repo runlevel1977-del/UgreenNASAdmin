@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import base64
 import io
+import posixpath
 import shlex
 import threading
 import uuid
@@ -154,8 +156,13 @@ class SSHManager:
                         pass
                 out_b = stdout.read() or b""
                 err_b = stderr.read() or b""
-                _ = stdout.channel.recv_exit_status()
-                return _decode_out(out_b) + _decode_out(err_b)
+                code = stdout.channel.recv_exit_status()
+                decoded_out = _decode_out(out_b)
+                decoded_err = _decode_out(err_b)
+                # sudo -S schreibt u. a. "[sudo] password for …:" auf stderr — nicht an echten Dateiinhalt hängen.
+                if use_sudo and code == 0:
+                    return decoded_out
+                return decoded_out + decoded_err
             except Exception as e:
                 try:
                     self.close()
@@ -164,6 +171,59 @@ class SSHManager:
                 if set_status:
                     set_status(fail_msg, connected=False)
                 return err_fmt.format(err=str(e))
+
+    def _remote_home_for_sftp(self, login_user: str) -> str:
+        """HOME per SSH (ohne sudo). Fallback /home/<user> bzw. /root — für SFTP-Chroots ohne /tmp."""
+        try:
+            stdin, stdout, stderr = self._client.exec_command("printf %s \"$HOME\"")
+            try:
+                stdin.close()
+            except Exception:
+                pass
+            home = _decode_out(stdout.read()).strip()
+            stdout.channel.recv_exit_status()
+            if home.startswith("/"):
+                return home
+        except Exception:
+            pass
+        u = (login_user or "").strip()
+        if u == "root":
+            return "/root"
+        return f"/home/{u}"
+
+    def _write_remote_file_sudo_base64(
+        self,
+        password: str,
+        local_bytes: bytes,
+        rp_final: str,
+        chmod_mode: str,
+    ) -> tuple[bool, str]:
+        """Ohne SFTP: sudo python3 schreibt Datei (Base64). Für NAS ohne schreibbares SFTP-Ziel."""
+        b64 = base64.b64encode(local_bytes).decode("ascii")
+        try:
+            mode_oct = int(str(chmod_mode).strip(), 8)
+        except ValueError:
+            mode_oct = 0o644
+        rp = rp_final.strip()
+        py_code = (
+            f"import base64,os; p={rp!r}; data=base64.b64decode({b64!r}); "
+            f"open(p,'wb').write(data); os.chmod(p,{mode_oct})"
+        )
+        cmd = f"sudo -S /usr/bin/python3 -c {shlex.quote(py_code)}"
+        stdin, stdout, stderr = self._client.exec_command(cmd)
+        stdin.write((password or "") + "\n")
+        stdin.flush()
+        try:
+            stdin.channel.shutdown_write()
+        except Exception:
+            pass
+        out_b = stdout.read() or b""
+        err_b = stderr.read() or b""
+        code = stdout.channel.recv_exit_status()
+        msg = (_decode_out(out_b) + _decode_out(err_b)).strip()
+        if code != 0:
+            return False, msg or f"exit {code}"
+        return True, ""
 
     def write_remote_file_sudo(
         self,
@@ -179,8 +239,7 @@ class SSHManager:
         ssh_key_path: str = "",
         ssh_key_passphrase: str = "",
     ) -> tuple[bool, str]:
-        """Schreibt Bytes nach /tmp per SFTP, dann sudo mv + chmod."""
-        tmp = f"/tmp/nas_admin_{id(self)}_{threading.get_ident()}.tmp"
+        """SFTP-Staging (relativ / $HOME / /tmp) + sudo mv, oder Fallback ohne SFTP (Base64 + sudo python3)."""
         rp_final = remote_final_path.strip()
         with self._lock:
             try:
@@ -193,17 +252,55 @@ class SSHManager:
                     ssh_key_path=ssh_key_path,
                     ssh_key_passphrase=ssh_key_passphrase,
                 )
-                sftp = self._client.open_sftp()
+                home = self._remote_home_for_sftp(user)
+                uid = uuid.uuid4().hex[:12]
+                candidates = [
+                    f"nas_admin_{uid}.upload",
+                    f"{home}/.nas_admin_upload_{uid}.tmp",
+                    f"/tmp/nas_admin_{uid}.tmp",
+                ]
+                tmp_abs: str | None = None
                 try:
-                    f = sftp.file(tmp, "wb")
-                    f.write(local_bytes)
-                    f.close()
+                    sftp = self._client.open_sftp()
+                except Exception:
+                    return self._write_remote_file_sudo_base64(
+                        password, local_bytes, rp_final, chmod_mode
+                    )
+                try:
+                    for cand in candidates:
+                        try:
+                            fh = sftp.file(cand, "wb")
+                            fh.write(local_bytes)
+                            fh.close()
+                            if cand.startswith("/"):
+                                tmp_abs = cand
+                            else:
+                                try:
+                                    cwd = sftp.getcwd()
+                                except Exception:
+                                    cwd = None
+                                if cwd:
+                                    tmp_abs = posixpath.join(cwd, cand)
+                                else:
+                                    tmp_abs = posixpath.join(home, cand)
+                            break
+                        except OSError:
+                            continue
                 finally:
                     try:
                         sftp.close()
                     except Exception:
                         pass
-                inner = f"mv {shlex.quote(tmp)} {shlex.quote(rp_final)} && chmod {chmod_mode} {shlex.quote(rp_final)}"
+
+                if tmp_abs is None:
+                    return self._write_remote_file_sudo_base64(
+                        password, local_bytes, rp_final, chmod_mode
+                    )
+
+                inner = (
+                    f"mv {shlex.quote(tmp_abs)} {shlex.quote(rp_final)} "
+                    f"&& chmod {shlex.quote(str(chmod_mode))} {shlex.quote(rp_final)}"
+                )
                 full = f"sudo -S bash -lc {shlex.quote(inner)}"
                 stdin, stdout, stderr = self._client.exec_command(full)
                 stdin.write((password or "") + "\n")

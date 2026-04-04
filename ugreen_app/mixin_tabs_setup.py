@@ -78,15 +78,41 @@ class MixinTabsSetup:
         # Filename Feld
         file_frame = tk.Frame(rs, bg=self.tab_colors["scripts"])
         file_frame.pack(fill=tk.X, pady=(0, 10))
+        save_btn_row = tk.Frame(file_frame, bg=self.tab_colors["scripts"])
+        save_btn_row.pack(side=tk.RIGHT, padx=(8, 0))
+        btn_save_root = self.create_modern_btn(
+            save_btn_row, self.t("scripts.btn.save"), lambda: self.save_script(True), self.color_user, "white"
+        )
+        btn_save_root.pack(side=tk.LEFT, padx=(0, 6))
+        self._register_danger_rounded(btn_save_root)
+        btn_save_user = self.create_modern_btn(
+            save_btn_row,
+            self.t("scripts.btn.save_user"),
+            lambda: self.save_script(False),
+            self.color_btn_blue,
+            "white",
+        )
+        btn_save_user.pack(side=tk.LEFT)
+        self._register_danger_rounded(btn_save_user)
+
         tk.Label(file_frame, text=self.t("scripts.filename"), font=self.font_bold, bg=self.tab_colors["scripts"], fg=self.color_text_muted).pack(side=tk.LEFT)
         self.entry_filename = tk.Entry(file_frame, font=self.font_mono, relief="flat", highlightbackground=self.color_border, highlightthickness=1, bg=self.color_input_bg, fg=self.color_input_fg, insertbackground=self.color_input_fg)
         self.entry_filename.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(10, 0), ipady=5)
+
+        def _editor_save_root(_event=None):
+            self.save_script(True)
+            return "break"
+
+        self.entry_filename.bind("<Control-s>", _editor_save_root)
+        self.entry_filename.bind("<Control-S>", _editor_save_root)
         
         # Code Editor
         self.text_editor = scrolledtext.ScrolledText(
             rs, font=self.font_mono, relief="flat", highlightbackground=self.color_border, highlightthickness=1,
             padx=12, pady=12, bg=self.color_editor_bg, fg=self.color_editor_fg, insertbackground=self.color_editor_fg)
         self.text_editor.pack(fill=tk.BOTH, expand=True)
+        self.text_editor.bind("<Control-s>", _editor_save_root)
+        self.text_editor.bind("<Control-S>", _editor_save_root)
         
         # Logs
 # --- Neues Log-Fenster ---
@@ -316,13 +342,13 @@ class MixinTabsSetup:
             cb = ttk.Combobox(f, values=values, width=30, justify='center', font=self.font_base, state="normal")
             cb.set(values[0])
             cb.pack(side=tk.RIGHT)
-            cb.bind("<<ComboboxSelected>>", lambda e: self.update_human_text())
-            cb.bind("<KeyRelease>", lambda e: self.update_human_text())
+            cb.bind("<<ComboboxSelected>>", lambda e: self.schedule_update_human_text())
+            cb.bind("<KeyRelease>", lambda e: self.schedule_update_human_text())
             self.cron_fields[field_key] = cb
             self._register_danger_ttk_combobox(cb, "readonly")
 
         self.var_first_week = tk.BooleanVar()
-        chk = tk.Checkbutton(mid, text=self.t("sched.first_week"), variable=self.var_first_week, bg=self.color_surface, fg=self.color_text, selectcolor=self.color_surface_alt, activebackground=self.color_surface, activeforeground=self.color_text, font=('Segoe UI', 10), cursor="hand2", command=self.update_human_text, wraplength=self.drawer_width - 80, justify=tk.LEFT, anchor="w")
+        chk = tk.Checkbutton(mid, text=self.t("sched.first_week"), variable=self.var_first_week, bg=self.color_surface, fg=self.color_text, selectcolor=self.color_surface_alt, activebackground=self.color_surface, activeforeground=self.color_text, font=('Segoe UI', 10), cursor="hand2", command=self.schedule_update_human_text, wraplength=self.drawer_width - 80, justify=tk.LEFT, anchor="w")
         chk.pack(anchor=tk.W, pady=(12, 6))
         self._register_danger_tk_widget(chk)
         
@@ -350,31 +376,58 @@ class MixinTabsSetup:
     def setup_health_tab(self):
         wrap = tk.Frame(self.tab_health, bg=self.tab_colors["scripts"])
         wrap.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        wrap.grid_rowconfigure(0, weight=2)
+        wrap.grid_rowconfigure(1, weight=3)
+        wrap.grid_columnconfigure(0, weight=1)
 
-        top = tk.Frame(wrap, bg=self.color_surface_alt, highlightbackground=self.color_border, highlightthickness=1, padx=12, pady=10)
-        top.pack(fill=tk.X, pady=(0, 10))
+        scroll_outer = tk.Frame(wrap, bg=self.tab_colors["scripts"])
+        scroll_outer.grid(row=0, column=0, sticky="nsew")
+        scroll_outer.grid_rowconfigure(0, weight=1)
+        scroll_outer.grid_columnconfigure(0, weight=1)
+
+        canvas = tk.Canvas(scroll_outer, bg=self.tab_colors["scripts"], highlightthickness=0, takefocus=1)
+        vsb = ttk.Scrollbar(scroll_outer, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=vsb.set)
+
+        mid = tk.Frame(canvas, bg=self.tab_colors["scripts"])
+        mid_win = canvas.create_window((0, 0), window=mid, anchor="nw")
+
+        def _health_canvas_inner_width(event):
+            canvas.itemconfigure(mid_win, width=max(event.width, 1))
+
+        def _health_canvas_scrollregion(_event=None):
+            box = canvas.bbox("all")
+            if box:
+                canvas.configure(scrollregion=box)
+
+        canvas.bind("<Configure>", _health_canvas_inner_width)
+        mid.bind("<Configure>", _health_canvas_scrollregion)
+
+        canvas.grid(row=0, column=0, sticky="nsew")
+        vsb.grid(row=0, column=1, sticky="ns")
+
+        top = tk.Frame(mid, bg=self.color_surface_alt, highlightbackground=self.color_border, highlightthickness=1, padx=10, pady=6)
+        top.pack(fill=tk.X, pady=(0, 8))
         h1 = tk.Frame(top, bg=self.color_surface_alt)
         h1.pack(fill=tk.X)
-        h2 = tk.Frame(top, bg=self.color_surface_alt)
-        h2.pack(fill=tk.X, pady=(10, 0))
-        self.create_modern_btn(h1, self.t("health.refresh"), self.refresh_health_overview, self.color_btn_blue).pack(side=tk.LEFT, padx=4)
-        self.create_modern_btn(h1, self.t("health.raid"), self.health_check_raid, self.color_cron).pack(side=tk.LEFT, padx=4)
-        self.create_modern_btn(h2, self.t("health.smart"), self.health_check_smart, self.color_btn_purple).pack(side=tk.LEFT, padx=4)
-        self.create_modern_btn(h2, self.t("health.storage"), self.health_check_storage, self.color_user).pack(side=tk.LEFT, padx=4)
+        self.create_modern_btn(h1, self.t("health.refresh"), self.refresh_health_overview, self.color_btn_blue).pack(side=tk.LEFT, padx=3)
+        self.create_modern_btn(h1, self.t("health.raid"), self.health_check_raid, self.color_cron).pack(side=tk.LEFT, padx=3)
+        self.create_modern_btn(h1, self.t("health.smart"), self.health_check_smart, self.color_btn_purple).pack(side=tk.LEFT, padx=3)
+        self.create_modern_btn(h1, self.t("health.storage"), self.health_check_storage, self.color_user).pack(side=tk.LEFT, padx=3)
         self._register_danger_rounded(
-            self.create_modern_btn(h2, self.t("health.report_save"), self.save_health_snapshot, self.color_header)
-        ).pack(side=tk.LEFT, padx=4)
+            self.create_modern_btn(h1, self.t("health.report_save"), self.save_health_snapshot, self.color_header)
+        ).pack(side=tk.LEFT, padx=3)
 
         h3 = tk.Frame(top, bg=self.color_surface_alt)
-        h3.pack(fill=tk.X, pady=(12, 0))
-        tk.Label(h3, text=self.t("health.system_warn"), bg=self.color_surface_alt, fg=self.color_text_muted, font=("Segoe UI", 9)).pack(anchor=tk.W, pady=(0, 6))
+        h3.pack(fill=tk.X, pady=(8, 0))
         h3b = tk.Frame(h3, bg=self.color_surface_alt)
         h3b.pack(fill=tk.X)
-        self._register_danger_rounded(self.create_modern_btn(h3b, self.t("health.reboot"), self.health_reboot_nas, self.color_cron)).pack(side=tk.LEFT, padx=4)
-        self._register_danger_rounded(self.create_modern_btn(h3b, self.t("health.shutdown"), self.health_shutdown_nas, self.color_root)).pack(side=tk.LEFT, padx=4)
+        tk.Label(h3b, text=self.t("health.system_warn"), bg=self.color_surface_alt, fg=self.color_text_muted, font=("Segoe UI", 9)).pack(side=tk.LEFT, padx=(0, 12))
+        self._register_danger_rounded(self.create_modern_btn(h3b, self.t("health.reboot"), self.health_reboot_nas, self.color_cron)).pack(side=tk.LEFT, padx=3)
+        self._register_danger_rounded(self.create_modern_btn(h3b, self.t("health.shutdown"), self.health_shutdown_nas, self.color_root)).pack(side=tk.LEFT, padx=3)
 
-        tele = tk.Frame(wrap, bg=self.color_surface_alt, highlightbackground=self.color_border, highlightthickness=1, padx=14, pady=12)
-        tele.pack(fill=tk.X, pady=(0, 10))
+        tele = tk.Frame(mid, bg=self.color_surface_alt, highlightbackground=self.color_border, highlightthickness=1, padx=12, pady=8)
+        tele.pack(fill=tk.X, pady=(0, 8))
         tk.Label(tele, text=self.t("health.telegram_title"), bg=self.color_surface_alt, fg=self.color_text, font=self.font_head, anchor="w").pack(fill=tk.X, pady=(0, 8))
         tk.Label(tele, text=self.t("health.telegram_hint"), bg=self.color_surface_alt, fg=self.color_text_muted, font=("Segoe UI", 8), anchor="w", wraplength=900, justify=tk.LEFT).pack(fill=tk.X, pady=(0, 10))
 
@@ -408,12 +461,9 @@ class MixinTabsSetup:
         self.spin_telegram_disk_crit.pack(side=tk.LEFT, padx=(0, 20))
         tk.Label(r4, text=self.t("health.temp_max"), bg=self.color_surface_alt, fg=self.color_text_muted).pack(side=tk.LEFT, padx=(0, 8))
         self.spin_telegram_temp = tk.Spinbox(r4, from_=50, to=100, width=5, font=self.font_base)
-        self.spin_telegram_temp.pack(side=tk.LEFT)
-
-        r5 = tk.Frame(tele, bg=self.color_surface_alt)
-        r5.pack(fill=tk.X, pady=2)
-        tk.Label(r5, text=self.t("health.cooldown"), bg=self.color_surface_alt, fg=self.color_text_muted).pack(side=tk.LEFT, padx=(0, 8))
-        self.spin_telegram_cooldown = tk.Spinbox(r5, from_=300, to=86400, width=8, font=self.font_base)
+        self.spin_telegram_temp.pack(side=tk.LEFT, padx=(0, 16))
+        tk.Label(r4, text=self.t("health.cooldown"), bg=self.color_surface_alt, fg=self.color_text_muted).pack(side=tk.LEFT, padx=(0, 8))
+        self.spin_telegram_cooldown = tk.Spinbox(r4, from_=300, to=86400, width=8, font=self.font_base)
         self.spin_telegram_cooldown.pack(side=tk.LEFT)
 
         r6 = tk.Frame(tele, bg=self.color_surface_alt)
@@ -429,6 +479,39 @@ class MixinTabsSetup:
         self.telegram_load_ui_from_file()
         self._telegram_update_path_label()
 
+        self.setup_nas_central_watch_section(mid)
+        self.setup_daily_report_section(mid)
+
+        def _health_wheel(event):
+            d = getattr(event, "delta", 0) or 0
+            if sys.platform == "darwin":
+                canvas.yview_scroll(-d, "units")
+            else:
+                canvas.yview_scroll(int(-d / 120), "units")
+            return "break"
+
+        def _health_wheel_linux_up(_event):
+            canvas.yview_scroll(-1, "units")
+            return "break"
+
+        def _health_wheel_linux_dn(_event):
+            canvas.yview_scroll(1, "units")
+            return "break"
+
+        def _bind_health_wheel_recursive(w):
+            w.bind("<MouseWheel>", _health_wheel, add="+")
+            if sys.platform.startswith("linux"):
+                w.bind("<Button-4>", _health_wheel_linux_up, add="+")
+                w.bind("<Button-5>", _health_wheel_linux_dn, add="+")
+            for ch in w.winfo_children():
+                _bind_health_wheel_recursive(ch)
+
+        canvas.bind("<MouseWheel>", _health_wheel)
+        if sys.platform.startswith("linux"):
+            canvas.bind("<Button-4>", _health_wheel_linux_up)
+            canvas.bind("<Button-5>", _health_wheel_linux_dn)
+        _bind_health_wheel_recursive(mid)
+
         self.health_text = scrolledtext.ScrolledText(
             wrap,
             bg=self.color_log_bg,
@@ -439,9 +522,10 @@ class MixinTabsSetup:
             highlightbackground=self.color_border,
             highlightthickness=1,
             padx=10,
-            pady=10
+            pady=10,
+            height=8,
         )
-        self.health_text.pack(fill=tk.BOTH, expand=True)
+        self.health_text.grid(row=1, column=0, sticky="nsew")
         self.health_text.insert("1.0", self.t("health.text_placeholder"))
 
     def _shell_quote(self, path):

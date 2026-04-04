@@ -290,13 +290,11 @@ class MixinConfigTelegram:
                 return
         else:
             cfg = self._telegram_load_config()
-        ok, err = self.telegram_send_raw(
-            f"✅ Test Ugreen NAS Admin\nZeit: {time.strftime('%Y-%m-%d %H:%M:%S')}\n(NAS-Checks laufen separat im Wächter.)",
-            cfg,
-        )
+        ts = time.strftime("%Y-%m-%d %H:%M:%S")
+        ok, err = self.telegram_send_raw(self.t("msg.telegram_test_body", ts=ts), cfg)
         if ok:
             messagebox.showinfo(self.t("msg.telegram"), self.t("msg.telegram_test_sent"))
-            self._telegram_set_status("Test OK")
+            self._telegram_set_status(self.t("msg.telegram_test_ok"))
         else:
             messagebox.showerror(self.t("msg.telegram"), self.t("msg.telegram_send_failed", err=err))
 
@@ -396,13 +394,13 @@ class MixinConfigTelegram:
         cool = int(cfg.get("cooldown_sec", 3600))
         host = "NAS"
         try:
-            hn = self.run_ssh_cmd("hostname", True)
+            hn = self.run_ssh_cmd("hostname", True, update_status=False)
             if hn and "Fehler" not in hn:
                 host = hn.strip().splitlines()[0][:80]
         except Exception:
             pass
 
-        df = self.run_ssh_cmd("df -P 2>/dev/null", True)
+        df = self.run_ssh_cmd("df -P 2>/dev/null", True, update_status=False)
         if "Fehler bei SSH" in df:
             if self._telegram_cooldown_ok("ssh_fail", cool, ignore_cooldown):
                 self.telegram_send_raw(f"⚠️ {host}\nSSH-Check fehlgeschlagen (df).", cfg)
@@ -415,7 +413,7 @@ class MixinConfigTelegram:
                 if self._telegram_cooldown_ok(f"diskwarn_{mount}", cool, ignore_cooldown):
                     self.telegram_send_raw(f"🟠 {host}\nSpeicher Warnung: {mount} bei {pct}% belegt (Schwelle {warn}%).", cfg)
 
-        md = self.run_ssh_cmd("cat /proc/mdstat 2>/dev/null", True)
+        md = self.run_ssh_cmd("cat /proc/mdstat 2>/dev/null", True, update_status=False)
         bad, snippet = self._telegram_raid_suspicious(md)
         if bad and self._telegram_cooldown_ok("raid", cool, ignore_cooldown):
             self.telegram_send_raw(f"🔴 {host}\nRAID / mdstat auffällig:\n{snippet}", cfg)
@@ -423,6 +421,7 @@ class MixinConfigTelegram:
         sens = self.run_ssh_cmd(
             "sh -c 'for z in /sys/class/thermal/thermal_zone*/temp; do [ -r \"$z\" ] && cat \"$z\"; done' 2>/dev/null",
             True,
+            update_status=False,
         )
         tmax = self._telegram_max_temp_c(sens)
         if tmax >= temp_max and self._telegram_cooldown_ok("temp", cool, ignore_cooldown):
@@ -436,14 +435,14 @@ class MixinConfigTelegram:
         except (ValueError, tk.TclError, AttributeError):
             cfg = self._telegram_load_config()
         if not (cfg.get("bot_token") or "").strip() or not str(cfg.get("chat_id") or "").strip():
-            messagebox.showwarning("Telegram", "Bitte Token und Chat-ID eintragen (und idealerweise speichern).")
+            messagebox.showwarning(self.t("msg.telegram"), self.t("msg.telegram_token_chat"))
             return
         threading.Thread(
             target=lambda c=dict(cfg): self._telegram_run_checks_once(ignore_cooldown=True, cfg_override=c),
             daemon=True,
         ).start()
-        self._telegram_set_status("Manuelle Prüfung läuft…")
-        messagebox.showinfo("Telegram", "Prüfung gestartet. Bei auffälligen Werten kommt eine Nachricht.")
+        self._telegram_set_status(self.t("msg.telegram_manual_check_running"))
+        messagebox.showinfo(self.t("msg.telegram"), self.t("msg.telegram_check_started"))
 
     def _telegram_monitor_worker(self):
         while not self.telegram_stop_event.is_set():

@@ -201,6 +201,67 @@ class MixinTransfer:
                 out.append(p)
         return out
 
+    def _local_resolve_upload_path(self, path: str) -> str:
+        """Stabilster existierender lokaler Pfad (Windows: Leerzeichen, normpath, \\\\?\\)."""
+        if not path:
+            return path
+        seen: list[str] = []
+        candidates = [path, os.path.normpath(path)]
+        try:
+            candidates.append(os.path.abspath(os.path.normpath(path)))
+        except Exception:
+            pass
+        candidates.append(self._win_long_path_local(path))
+        try:
+            candidates.append(
+                self._win_long_path_local(os.path.abspath(os.path.normpath(path)))
+            )
+        except Exception:
+            pass
+        for c in candidates:
+            if not c or c in seen:
+                continue
+            seen.append(c)
+            try:
+                if os.path.isfile(c):
+                    return c
+            except OSError:
+                continue
+        try:
+            return os.path.abspath(os.path.normpath(path))
+        except Exception:
+            return path
+
+    def _upload_exc_is_probably_remote_missing(self, exc, local_resolved: str) -> bool:
+        """SFTP-Fehler 2 / ENOENT auf dem NAS — nur wenn die lokale Datei wirklich da ist."""
+        if not self._local_isfile_for_upload(local_resolved):
+            return False
+        if isinstance(exc, PermissionError):
+            return False
+        en = getattr(exc, "errno", None)
+        if en in (errno.ENOENT, 2):
+            return True
+        if getattr(exc, "winerror", None) == 2:
+            return True
+        lo = str(exc).lower()
+        if "lokal nicht gefunden" in lo:
+            return False
+        for needle in (
+            "no such file",
+            "no such file or directory",
+            "fx_no_such_file",
+            "errno 2",
+            "cannot find the file",
+            "cannot find the path",
+            "the system cannot find",
+            "nicht gefunden",
+            "die datei ist nicht vorhanden",
+            "path not found",
+        ):
+            if needle in lo:
+                return True
+        return False
+
     def _local_file_size_for_upload(self, path):
         for p in self._local_path_variants(path):
             try:
@@ -1067,7 +1128,8 @@ class MixinTransfer:
                         if cancel_evt.is_set():
                             raise RuntimeError("Upload abgebrochen")
 
-                        fsz = self._local_file_size_for_upload(local_path)
+                        local_resolved = self._local_resolve_upload_path(local_path)
+                        fsz = self._local_file_size_for_upload(local_resolved)
 
                         progress["file_base"] = progress["overall_done"]
                         progress["file_size"] = fsz
@@ -1084,15 +1146,18 @@ class MixinTransfer:
                         upload_fail_note[0] = (
                             f"Datei [{idx}/{len(items)}]\n"
                             f"Rel.: {remote_rel}\n"
-                            f"Lokal: {local_path}\n"
+                            f"Lokal: {local_resolved}\n"
+                            f"(Tree: {local_path})\n"
                             f"NAS:   {remote_path}"
                         )
 
                         if remote_parent and remote_parent not in created_remote_dirs:
                             self._ensure_remote_dir_for_upload(ssh, sftp, remote_parent, created_remote_dirs)
 
-                        if not self._local_isfile_for_upload(local_path):
-                            raise FileNotFoundError(f"Lokal nicht gefunden: {local_path}")
+                        if not self._local_isfile_for_upload(local_resolved):
+                            raise FileNotFoundError(
+                                f"Lokal nicht gefunden: {local_resolved}\n(Explorer-Pfad: {local_path})"
+                            )
 
                         def cb(transferred, total):
                             if cancel_evt.is_set():
@@ -1100,34 +1165,75 @@ class MixinTransfer:
                             progress["file_done"] = transferred
                             touch_progress_ui()
 
-                        self.root.after(0, lambda rp=remote_rel, lp=local_path, i=idx, n=len(items): lbl_file.config(text=f"[{i}/{n}] {rp}"))
+                        self.root.after(
+                            0,
+                            lambda rp=remote_rel, i=idx, n=len(items): lbl_file.config(
+                                text=f"[{i}/{n}] {rp}"
+                            ),
+                        )
+
+                        try:
+                            self._prepare_remote_file_for_ugreen_sftp(remote_path)
+                        except Exception:
+                            pass
 
                         max_put_attempts = 12
                         attempt = 0
+                        ugreen_second_prepare = False
+                        cat_tried = False
+
+                        def _after_upload_success(used: str):
+                            nonlocal files_since_full
+                            uploaded_paths.append(used)
+                            if fsz > 0:
+                                uploaded_meta.append((used, fsz))
+                            progress["overall_done"] = progress["file_base"] + fsz
+                            progress["file_done"] = fsz
+                            touch_progress_ui()
+                            if idx < len(items):
+                                files_since_full += 1
+                                if files_since_full >= full_refresh_every:
+                                    time.sleep(pause_before_reconnect)
+                                    connect_sftp(frequent=True)
+                                    files_since_full = 0
+
                         while True:
-                            attempt += 1
                             try:
-                                used = self._sftp_put_try_sudo_fallback(ssh, sftp, local_path, remote_path, callback=cb)
-                                uploaded_paths.append(used)
-                                if fsz > 0:
-                                    uploaded_meta.append((used, fsz))
-                                progress["overall_done"] = progress["file_base"] + fsz
-                                progress["file_done"] = fsz
-                                touch_progress_ui()
-                                if idx < len(items):
-                                    files_since_full += 1
-                                    if files_since_full >= full_refresh_every:
-                                        time.sleep(pause_before_reconnect)
-                                        connect_sftp(frequent=True)
-                                        files_since_full = 0
+                                used = self._sftp_put_try_sudo_fallback(
+                                    ssh, sftp, local_resolved, remote_path, callback=cb
+                                )
+                                _after_upload_success(used)
                                 break
                             except RuntimeError:
                                 raise
                             except Exception as e:
                                 if cancel_evt.is_set():
                                     raise RuntimeError("Upload abgebrochen")
-                                if attempt >= max_put_attempts or not self._is_transfer_connection_lost(e):
-                                    raise
+                                cur = e
+                                if self._upload_exc_is_probably_remote_missing(
+                                    cur, local_resolved
+                                ) and not cat_tried:
+                                    cat_tried = True
+                                    try:
+                                        used = self._upload_local_file_via_ssh_cat(
+                                            local_resolved, remote_path, callback=cb
+                                        )
+                                        _after_upload_success(used)
+                                        break
+                                    except Exception as cat_e:
+                                        cur = cat_e
+                                if self._upload_exc_is_probably_remote_missing(
+                                    cur, local_resolved
+                                ) and not ugreen_second_prepare:
+                                    ugreen_second_prepare = True
+                                    try:
+                                        self._prepare_remote_file_for_ugreen_sftp(remote_path)
+                                        continue
+                                    except Exception:
+                                        pass
+                                attempt += 1
+                                if attempt >= max_put_attempts or not self._is_transfer_connection_lost(cur):
+                                    raise cur
                                 time.sleep(0.6 + 0.2 * attempt)
                                 connect_sftp(frequent=False)
                                 files_since_full = 0
@@ -1139,14 +1245,14 @@ class MixinTransfer:
                     # best-effort cleanup
                     try:
                         for rp in uploaded_paths[-10:]:
-                            self.run_ssh_cmd(f"rm -f {shlex.quote(rp)}", True)
+                            self.run_ssh_cmd(f"rm -f {shlex.quote(rp)}", True, update_status=False)
                     except Exception:
                         pass
             finally:
                 if err is None and not cancel_evt.is_set():
                     try:
                         if len(items) >= 8:
-                            upload_verify_note = "ZIP-Modus: Entpacken erfolgreich abgeschlossen."
+                            upload_verify_note = self.t("msg.upload_zip_note")
                         elif uploaded_meta:
                             pkv = _paramiko()
                             sshv = pkv.SSHClient()
@@ -1196,42 +1302,72 @@ class MixinTransfer:
                     pass
                 if err:
                     if cancel_evt.is_set():
-                        messagebox.showinfo("Upload", "Upload wurde abgebrochen.")
-                        append_transfer_log(self._app_data_dir(), f"Upload abgebrochen ({len(items)} geplant)", "INFO")
+                        messagebox.showinfo(self.t("msg.upload_title"), self.t("msg.upload_aborted"))
+                        append_transfer_log(
+                            self._app_data_dir(),
+                            self.t("msg.transfer_log_upload_aborted", n=len(items)),
+                            "INFO",
+                        )
                     else:
                         note = upload_fail_note[0] if upload_fail_note[0] else ""
-                        body = str(err) if err else "Unbekannter Fehler"
+                        body = str(err) if err else self.t("msg.transfer_unknown_error")
                         if note:
                             body = f"{body}\n\n{note}"
-                        messagebox.showerror("Upload fehlgeschlagen", body)
-                        append_transfer_log(self._app_data_dir(), f"Upload FEHLER: {body[:500]}", "ERROR")
+                        messagebox.showerror(self.t("msg.upload_failed_title"), body)
+                        append_transfer_log(
+                            self._app_data_dir(),
+                            self.t("msg.transfer_log_upload_error", body=body[:500]),
+                            "ERROR",
+                        )
                 else:
                     if upload_verify_bad:
                         lines = []
                         for rp, exs, got in upload_verify_bad[:8]:
-                            lines.append(f"- {rp}\n  erwartet={exs}, remote={got}")
-                        more = ""
+                            lines.append(
+                                self.t("msg.upload_verify_line", path=rp, expected=exs, remote=got)
+                            )
+                        more_suffix = ""
                         if len(upload_verify_bad) > 8:
-                            more = f"\n… +{len(upload_verify_bad) - 8} weitere"
+                            more_suffix = self.t(
+                                "msg.transfer_verify_more", n=len(upload_verify_bad) - 8
+                            )
                         messagebox.showwarning(
-                            "Upload abgeschlossen mit Prüfwarnung",
-                            f"Übertragen: {len(items)} Datei(en)\n"
-                            f"Geprüft: {upload_verify_checked}\n"
-                            f"Abweichungen: {len(upload_verify_bad)}\n\n"
-                            + "\n".join(lines)
-                            + more,
+                            self.t("msg.upload_verify_warn_title"),
+                            self.t(
+                                "msg.upload_verify_warn_body",
+                                n_files=len(items),
+                                checked=upload_verify_checked,
+                                mismatches=len(upload_verify_bad),
+                                details="\n".join(lines),
+                                more_suffix=more_suffix,
+                            ),
                         )
                         append_transfer_log(
                             self._app_data_dir(),
-                            f"Upload OK mit Prüfwarnung: {len(items)} Dateien, {len(upload_verify_bad)} Abweichungen",
+                            self.t(
+                                "msg.transfer_log_upload_warn",
+                                n_files=len(items),
+                                n_bad=len(upload_verify_bad),
+                            ),
                             "WARN",
                         )
                     else:
-                        extra = f", geprüft: {upload_verify_checked}" if upload_verify_checked > 0 else ""
+                        suffix = ""
+                        if upload_verify_checked > 0:
+                            suffix += self.t(
+                                "msg.upload_complete_verified_suffix", n=upload_verify_checked
+                            )
                         if upload_verify_note:
-                            extra += f"\n{upload_verify_note}"
-                        messagebox.showinfo("Upload", f"Upload abgeschlossen. ({len(items)} Datei(en){extra})")
-                        append_transfer_log(self._app_data_dir(), f"Upload OK: {len(items)} Datei(en){extra}", "INFO")
+                            suffix += ("\n" if suffix else "") + upload_verify_note
+                        messagebox.showinfo(
+                            self.t("msg.upload_title"),
+                            self.t("msg.upload_complete", n_files=len(items), suffix=suffix),
+                        )
+                        append_transfer_log(
+                            self._app_data_dir(),
+                            self.t("msg.transfer_log_upload_ok", n_files=len(items), extra=suffix),
+                            "INFO",
+                        )
                     self.root.after(300, self.scan_nas)
 
             self.root.after(0, done)
@@ -1443,44 +1579,75 @@ class MixinTransfer:
                     pass
                 if err:
                     if cancel_evt.is_set():
-                        messagebox.showinfo("Download", "Download wurde abgebrochen.")
-                        append_transfer_log(self._app_data_dir(), f"Download abgebrochen ({len(pairs)} geplant)", "INFO")
+                        messagebox.showinfo(self.t("msg.download_title"), self.t("msg.download_aborted"))
+                        append_transfer_log(
+                            self._app_data_dir(),
+                            self.t("msg.transfer_log_download_aborted", n=len(pairs)),
+                            "INFO",
+                        )
                     else:
                         note = dl_fail_note[0] if dl_fail_note[0] else ""
-                        body = str(err) if err else "Unbekannter Fehler"
+                        body = str(err) if err else self.t("msg.transfer_unknown_error")
                         if note:
                             body = f"{body}\n\n{note}"
-                        messagebox.showerror("Download fehlgeschlagen", body)
-                        append_transfer_log(self._app_data_dir(), f"Download FEHLER: {body[:500]}", "ERROR")
+                        messagebox.showerror(self.t("msg.download_failed_title"), body)
+                        append_transfer_log(
+                            self._app_data_dir(),
+                            self.t("msg.transfer_log_download_error", body=body[:500]),
+                            "ERROR",
+                        )
                 else:
                     if verify_bad:
                         lines = []
                         for r, lp, exs, got in verify_bad[:8]:
-                            lines.append(f"- {r}\n  erwartet={exs}, lokal={got}\n  {lp}")
-                        more = ""
+                            lines.append(
+                                self.t(
+                                    "msg.download_verify_line",
+                                    path=r,
+                                    expected=exs,
+                                    local=got,
+                                    local_path=lp,
+                                )
+                            )
+                        more_suffix = ""
                         if len(verify_bad) > 8:
-                            more = f"\n… +{len(verify_bad) - 8} weitere"
+                            more_suffix = self.t("msg.transfer_verify_more", n=len(verify_bad) - 8)
                         messagebox.showwarning(
-                            "Download abgeschlossen mit Prüfwarnung",
-                            f"Übertragen: {len(pairs)} Datei(en)\n"
-                            f"Geprüft: {verify_checked}\n"
-                            f"Abweichungen: {len(verify_bad)}\n\n"
-                            + "\n".join(lines)
-                            + more,
+                            self.t("msg.download_verify_warn_title"),
+                            self.t(
+                                "msg.upload_verify_warn_body",
+                                n_files=len(pairs),
+                                checked=verify_checked,
+                                mismatches=len(verify_bad),
+                                details="\n".join(lines),
+                                more_suffix=more_suffix,
+                            ),
                         )
                         append_transfer_log(
                             self._app_data_dir(),
-                            f"Download OK mit Prüfwarnung: {len(pairs)} Dateien, {len(verify_bad)} Abweichungen",
+                            self.t(
+                                "msg.transfer_log_download_warn",
+                                n_files=len(pairs),
+                                n_bad=len(verify_bad),
+                            ),
                             "WARN",
                         )
                     else:
                         messagebox.showinfo(
-                            "Download",
-                            f"Download abgeschlossen. ({len(pairs)} Datei(en), geprüft: {verify_checked})",
+                            self.t("msg.download_title"),
+                            self.t(
+                                "msg.download_complete",
+                                n_files=len(pairs),
+                                checked=verify_checked,
+                            ),
                         )
                         append_transfer_log(
                             self._app_data_dir(),
-                            f"Download OK: {len(pairs)} Datei(en), geprüft: {verify_checked}",
+                            self.t(
+                                "msg.transfer_log_download_ok",
+                                n_files=len(pairs),
+                                checked=verify_checked,
+                            ),
                             "INFO",
                         )
                     self.root.after(200, self.explorer_local_refresh)
