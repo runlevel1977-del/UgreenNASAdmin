@@ -5,6 +5,7 @@ Diese Datei dient als dauerhafte Merkhilfe fuer deine Veroeffentlichung.
 ## Hauptlinks
 
 - GitHub (Public Source): https://github.com/runlevel1977-del/UgreenNASAdmin
+- YouTube (Walkthrough / Demo): https://youtu.be/7420gGg6u0s
 - SourceForge (Projektseite): https://sourceforge.net/projects/ugreennasadmin/
 - SourceForge (Files): https://sourceforge.net/projects/ugreennasadmin/files/
 

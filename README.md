@@ -6,6 +6,10 @@ The app is available in **English** and **German**; switch language in the statu
 
 **Ugreen NAS Admin** is a desktop **control center** for a **Ugreen NAS** over **SSH**: scripts, file explorer (upload/download), Docker, system health, storage, ACL, snapshots, optional Telegram / email alerts. **MIT licensed.**
 
+### Demo video
+
+**Walkthrough on YouTube:** [https://youtu.be/7420gGg6u0s](https://youtu.be/7420gGg6u0s)
+
 This folder **`öffentlich/`** is the **canonical public release tree** for GitHub (separate `.git`). The parent project **`NAS_Admin_Project`** stays private and does not track this folder. Set the remote with **`setup_public_remote.ps1`** or `git remote add origin …` here. **Release links & workflow:** see **`RELEASE_LINKS.md`**.
 
 ### Screenshots
@@ -183,6 +187,8 @@ Without extra packages, **“Save connection”** still stores the password **in
 ## Deutsch
 
 **Screenshots** und die **englische Kurzbeschreibung** stehen oben im Abschnitt **English** (README ist für GitHub-Besucher zuerst auf Englisch).
+
+**Demo-Video (YouTube):** [https://youtu.be/7420gGg6u0s](https://youtu.be/7420gGg6u0s)
 
 ### Wichtig
 
