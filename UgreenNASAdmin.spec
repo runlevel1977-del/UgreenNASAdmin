@@ -41,6 +41,8 @@ a = Analysis(
         "ugreen_app.mixin_editor_cron",
         "ugreen_app.transfer_log",
         "ugreen_app.tooltip",
+        "ugreen_app.mixin_update_check",
+        "ugreen_app.update_check",
     ],
     hookspath=[],
     hooksconfig={},

@@ -220,6 +220,153 @@ class MixinScriptsDockerMonitor:
                 self.run_ssh_cmd(f"chmod -R 777 {p}", True)
         messagebox.showinfo(self.t("msg.docker_admin"), self.t("msg.docker_chmod_ok"))
 
+    def docker_compose_path_raw(self):
+        p = ""
+        if hasattr(self, "entry_docker_compose"):
+            p = self.entry_docker_compose.get().strip()
+        return p or "/volume1/docker/docker-compose.yml"
+
+    def _docker_compose_remote_cmd(self, compose_file: str, subcmd: str) -> str:
+        """SSH-Befehl: nutzt docker compose (Plugin) oder fallback docker-compose (Legacy). subcmd fest aus App-Code."""
+        qf = shlex.quote(compose_file)
+        body = (
+            f"if docker compose version >/dev/null 2>&1; then "
+            f"docker compose -f {qf} {subcmd}; "
+            f"elif command -v docker-compose >/dev/null 2>&1; then "
+            f"docker-compose -f {qf} {subcmd}; "
+            f"else "
+            f'echo "compose: docker compose (plugin) and docker-compose not found" >&2; '
+            f"exit 127; "
+            f"fi"
+        )
+        return f"bash -lc {shlex.quote(body)}"
+
+    def _docker_compose_exec(self, subcmd: str, *, use_worker: bool = True):
+        """subcmd z. B. 'config' oder 'ps -a' oder 'up -d' (ohne docker compose -f)."""
+        path = self.docker_compose_path_raw()
+        if not path:
+            messagebox.showinfo(self.t("msg.docker_admin"), self.t("docker.compose_need_path"))
+            return
+        full = self._docker_compose_remote_cmd(path, subcmd)
+
+        def apply_out(out: str):
+            try:
+                self.docker_log_view.delete("1.0", tk.END)
+                self.docker_log_view.insert("1.0", out)
+            except (tk.TclError, AttributeError):
+                pass
+
+        if use_worker:
+            def worker():
+                out = self.run_ssh_cmd(f"{full} 2>&1", True, update_status=False)
+
+                def apply():
+                    apply_out(out)
+
+                self.root.after(0, apply)
+
+            threading.Thread(target=worker, daemon=True).start()
+        else:
+            out = self.run_ssh_cmd(f"{full} 2>&1", True)
+            apply_out(out)
+
+    def docker_compose_config(self):
+        self._docker_compose_exec("config")
+
+    def docker_compose_ps(self):
+        self._docker_compose_exec("ps -a")
+
+    def docker_compose_up_d(self):
+        if not self._danger_gate():
+            return
+        path = self.docker_compose_path_raw()
+        if not messagebox.askyesno(self.t("msg.docker_admin"), self.t("docker.compose_up_confirm", path=path)):
+            return
+        self._docker_compose_exec("up -d", use_worker=False)
+        self.root.after(800, self.refresh_docker_list)
+
+    def _docker_tail_append(self, text: str):
+        try:
+            self.docker_log_view.insert(tk.END, text)
+            self.docker_log_view.see(tk.END)
+        except tk.TclError:
+            pass
+
+    def docker_log_tail_stop(self):
+        ev = getattr(self, "_docker_tail_stop_event", None)
+        if ev is not None:
+            ev.set()
+        th = getattr(self, "_docker_tail_thread", None)
+        if th is not None and th.is_alive():
+            th.join(timeout=3.0)
+        self._docker_tail_thread = None
+        self._docker_tail_stop_event = None
+
+    def _docker_log_tail_worker(self, container_name: str):
+        pk = _paramiko()
+        ssh = pk.SSHClient()
+        ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
+        stop_ev = getattr(self, "_docker_tail_stop_event", None)
+        try:
+            ssh.connect(self.entry_ip.get().strip(), **self._ssh_connect_kwargs(timeout=25, banner_timeout=45, auth_timeout=45))
+            cmd = f"docker logs -f --tail 200 {shlex.quote(container_name)}"
+            stdin, stdout, _stderr = ssh.exec_command(cmd)
+            try:
+                stdin.close()
+            except Exception:
+                pass
+            ch = stdout.channel
+            while stop_ev is not None and not stop_ev.is_set():
+                if ch.recv_ready():
+                    chunk = ch.recv(8192)
+                    if not chunk:
+                        time.sleep(0.05)
+                        if ch.exit_status_ready():
+                            break
+                        continue
+                    text = chunk.decode("utf-8", errors="replace")
+                    self.root.after(0, lambda t=text: self._docker_tail_append(t))
+                elif ch.recv_stderr_ready():
+                    chunk = ch.recv_stderr(8192)
+                    if not chunk:
+                        time.sleep(0.05)
+                        continue
+                    text = chunk.decode("utf-8", errors="replace")
+                    self.root.after(0, lambda t=text: self._docker_tail_append(t))
+                else:
+                    if ch.exit_status_ready():
+                        code = ch.recv_exit_status()
+                        self.root.after(0, lambda c=code: self._docker_tail_append(f"\n[exit {c}]\n"))
+                        break
+                    time.sleep(0.08)
+        except Exception as e:
+            err = str(e)
+            self.root.after(0, lambda m=err: self._docker_tail_append(f"\n{self.t('docker.log_tail_error', err=m)}\n"))
+        finally:
+            try:
+                ssh.close()
+            except Exception:
+                pass
+
+    def docker_log_tail_start(self):
+        sel = self.docker_tree.selection()
+        if not sel:
+            messagebox.showinfo(self.t("msg.docker_admin"), self.t("docker.log_tail_pick"))
+            return
+        name = (self.docker_tree.item(sel[0], "text") or "").strip()
+        if not name:
+            return
+        self.docker_log_tail_stop()
+        self._docker_tail_stop_event = threading.Event()
+        try:
+            self.docker_log_view.delete("1.0", tk.END)
+            self.docker_log_view.insert("1.0", self.t("docker.log_live_banner", name=name))
+        except tk.TclError:
+            pass
+        t = threading.Thread(target=self._docker_log_tail_worker, args=(name,), daemon=True)
+        self._docker_tail_thread = t
+        t.start()
+
     def refresh_docker_list(self, *, ssh_output=None, update_status=True):
         if ssh_output is None:
             res = self.run_ssh_cmd(
@@ -236,6 +383,7 @@ class MixinScriptsDockerMonitor:
                 self.docker_tree.insert("", tk.END, text=f"  {n}", values=(s, i))
 
     def show_docker_logs(self):
+        self.docker_log_tail_stop()
         sel = self.docker_tree.selection()
         if sel:
             name = self.docker_tree.item(sel[0], "text").strip()
@@ -329,12 +477,13 @@ class MixinScriptsDockerMonitor:
 
             while self.is_monitoring:
                 _, stdout, _ = ssh.exec_command(
-                    "grep '^cpu ' /proc/stat | head -1; echo __UG_MEM__; free | grep Mem"
+                    "grep '^cpu ' /proc/stat | head -1; "
+                    "echo __UG_MEM__; free | grep Mem"
                 )
                 raw = stdout.read().decode(errors="replace")
                 chunks = raw.split("__UG_MEM__", 1)
                 cpu_lines = (chunks[0] or "").strip().splitlines()
-                mem_toks = (chunks[1] or "").strip().split()
+                mem_toks = (chunks[1] if len(chunks) > 1 else "").strip().split()
                 usage = None
                 line0 = cpu_lines[0] if cpu_lines else ""
                 if line0:

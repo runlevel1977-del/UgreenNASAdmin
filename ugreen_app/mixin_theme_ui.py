@@ -277,8 +277,36 @@ class MixinThemeUI:
         grid_loader.grid(row=0, column=1, sticky="ew")
         grid_loader.grid_columnconfigure(0, weight=1)
 
+        profile_row = tk.Frame(grid_loader, bg=self.color_header)
+        profile_row.grid(row=0, column=0, sticky="ew", pady=(0, 4))
+        tk.Label(
+            profile_row,
+            text=self.t("header.profile"),
+            bg=self.color_header,
+            fg=self.color_header_subtle,
+            font=("Segoe UI", 8, "bold"),
+        ).pack(side=tk.LEFT)
+        self.combo_connection_profile = ttk.Combobox(profile_row, state="readonly", width=22, font=self.font_base)
+        self.combo_connection_profile.pack(side=tk.LEFT, padx=(8, 6))
+        self.combo_connection_profile.bind("<<ComboboxSelected>>", self.connection_profile_combo_changed)
+        self.create_modern_btn(
+            profile_row,
+            self.t("header.profile_add"),
+            self.connection_profile_add,
+            self.color_header_subtle,
+            width=8,
+        ).pack(side=tk.LEFT, padx=(0, 4))
+        self.create_modern_btn(
+            profile_row,
+            self.t("header.profile_delete"),
+            self.connection_profile_delete,
+            "#fee2e2",
+            "#b91c1c",
+            width=8,
+        ).pack(side=tk.LEFT, padx=(0, 4))
+
         conn_row = tk.Frame(grid_loader, bg=self.color_header)
-        conn_row.grid(row=0, column=0, sticky="ew")
+        conn_row.grid(row=1, column=0, sticky="ew")
         # SSH-Key-Spalte: keine weight=1 — sonst wird das Feld maximiert endlos breit.
         # Feste Zeichenbreite + Mindestpixel, normal groß genug, maximiert nicht zu lang.
         conn_row.grid_columnconfigure(4, weight=0, minsize=200)
@@ -694,9 +722,11 @@ class MixinThemeUI:
             "ssh_use_key": False,
             "ssh_key_path": "",
             "ssh_key_pass": "",
+            "docker_compose": "",
+            "conn_active_index": int(getattr(self, "_connection_active_index", 0) or 0),
             "filename": "",
             "editor": "",
-            "tab_idx": 0
+            "tab_idx": 0,
         }
         try:
             if hasattr(self, "entry_ip"):
@@ -719,10 +749,17 @@ class MixinThemeUI:
                 state["editor"] = self.text_editor.get("1.0", tk.END)
             if hasattr(self, "notebook"):
                 state["tab_idx"] = self.notebook.index(self.notebook.select())
+            if hasattr(self, "entry_docker_compose"):
+                state["docker_compose"] = self.entry_docker_compose.get()
         except Exception:
             pass
 
         self.telegram_stop_monitor()
+        try:
+            if hasattr(self, "docker_log_tail_stop"):
+                self.docker_log_tail_stop()
+        except Exception:
+            pass
 
         for child in self.root.winfo_children():
             try:
@@ -747,11 +784,24 @@ class MixinThemeUI:
             self.entry_ssh_key_path.insert(0, state["ssh_key_path"])
             self.entry_ssh_key_pass.delete(0, tk.END)
             self.entry_ssh_key_pass.insert(0, state["ssh_key_pass"])
+            if hasattr(self, "entry_docker_compose"):
+                self.entry_docker_compose.delete(0, tk.END)
+                self.entry_docker_compose.insert(0, state.get("docker_compose", ""))
             self.entry_filename.delete(0, tk.END)
             self.entry_filename.insert(0, state["filename"])
             self.text_editor.delete("1.0", tk.END)
             self.text_editor.insert("1.0", state["editor"])
             self.notebook.select(state["tab_idx"])
+            profs = getattr(self, "_connection_profiles", None)
+            if profs:
+                ai = int(state.get("conn_active_index", 0) or 0)
+                ai = max(0, min(ai, len(profs) - 1))
+                self._connection_active_index = ai
+                try:
+                    profs[ai] = self._connection_profile_dict_from_ui()
+                except Exception:
+                    pass
+                self._connection_refresh_profile_combo()
         except Exception:
             pass
 

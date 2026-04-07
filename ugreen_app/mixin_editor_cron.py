@@ -210,3 +210,72 @@ class MixinEditorCron:
         if self.write_root_file(self.stable_cron_path, "\n".join(lines)):
             self.log(f"✅ Zeitplan (Docker) Umgebung gespeichert.")
             self.root.after(500, lambda: self.sync_scheduler(fn))
+
+    def _insert_script_template(self, text: str):
+        if not hasattr(self, "text_editor"):
+            return
+        try:
+            self.text_editor.insert(tk.INSERT, text)
+        except tk.TclError:
+            pass
+
+    def insert_backup_template_rsync(self):
+        if self.ui_lang == "en":
+            body = (
+                "#!/bin/bash\n"
+                "# rsync backup — adjust SRC/DST\n"
+                "set -euo pipefail\n"
+                'SRC="/volume1/data/"\n'
+                'DST="/volume2/backup/data/"\n'
+                'rsync -aHAX --delete --numeric-ids "$SRC" "$DST"\n'
+                'echo "rsync done"\n'
+            )
+        else:
+            body = (
+                "#!/bin/bash\n"
+                "# rsync-Backup — SRC/DST anpassen\n"
+                "set -euo pipefail\n"
+                'SRC="/volume1/wichtig/"\n'
+                'DST="/volume2/backup/wichtig/"\n'
+                'rsync -aHAX --delete --numeric-ids "$SRC" "$DST"\n'
+                'echo "rsync fertig"\n'
+            )
+        self._insert_script_template(body)
+
+    def insert_backup_template_restic(self):
+        if self.ui_lang == "en":
+            body = (
+                "#!/bin/bash\n"
+                "# restic — set password & repo; install restic on NAS if needed\n"
+                "set -euo pipefail\n"
+                'export RESTIC_PASSWORD="change-me"\n'
+                'RESTIC_REPOSITORY="/volume2/restic-repo"\n'
+                "restic -r \"$RESTIC_REPOSITORY\" backup /volume1/data\n"
+            )
+        else:
+            body = (
+                "#!/bin/bash\n"
+                "# restic — Passwort & Repo setzen; restic ggf. auf dem NAS installieren\n"
+                "set -euo pipefail\n"
+                'export RESTIC_PASSWORD="hier-aendern"\n'
+                'RESTIC_REPOSITORY="/volume2/restic-repo"\n'
+                "restic -r \"$RESTIC_REPOSITORY\" backup /volume1/wichtig\n"
+            )
+        self._insert_script_template(body)
+
+    def insert_backup_template_rclone(self):
+        if self.ui_lang == "en":
+            body = (
+                "#!/bin/bash\n"
+                "# rclone — run: rclone config (remote name, credentials)\n"
+                "set -euo pipefail\n"
+                "rclone sync /volume1/data remote:bucket/path --progress\n"
+            )
+        else:
+            body = (
+                "#!/bin/bash\n"
+                "# rclone — vorher: rclone config (Remote-Name, Zugangsdaten)\n"
+                "set -euo pipefail\n"
+                "rclone sync /volume1/wichtig remote:bucket/pfad --progress\n"
+            )
+        self._insert_script_template(body)

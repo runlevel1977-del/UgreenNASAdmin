@@ -61,6 +61,7 @@ At the top of the window you enter the **SSH connection** used by every tab that
 
 | Field / option | Meaning |
 |----------------|---------|
+| **Profile** (v22.6+) | Dropdown to pick a **saved connection**; **＋ New** / **✕** add or remove profiles (at least one remains). |
 | **NAS IP** | Hostname or IP of the NAS (same as in PuTTY/Terminal). |
 | **SSH port** | SSH port on the NAS — **default 22**. If your NAS uses another port (e.g. 2222), set it here. Saved with **“Save connection”** into `nas_admin_connection.json`. |
 | **User** | Linux SSH account on the NAS. |
@@ -69,7 +70,7 @@ At the top of the window you enter the **SSH connection** used by every tab that
 | **Key path** | Full path to the private key on **your Windows PC** (e.g. `C:\Users\…\.ssh\id_ed25519`). |
 | **Key passphrase** | Optional passphrase if the key is encrypted. |
 
-**💾 Save connection** stores IP, port, user, password, SSH-key settings, and UI language in **`nas_admin_connection.json`** next to the EXE (password in plain text unless you use the vault).
+**💾 Save connection** stores IP, port, user, password, SSH-key settings, UI language, and **connection profiles** (v22.6+) in **`nas_admin_connection.json`** next to the EXE — including optional **Docker Compose file path** per profile (password in plain text unless you use the vault). You can switch profiles from the header without saving; saving persists them for the next start.
 
 **Right side of the header:** **⚠ Full access**, **theme**, **save connection**, **🔐 PW vault**, **Coffee** — aligned to the **bottom** of the full header block (including the hint row below the fields).
 
@@ -172,10 +173,10 @@ Without extra packages, **“Save connection”** still stores the password **in
 
 | Area | Features |
 |------|----------|
-| **General** | SSH (IP, port, user, password, optional **SSH key**), **save connection**, optional **🔐 PW vault** (`keyring`), **DE/EN**, **light/dark** theme, **live monitor** (CPU/RAM), status bar, **restricted mode** / **full access** |
-| **Scripts** | `/volume1/scripts/` listing, **read/save** (root or user), **chmod 755**, **cron** (`/etc/cron.d/…`, stable jobs, **STABLE_TASKS**), shortcuts |
+| **General** | SSH (IP, port, user, password, optional **SSH key**), **save connection**, **connection profiles** (v22.6+), optional **🔐 PW vault** (`keyring`), **DE/EN**, **light/dark** theme, **live monitor** (CPU/RAM), status bar, **restricted mode** / **full access** |
+| **Scripts** | `/volume1/scripts/` listing, **read/save** (root or user), **chmod 755**, **cron** (`/etc/cron.d/…`, stable jobs, **STABLE_TASKS**), **backup templates** (rsync / restic / rclone snippets), shortcuts |
 | **Explorer** | NAS tree + **This PC**, **upload/download**, **copy** NAS↔PC, recursive folders, progress, search, folder sizes, context menu (delete with gate) |
-| **Docker** | Container list, **start/stop/restart/remove** (with prompts), **stats / logs / inspect**, fix host mount perms, **“New container/stack” wizard** (Compose/`docker run`, variables, `mkdir` on NAS) |
+| **Docker** | Container list, **start/stop/restart/remove** (with prompts), **stats / logs / inspect**, **live log tail** + stop, **Compose file** + **config** / **ps** / **up -d** (compose plugin or legacy), fix host mount perms, **“New container/stack” wizard** (Compose/`docker run`, variables, `mkdir` on NAS) |
 | **System & Health** | **Refresh**, RAID, SMART, storage, report, **save health snapshot**, **NAS reboot/shutdown** (safety prompts), **Telegram guard** (while app runs), **NAS central watch** + **daily report** (install on NAS) |
 | **Storage** | Overview, **Samba testparm**, **NFS exports** |
 | **ACL** | Path, view/set ACL (with gate) |
@@ -203,6 +204,7 @@ Oben im Fenster trägst du die **SSH-Verbindung zum NAS** ein (gilt für alle Ta
 
 | Feld / Option | Bedeutung |
 |---------------|-----------|
+| **Profil** (ab v22.6) | Auswahl eines **gespeicherten Profils**; **＋ Neu** / **✕** zum Anlegen oder Löschen (mindestens ein Profil bleibt). |
 | **NAS IP** | Hostname oder IPv4/IPv6 des NAS (wie du auch in PuTTY/Terminal eintragen würdest). |
 | **SSH Port** | SSH-Port des NAS — **Standard ist 22**. Wenn dein NAS einen anderen Port nutzt (z. B. 2222), hier eintragen. Wird mit **„Verbindung speichern“** in `nas_admin_connection.json` abgelegt. |
 | **User** | Linux-SSH-Benutzer auf dem NAS (z. B. `papa` / `root`, je nach deinem Setup). |
@@ -211,7 +213,7 @@ Oben im Fenster trägst du die **SSH-Verbindung zum NAS** ein (gilt für alle Ta
 | **Pfad** (unter der Checkbox) | Vollständiger Pfad zur **privaten** Schlüsseldatei auf **deinem PC** (z. B. `C:\Users\…\.ssh\id_ed25519`). Feld hat eine **feste Breite**; längere Pfade kannst du im Feld scrollen. |
 | **Passphrase** | Optional: Passphrase des Schlüssels, falls der Key verschlüsselt ist. |
 
-**💾 Verbindung speichern** legt IP, Port, User, Passwort, SSH-Key-Optionen und UI-Sprache in **`nas_admin_connection.json`** neben der EXE bzw. im Startordner ab (Passwort dort im Klartext, sofern du nicht den Tresor nutzt).
+**💾 Verbindung speichern** legt IP, Port, User, Passwort, SSH-Key-Optionen, UI-Sprache und **Verbindungsprofile** (ab v22.6) in **`nas_admin_connection.json`** ab — pro Profil u. a. optional den **Pfad zur Docker-Compose-Datei** (Passwort im Klartext, sofern du nicht den Tresor nutzt). Profilwechsel oben funktioniert auch **ohne** Speichern; Speichern hält die Daten für den nächsten Start fest.
 
 **Rechts in der Kopfzeile:** **⚠ Volle Rechte**, **Thema**, **Verbindung speichern**, **🔐 PW Tresor**, **Coffee** — am **unteren Rand** des Kopfbereichs ausgerichtet (inkl. Hinweiszeile darunter).
 
@@ -314,10 +316,10 @@ Ohne Zusatzpaket bleibt alles wie bisher: **„Verbindung speichern“** schreib
 
 | Bereich | Funktionen |
 |--------|------------|
-| **Allgemein** | SSH-Verbindung (IP, Port, User, Passwort, optional **SSH-Key**), **Verbindung speichern**, optional **🔐 PW Tresor** (`keyring`), **DE/EN**, **Hell/Dunkel**, **Live-Monitor** (CPU/RAM), Statuszeile, **eingeschränkter Modus** / **Volle Rechte** |
-| **Scripte** | Verzeichnis `/volume1/scripts/`, Dateien **lesen/speichern** (root oder Benutzer), **chmod 755**, **Cron** (`/etc/cron.d/…`, stabile Jobs, **STABLE_TASKS**), Shortcuts |
+| **Allgemein** | SSH-Verbindung (IP, Port, User, Passwort, optional **SSH-Key**), **Verbindung speichern**, **Verbindungsprofile** (ab v22.6), optional **🔐 PW Tresor** (`keyring`), **DE/EN**, **Hell/Dunkel**, **Live-Monitor** (CPU/RAM), Statuszeile, **eingeschränkter Modus** / **Volle Rechte** |
+| **Scripte** | Verzeichnis `/volume1/scripts/`, Dateien **lesen/speichern** (root oder Benutzer), **chmod 755**, **Cron** (`/etc/cron.d/…`, stabile Jobs, **STABLE_TASKS**), **Vorlagen** rsync/restic/rclone, Shortcuts |
 | **Explorer** | NAS-Baum + **Dieser PC**, **Upload/Download**, **Kopieren** NAS↔PC, Ordner rekursiv, Fortschritt, Suche, Ordnergrößen, Kontextmenü (Löschen mit Freigabe) |
-| **Docker** | Container-Liste, **Start/Stop/Restart/Entfernen** (mit Rückfragen), **Stats / Logs / Inspect**, Berechtigungen Host-Mounts, **Assistent „Neuer Container/Stack“** (Compose/`docker run`, Variablen, `mkdir` auf NAS) |
+| **Docker** | Container-Liste, **Start/Stop/Restart/Entfernen** (mit Rückfragen), **Stats / Logs / Inspect**, **Live-Log** + Stop, **Compose-Datei** + **config** / **ps** / **up -d** (Plugin oder Legacy), Berechtigungen Host-Mounts, **Assistent „Neuer Container/Stack“** (Compose/`docker run`, Variablen, `mkdir` auf NAS) |
 | **System & Health** | **Refresh**, RAID, SMART, Speicher, Bericht, **Snapshot speichern**, **NAS neustarten/herunterfahren** (mit Sicherheitsdialogen), **Telegram-Wächter** (PC-Sitzung), **NAS-Zentral-Wächter** + **Tagesbericht** (Installation auf NAS) |
 | **Speicher** | Übersicht, **Samba testparm**, **NFS exports** |
 | **Rechte (ACL)** | Pfad wählen, ACL anzeigen/setzen (mit Freigabe) |

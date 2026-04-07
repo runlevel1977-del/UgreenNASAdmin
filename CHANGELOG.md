@@ -4,7 +4,26 @@
 
 _(noch nicht veröffentlicht)_
 
-- **Update-Hinweis:** ca. **4,5 s** nach Start (Hintergrund) Abfrage **GitHub** (`runlevel1977-del/UgreenNASAdmin`); bei neuerer Version als `__version__` Dialog mit Link. Cooldown **24 h** (`last_github_update_check.txt`). Siehe `.cursor/rules/github_release_update_check.mdc`.
+## 22.6.0 — 2026-04-07
+
+### Deutsch (ausführlich)
+
+- **SSH-Verbindungsprofile:** Mehrere gespeicherte Verbindungen (Combobox **Profil**, **＋ Neu**, **✕**); `nas_admin_connection.json` mit **`profiles`** / **`active_profile`** (Migration von alter flacher JSON-Struktur). Pro Profil optional **`docker_compose_path`**.
+- **Docker:** **Live-Log** (`docker logs -f`) mit **Stop** (eigener SSH-Thread); **Compose-Datei**-Feld mit **`config`**, **`ps`**, **`up -d`** (letzteres: **Volle Rechte** + Bestätigung); Aufruf per **`bash -lc`** mit Fallback **`docker compose`** → **`docker-compose`**. Standardpfad-Vorschlag **`/volume1/docker/docker-compose.yml`**. Auswahl anderer Container beendet den Live-Stream.
+- **Scripte:** Vorlagen-Buttons **rsync** / **restic** / **rclone** (Shell-Boilerplate an Cursorposition, DE/EN).
+- **Tk:** Kein **`pady=(0,8)`** mehr im **`tk.Frame`-Konstruktor** (Compose-Zeile, Docker-Wizard) — behebt **`bad screen distance "0 8"`** unter Windows.
+- **Update-Hinweis (weiterhin):** ca. **4,5 s** nach Start Abfrage **GitHub** (`runlevel1977-del/UgreenNASAdmin`); Cooldown **24 h**. PyInstaller: **`ugreen_app.mixin_update_check`**, **`ugreen_app.update_check`** in **`.spec`**.
+
+### English (summary)
+
+- **Connection profiles** (multi-NAS / saved SSH); JSON **`profiles`** + migration.
+- **Docker:** live log tail + stop; Compose path + **config** / **ps** / **up -d**; **docker compose** vs **docker-compose** fallback.
+- **Scripts:** backup snippet buttons **rsync**, **restic**, **rclone**.
+- **Fix:** Tk **Frame** padding (Windows startup error).
+
+### Build
+
+- **`tools/zip_oeffentlich_forum.py`:** ZIP-Dateinamen aus **`__version__`** in **`öffentlich/ugreen_app/nas_manager.py`** (aktuell **v22.6.0**).
 
 ## 22.5.0 — 2026-04-04
 

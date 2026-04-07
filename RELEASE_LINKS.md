@@ -22,6 +22,5 @@ Diese Datei dient als dauerhafte Merkhilfe fuer deine Veroeffentlichung.
 - Public Repo-Ordner: `…\NAS_Admin_Project\öffentlich`
 - Build-Output EXE: `…\öffentlich\dist\UgreenNASAdmin.exe`
 - Forum-/Release-ZIPs (Projektroot, `python tools/zip_oeffentlich_forum.py`):  
-  `UgreenNASAdmin_v22.5.0_oeffentlich_forum.zip` (ohne EXE),  
-  `UgreenNASAdmin_v22.5.0_oeffentlich_mit_EXE.zip` (mit `dist/UgreenNASAdmin.exe` + `images/`)
+  Dateinamen enthalten die Version aus `öffentlich/ugreen_app/nas_manager.py` (z. B. **`UgreenNASAdmin_v22.6.0_oeffentlich_forum.zip`** ohne EXE, **`UgreenNASAdmin_v22.6.0_oeffentlich_mit_EXE.zip`** mit `dist/UgreenNASAdmin.exe` + `images/`)
 - Release-Ordner: `…\öffentlich\release` (optional Kopien)

@@ -42,7 +42,7 @@ from ugreen_app.mixin_editor_cron import MixinEditorCron
 from ugreen_app.mixin_update_check import MixinUpdateCheck
 from ugreen_app.i18n import cron_mappings_for_lang, translate
 
-__version__ = "22.5.0"
+__version__ = "22.6.0"
 
 class NASManager(
     MixinSafetyLock,
