@@ -98,6 +98,12 @@ class MixinTabsSetup:
         tk.Label(file_frame, text=self.t("scripts.filename"), font=self.font_bold, bg=self.tab_colors["scripts"], fg=self.color_text_muted).pack(side=tk.LEFT)
         self.entry_filename = tk.Entry(file_frame, font=self.font_mono, relief="flat", highlightbackground=self.color_border, highlightthickness=1, bg=self.color_input_bg, fg=self.color_input_fg, insertbackground=self.color_input_fg)
         self.entry_filename.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(10, 0), ipady=5)
+        tpl_fr = tk.Frame(file_frame, bg=self.tab_colors["scripts"])
+        tpl_fr.pack(side=tk.RIGHT, padx=(8, 0))
+        tk.Label(tpl_fr, text=self.t("scripts.tpl_label"), font=("Segoe UI", 8, "bold"), bg=self.tab_colors["scripts"], fg=self.color_text_muted).pack(side=tk.LEFT, padx=(0, 4))
+        self.create_modern_btn(tpl_fr, self.t("scripts.tpl.rsync"), self.insert_backup_template_rsync, "#0d9488", "white", width=8).pack(side=tk.LEFT, padx=2)
+        self.create_modern_btn(tpl_fr, self.t("scripts.tpl.restic"), self.insert_backup_template_restic, "#0d9488", "white", width=8).pack(side=tk.LEFT, padx=2)
+        self.create_modern_btn(tpl_fr, self.t("scripts.tpl.rclone"), self.insert_backup_template_rclone, "#0d9488", "white", width=8).pack(side=tk.LEFT, padx=2)
 
         def _editor_save_root(_event=None):
             self.save_script(True)
@@ -299,8 +305,33 @@ class MixinTabsSetup:
         
         lbl_frame = tk.Frame(right, bg=self.color_surface_alt, pady=10, padx=15)
         lbl_frame.pack(fill=tk.X)
-        tk.Label(lbl_frame, text=self.t("docker.terminal_logs"), bg=self.color_surface_alt, fg=self.color_log_fg, font=self.font_bold).pack(anchor=tk.W)
-        
+        tk.Label(lbl_frame, text=self.t("docker.terminal_logs"), bg=self.color_surface_alt, fg=self.color_log_fg, font=self.font_bold).pack(side=tk.LEFT, anchor=tk.W)
+        _log_btns = tk.Frame(lbl_frame, bg=self.color_surface_alt)
+        _log_btns.pack(side=tk.RIGHT)
+        self.create_modern_btn(_log_btns, self.t("docker.log_follow"), self.docker_log_tail_start, self.color_btn_blue, "white", width=12).pack(side=tk.LEFT, padx=4)
+        self.create_modern_btn(_log_btns, self.t("docker.log_follow_stop"), self.docker_log_tail_stop, self.color_text_muted, "white", width=10).pack(side=tk.LEFT, padx=4)
+
+        compose_fr = tk.Frame(right, bg=self.color_surface_alt)
+        compose_fr.pack(fill=tk.X, padx=15, pady=(0, 8))
+        tk.Label(compose_fr, text=self.t("docker.compose_file"), bg=self.color_surface_alt, fg=self.color_log_fg, font=("Segoe UI", 8, "bold")).pack(side=tk.LEFT)
+        self.entry_docker_compose = tk.Entry(
+            compose_fr,
+            font=self.font_mono,
+            relief="flat",
+            highlightbackground=self.color_border,
+            highlightthickness=1,
+            bg=self.color_input_bg,
+            fg=self.color_input_fg,
+            insertbackground=self.color_input_fg,
+        )
+        self.entry_docker_compose.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(8, 6), ipady=4)
+        self.entry_docker_compose.insert(0, "/volume1/docker/docker-compose.yml")
+        self.create_modern_btn(compose_fr, self.t("docker.compose_config"), self.docker_compose_config, "#64748b", "white", width=10).pack(side=tk.LEFT, padx=2)
+        self.create_modern_btn(compose_fr, self.t("docker.compose_ps"), self.docker_compose_ps, "#64748b", "white", width=8).pack(side=tk.LEFT, padx=2)
+        self._register_danger_rounded(
+            self.create_modern_btn(compose_fr, self.t("docker.compose_up"), self.docker_compose_up_d, self.color_user, "white", width=12)
+        ).pack(side=tk.LEFT, padx=2)
+
         self.docker_log_view = scrolledtext.ScrolledText(right, bg=self.color_log_bg, fg=self.color_log_fg, insertbackground=self.color_log_fg, font=self.font_mono, relief="flat", borderwidth=0, padx=15, pady=15)
         self.docker_log_view.pack(fill=tk.BOTH, expand=True)
 

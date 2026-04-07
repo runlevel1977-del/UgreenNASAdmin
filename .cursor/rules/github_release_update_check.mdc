@@ -19,7 +19,7 @@ Die App prüft **verzögert** (ca. 4,5 s nach Start, **Hintergrundthread**) die 
 ## Technik (kurz)
 
 - API: `ugreen_app/update_check.py` → `GITHUB_OWNER` / `GITHUB_REPO` (nur **UgreenNASAdmin**).
-- Cooldown: höchstens **alle 24 h** ein Request; Timestamp in `last_github_update_check.txt` neben der EXE bzw. im gleichen Ordner wie die übrige App-Datenlogik (`_app_data_dir`).
+- **Cooldown 24 h:** höchstens **ein** GitHub-Request pro 24 Stunden; Timestamp in `last_github_update_check.txt` neben der EXE (`_app_data_dir`). Nach Ablauf oder wenn die Datei fehlt: erneuter Check ca. **4,5 s** nach Start (Hintergrundthread). **Test mit älterer `__version__`:** Datei löschen oder 24 h warten.
 - Kein Netzwerk auf dem UI-Thread; Fehler → still ignorieren.
 
 ## Repo-Wechsel

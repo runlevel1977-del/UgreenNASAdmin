@@ -382,8 +382,8 @@ class MixinExplorer:
                 anchor="w",
             ).pack(fill=tk.X, padx=12, pady=(10, 4))
 
-            form_outer = tk.Frame(vw, bg=self.color_surface_alt, padx=12, pady=(0, 8))
-            form_outer.pack(fill=tk.BOTH, expand=True)
+            form_outer = tk.Frame(vw, bg=self.color_surface_alt)
+            form_outer.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0, 8))
             canvas = tk.Canvas(form_outer, bg=self.color_surface_alt, highlightthickness=0, height=320)
             vsb = ttk.Scrollbar(form_outer, orient="vertical", command=canvas.yview)
             form_inner = tk.Frame(canvas, bg=self.color_surface_alt)

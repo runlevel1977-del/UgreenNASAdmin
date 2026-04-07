@@ -2,6 +2,7 @@
 """ZIP aus öffentlich/ für Forum-Upload (ohne .git, build, dist, __pycache__)."""
 from __future__ import annotations
 
+import re
 import zipfile
 from pathlib import Path
 
@@ -11,8 +12,20 @@ if not PUBLIC.is_dir():
     PUBLIC = next((d for d in ROOT.iterdir() if d.is_dir() and "ffentlich" in d.name), PUBLIC)
 SKIP_DIR_NAMES = {".git", "__pycache__", "build", "dist"}
 SKIP_SUFFIXES = {".pyc", ".pyo"}
-OUT = ROOT / "UgreenNASAdmin_v22.5.0_oeffentlich_forum.zip"
-OUT_WITH_EXE = ROOT / "UgreenNASAdmin_v22.5.0_oeffentlich_mit_EXE.zip"
+_VER_RE = re.compile(r'^__version__\s*=\s*["\']([^"\']+)["\']', re.M)
+
+
+def _public_version() -> str:
+    p = PUBLIC / "ugreen_app" / "nas_manager.py"
+    if not p.is_file():
+        return "0.0.0"
+    m = _VER_RE.search(p.read_text(encoding="utf-8"))
+    return m.group(1) if m else "0.0.0"
+
+
+_ver = _public_version()
+OUT = ROOT / f"UgreenNASAdmin_v{_ver}_oeffentlich_forum.zip"
+OUT_WITH_EXE = ROOT / f"UgreenNASAdmin_v{_ver}_oeffentlich_mit_EXE.zip"
 
 
 def zip_tree(*, include_exe: bool) -> Path:

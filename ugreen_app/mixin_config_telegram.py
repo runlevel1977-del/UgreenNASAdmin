@@ -41,6 +41,180 @@ class MixinConfigTelegram:
     def _connection_config_path(self):
         return os.path.join(self._app_data_dir(), "nas_admin_connection.json")
 
+    def _connection_default_profile(self, name="Default"):
+        return {
+            "name": name,
+            "ip": "",
+            "port": "22",
+            "user": "",
+            "password": "",
+            "ssh_use_key": False,
+            "ssh_key_path": "",
+            "ssh_key_passphrase": "",
+            "docker_compose_path": "/volume1/docker/docker-compose.yml",
+        }
+
+    def _connection_profiles_from_disk_dict(self, data):
+        """Liefert (profiles_list, active_index) aus Dateiinhalt (inkl. Legacy-Migration)."""
+        if isinstance(data.get("profiles"), list) and data["profiles"]:
+            profs = []
+            for p in data["profiles"]:
+                if not isinstance(p, dict):
+                    continue
+                d = self._connection_default_profile(str(p.get("name") or "NAS"))
+                d["name"] = str(p.get("name") or d["name"])
+                for k in (
+                    "ip",
+                    "port",
+                    "user",
+                    "password",
+                    "ssh_key_path",
+                    "ssh_key_passphrase",
+                    "docker_compose_path",
+                ):
+                    if k in p and p[k] is not None:
+                        d[k] = str(p[k])
+                if "ssh_use_key" in p:
+                    d["ssh_use_key"] = bool(p["ssh_use_key"])
+                profs.append(d)
+            if not profs:
+                profs = [self._connection_default_profile()]
+            ai = int(data.get("active_profile", 0) or 0)
+            ai = max(0, min(ai, len(profs) - 1))
+            return profs, ai
+        # Legacy: flache Keys
+        d = self._connection_default_profile("Default")
+        d["ip"] = str(data.get("ip") or "")
+        d["port"] = str(data.get("port") or "22")
+        d["user"] = str(data.get("user") or "")
+        d["password"] = str(data.get("password") or "")
+        d["ssh_use_key"] = bool(data.get("ssh_use_key", False))
+        d["ssh_key_path"] = str(data.get("ssh_key_path") or "")
+        d["ssh_key_passphrase"] = str(data.get("ssh_key_passphrase") or "")
+        if data.get("docker_compose_path"):
+            d["docker_compose_path"] = str(data.get("docker_compose_path") or "").strip() or d["docker_compose_path"]
+        return [d], 0
+
+    def _connection_read_full_json(self):
+        p = self._connection_config_path()
+        if not os.path.isfile(p):
+            return {}
+        try:
+            with open(p, encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+
+    def _connection_profile_dict_from_ui(self, name_override=None):
+        idx = int(getattr(self, "_connection_active_index", 0) or 0)
+        profs = getattr(self, "_connection_profiles", None)
+        if profs and 0 <= idx < len(profs):
+            d = dict(profs[idx])
+        else:
+            d = self._connection_default_profile()
+        if name_override is not None:
+            d["name"] = str(name_override).strip() or d.get("name", "Default")
+        d["ip"] = self.entry_ip.get().strip() if hasattr(self, "entry_ip") else d.get("ip", "")
+        d["port"] = self.entry_port.get().strip() if hasattr(self, "entry_port") else d.get("port", "22")
+        d["user"] = self.entry_user.get().strip() if hasattr(self, "entry_user") else d.get("user", "")
+        d["password"] = self.entry_pwd.get() if hasattr(self, "entry_pwd") else d.get("password", "")
+        d["ssh_use_key"] = bool(self.var_ssh_use_key.get()) if hasattr(self, "var_ssh_use_key") else d.get("ssh_use_key", False)
+        d["ssh_key_path"] = self.entry_ssh_key_path.get().strip() if hasattr(self, "entry_ssh_key_path") else d.get("ssh_key_path", "")
+        d["ssh_key_passphrase"] = self.entry_ssh_key_pass.get() if hasattr(self, "entry_ssh_key_pass") else d.get("ssh_key_passphrase", "")
+        if hasattr(self, "entry_docker_compose"):
+            dc = self.entry_docker_compose.get().strip()
+            if dc:
+                d["docker_compose_path"] = dc
+        return d
+
+    def _connection_apply_profile_to_ui(self, prof):
+        if not hasattr(self, "entry_ip"):
+            return
+        self.entry_ip.delete(0, tk.END)
+        self.entry_ip.insert(0, str(prof.get("ip") or ""))
+        self.entry_port.delete(0, tk.END)
+        self.entry_port.insert(0, str(prof.get("port") or "22"))
+        self.entry_user.delete(0, tk.END)
+        self.entry_user.insert(0, str(prof.get("user") or ""))
+        self.entry_pwd.delete(0, tk.END)
+        pw = str(prof.get("password") or "")
+        if not pw and prof.get("ip") and prof.get("user"):
+            kr = keyring_helper.get_ssh_password(str(prof["ip"]).strip(), str(prof["user"]).strip())
+            if kr:
+                pw = kr
+        self.entry_pwd.insert(0, pw)
+        if hasattr(self, "var_ssh_use_key"):
+            self.var_ssh_use_key.set(bool(prof.get("ssh_use_key", False)))
+        if hasattr(self, "entry_ssh_key_path"):
+            self.entry_ssh_key_path.delete(0, tk.END)
+            self.entry_ssh_key_path.insert(0, str(prof.get("ssh_key_path") or ""))
+        if hasattr(self, "entry_ssh_key_pass"):
+            self.entry_ssh_key_pass.delete(0, tk.END)
+            self.entry_ssh_key_pass.insert(0, str(prof.get("ssh_key_passphrase") or ""))
+        if hasattr(self, "entry_docker_compose"):
+            self.entry_docker_compose.delete(0, tk.END)
+            self.entry_docker_compose.insert(0, str(prof.get("docker_compose_path") or "/volume1/docker/docker-compose.yml"))
+
+    def _connection_refresh_profile_combo(self):
+        if not hasattr(self, "combo_connection_profile"):
+            return
+        self._profile_loading = True
+        try:
+            names = []
+            for i, p in enumerate(getattr(self, "_connection_profiles", []) or []):
+                names.append(str(p.get("name") or f"#{i}"))
+            self.combo_connection_profile["values"] = names
+            ai = max(0, min(getattr(self, "_connection_active_index", 0), max(0, len(names) - 1)))
+            if names:
+                self.combo_connection_profile.current(ai)
+        finally:
+            self._profile_loading = False
+
+    def connection_profile_combo_changed(self, _event=None):
+        if getattr(self, "_profile_loading", False):
+            return
+        if not hasattr(self, "combo_connection_profile"):
+            return
+        idx = self.combo_connection_profile.current()
+        profs = getattr(self, "_connection_profiles", None)
+        if idx < 0 or not profs or idx >= len(profs):
+            return
+        self._connection_active_index = idx
+        self._connection_apply_profile_to_ui(profs[idx])
+        try:
+            self._ssh_mgr.close()
+        except Exception:
+            pass
+
+    def connection_profile_add(self):
+        name = simpledialog.askstring(self.t("msg.connection"), self.t("header.profile_new_name"), parent=self.root)
+        if not name or not str(name).strip():
+            return
+        name = str(name).strip()
+        cur = self._connection_profile_dict_from_ui(name_override=name)
+        if not hasattr(self, "_connection_profiles"):
+            self._connection_profiles = []
+        self._connection_profiles.append(cur)
+        self._connection_active_index = len(self._connection_profiles) - 1
+        self._connection_refresh_profile_combo()
+        self.set_status(self.t("header.profile_added", name=name))
+
+    def connection_profile_delete(self):
+        profs = getattr(self, "_connection_profiles", [])
+        if len(profs) <= 1:
+            messagebox.showinfo(self.t("msg.connection"), self.t("header.profile_need_one"))
+            return
+        if not messagebox.askyesno(self.t("msg.connection"), self.t("header.profile_delete_confirm")):
+            return
+        del profs[self._connection_active_index]
+        self._connection_active_index = max(0, self._connection_active_index - 1)
+        self._connection_apply_profile_to_ui(profs[self._connection_active_index])
+        self._connection_refresh_profile_combo()
+        try:
+            self._ssh_mgr.close()
+        except Exception:
+            pass
+
     def _load_ui_lang_from_disk(self):
         try:
             p = self._connection_config_path()
@@ -55,14 +229,13 @@ class MixinConfigTelegram:
 
     def _persist_ui_lang(self):
         p = self._connection_config_path()
-        data = {}
-        if os.path.isfile(p):
-            try:
-                with open(p, encoding="utf-8") as f:
-                    data = json.load(f)
-            except Exception:
-                pass
+        data = self._connection_read_full_json()
         data["ui_lang"] = getattr(self, "ui_lang", "de")
+        if hasattr(self, "_connection_profiles") and self._connection_profiles:
+            data["profiles"] = self._connection_profiles
+            data["active_profile"] = int(getattr(self, "_connection_active_index", 0) or 0)
+            for k in ("ip", "port", "user", "password", "ssh_use_key", "ssh_key_path", "ssh_key_passphrase"):
+                data.pop(k, None)
         try:
             with open(p, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
@@ -70,42 +243,36 @@ class MixinConfigTelegram:
             pass
 
     def _load_connection_config(self):
-        p = self._connection_config_path()
-        if not os.path.isfile(p):
-            return
-        try:
-            with open(p, encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
+        self._profile_loading = False
+        data = self._connection_read_full_json()
+        if not data:
+            d = self._connection_default_profile()
+            if hasattr(self, "entry_ip"):
+                d["ip"] = self.entry_ip.get().strip()
+                d["port"] = self.entry_port.get().strip() if hasattr(self, "entry_port") else "22"
+                d["user"] = self.entry_user.get().strip() if hasattr(self, "entry_user") else ""
+                d["password"] = self.entry_pwd.get() if hasattr(self, "entry_pwd") else ""
+                d["ssh_use_key"] = bool(self.var_ssh_use_key.get()) if hasattr(self, "var_ssh_use_key") else False
+                d["ssh_key_path"] = self.entry_ssh_key_path.get().strip() if hasattr(self, "entry_ssh_key_path") else ""
+                d["ssh_key_passphrase"] = self.entry_ssh_key_pass.get() if hasattr(self, "entry_ssh_key_pass") else ""
+            if hasattr(self, "entry_docker_compose"):
+                dc = self.entry_docker_compose.get().strip()
+                if dc:
+                    d["docker_compose_path"] = dc
+            self._connection_profiles = [d]
+            self._connection_active_index = 0
+            if hasattr(self, "combo_connection_profile"):
+                self._connection_refresh_profile_combo()
             return
         try:
             if data.get("ui_lang") in ("de", "en"):
                 self.ui_lang = data["ui_lang"]
-            if hasattr(self, "entry_ip") and data.get("ip"):
-                self.entry_ip.delete(0, tk.END)
-                self.entry_ip.insert(0, str(data["ip"]))
-            if hasattr(self, "entry_port") and data.get("port") is not None:
-                self.entry_port.delete(0, tk.END)
-                self.entry_port.insert(0, str(data.get("port", "22")))
-            if hasattr(self, "entry_user") and data.get("user"):
-                self.entry_user.delete(0, tk.END)
-                self.entry_user.insert(0, str(data["user"]))
-            if hasattr(self, "entry_pwd") and data.get("password") is not None:
-                self.entry_pwd.delete(0, tk.END)
-                pw = str(data.get("password", ""))
-                if not pw and data.get("ip") and data.get("user"):
-                    kr = keyring_helper.get_ssh_password(str(data["ip"]).strip(), str(data["user"]).strip())
-                    if kr:
-                        pw = kr
-                self.entry_pwd.insert(0, pw)
-            if hasattr(self, "var_ssh_use_key"):
-                self.var_ssh_use_key.set(bool(data.get("ssh_use_key", False)))
-            if hasattr(self, "entry_ssh_key_path") and data.get("ssh_key_path") is not None:
-                self.entry_ssh_key_path.delete(0, tk.END)
-                self.entry_ssh_key_path.insert(0, str(data.get("ssh_key_path", "")))
-            if hasattr(self, "entry_ssh_key_pass") and data.get("ssh_key_passphrase") is not None:
-                self.entry_ssh_key_pass.delete(0, tk.END)
-                self.entry_ssh_key_pass.insert(0, str(data.get("ssh_key_passphrase", "")))
+            profs, ai = self._connection_profiles_from_disk_dict(data)
+            self._connection_profiles = profs
+            self._connection_active_index = ai
+            if hasattr(self, "entry_ip"):
+                self._connection_apply_profile_to_ui(profs[ai])
+            self._connection_refresh_profile_combo()
         except Exception:
             pass
 
@@ -131,17 +298,13 @@ class MixinConfigTelegram:
     def _save_connection_config_clicked(self):
         p = self._connection_config_path()
         try:
-            ssh_use_key = bool(self.var_ssh_use_key.get()) if hasattr(self, "var_ssh_use_key") else False
-            ssh_key_path = self.entry_ssh_key_path.get().strip() if hasattr(self, "entry_ssh_key_path") else ""
-            ssh_key_passphrase = self.entry_ssh_key_pass.get() if hasattr(self, "entry_ssh_key_pass") else ""
+            if not hasattr(self, "_connection_profiles") or not self._connection_profiles:
+                self._connection_profiles = [self._connection_default_profile()]
+                self._connection_active_index = 0
+            self._connection_profiles[self._connection_active_index] = self._connection_profile_dict_from_ui()
             payload = {
-                "ip": self.entry_ip.get().strip(),
-                "port": self.entry_port.get().strip() if hasattr(self, "entry_port") else "22",
-                "user": self.entry_user.get().strip(),
-                "password": self.entry_pwd.get(),
-                "ssh_use_key": ssh_use_key,
-                "ssh_key_path": ssh_key_path,
-                "ssh_key_passphrase": ssh_key_passphrase,
+                "profiles": self._connection_profiles,
+                "active_profile": int(self._connection_active_index),
                 "ui_lang": getattr(self, "ui_lang", "de"),
             }
             with open(p, "w", encoding="utf-8") as f:
@@ -152,6 +315,11 @@ class MixinConfigTelegram:
             messagebox.showerror(self.t("msg.connection"), str(e))
 
     def _on_app_close(self):
+        try:
+            if hasattr(self, "docker_log_tail_stop"):
+                self.docker_log_tail_stop()
+        except Exception:
+            pass
         try:
             self._ssh_mgr.close()
         except Exception:

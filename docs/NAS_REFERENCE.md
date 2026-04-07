@@ -32,7 +32,8 @@ Diese Datei fasst **Projekt-Defaults** zusammen (Pfade, App-Verhalten).
 |--------|--------|
 | Standard-Explorer-Wurzel | `/volume1` |
 | Benutzer-Skripte (Cron-Editor, Ausführen) | `/volume1/scripts/` |
-| Docker-Hilfsdatei (Deploy) | `/volume1/docker/temp_deploy.yaml` |
+| Compose-Datei (typisch, selbst anlegen / Pfad in der App setzen) | `/volume1/docker/docker-compose.yml` |
+| Docker-Hilfsdatei (Deploy-Assistent in der App) | `/volume1/docker/temp_deploy.yaml` (wird ggf. beim ersten Deploy angelegt) |
 | Zweites Volume | `/volume2` (u. a. Docker-Run-Mounts) |
 | Pfad-Korrektur | Doppelte Präfixe wie `/vol1/volume1/...` → `/volume1/...` (`nas_utils.normalize_nas_tree_path`) |
 | Voreingestellte NAS-IP in der UI | `192.168.2.168` (nur Default; echte Verbindung über gespeicherte Konfiguration) |

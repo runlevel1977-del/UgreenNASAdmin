@@ -1,38 +1,42 @@
 # Ugreen NAS Admin
 
-Desktop **control center** for a Ugreen NAS over SSH: scripts, explorer (upload/download), Docker, health, storage, ACL, snapshots, optional Telegram guard. UI **German / English** (toggle in the status bar).
+The app is available in **English** and **German**; switch language in the status bar. · Die App ist auf **Englisch** und **Deutsch** verfügbar; die Sprache wechselst du in der Statusleiste.
+
+## English
+
+Desktop **control center** for a **Ugreen NAS** over **SSH**: scripts, file explorer (upload/download), Docker, system health, storage, ACL, snapshots, optional Telegram guard. **MIT licensed.**
+
+- **Demo video (YouTube):** https://youtu.be/7420gGg6u0s
+- **Run from repo root:** `python -m pip install -r öffentlich/requirements.txt`, then `python ugreen_nas_admin.py`.
+- **Remove legacy Docker web stack on the NAS:** see [`NAS_WEB_STACK_ENTFERNEN.md`](NAS_WEB_STACK_ENTFERNEN.md) (German doc).
+- **Public release / build EXE:** folder **`öffentlich/`** — full readme with **screenshots**, notifications, feature list: [`öffentlich/README.md`](öffentlich/README.md), changelog: [`öffentlich/CHANGELOG.md`](öffentlich/CHANGELOG.md). Zip: `python tools/zip_oeffentlich_forum.py` → **`UgreenNASAdmin_v<version>_oeffentlich_mit_EXE.zip`** (version from `ugreen_app/nas_manager.py`, e.g. **v22.6.0**; includes sources + `dist/UgreenNASAdmin.exe` + `images/`).
+- **Optional SSH password in Windows Credential Manager (`keyring`):** v22.1+ — see *SSH password in the OS vault* in [`öffentlich/README.md`](öffentlich/README.md).
 
 ## Deutsch
 
 - **Entwicklung aus dem Projektroot:** `python -m pip install -r öffentlich/requirements.txt` (oder eigene Umgebung), dann `python ugreen_nas_admin.py`.
 - **Früherer Docker-Web-Stack auf dem NAS entfernen:** siehe [`NAS_WEB_STACK_ENTFERNEN.md`](NAS_WEB_STACK_ENTFERNEN.md).
-- **Öffentliche Release-Quelle / EXE bauen:** Ordner **`öffentlich/`** — siehe [`öffentlich/README.md`](öffentlich/README.md) (u. a. **Benachrichtigungen**, **Funktionsliste**, Screenshots inkl. **System & Health**) und [`öffentlich/CHANGELOG.md`](öffentlich/CHANGELOG.md). Release-ZIP: `python tools/zip_oeffentlich_forum.py` → **`UgreenNASAdmin_v22.5.0_oeffentlich_mit_EXE.zip`** (Quellen + `dist/UgreenNASAdmin.exe` + `images/`).
+- **Öffentliche Release-Quelle / EXE bauen:** Ordner **`öffentlich/`** — ausführliche README mit **Screenshots**, Benachrichtigungen, Funktionsliste: [`öffentlich/README.md`](öffentlich/README.md), [`öffentlich/CHANGELOG.md`](öffentlich/CHANGELOG.md). Release-ZIP: `python tools/zip_oeffentlich_forum.py` → **`UgreenNASAdmin_v<version>_oeffentlich_mit_EXE.zip`** (Version aus `ugreen_app/nas_manager.py`, z. B. **v22.6.0**; Quellen + `dist/UgreenNASAdmin.exe` + `images/`).
 - **Optional SSH-Passwort im Windows-Tresor (`keyring`):** ab v22.1 — Anleitung im Abschnitt *SSH-Passwort im Windows-Tresor* in [`öffentlich/README.md`](öffentlich/README.md).
 
-## English
+**Screenshots und die ausführliche GitHub-Doku (Englisch zuerst, dann Deutsch)** stehen in [`öffentlich/README.md`](öffentlich/README.md).
 
-- **Run from repo root:** `python -m pip install -r öffentlich/requirements.txt`, then `python ugreen_nas_admin.py`.
-- **Public release / build EXE:** see **`öffentlich/`** — [`öffentlich/README.md`](öffentlich/README.md) (notifications setup, feature list, screenshots including **System & Health**), [`öffentlich/CHANGELOG.md`](öffentlich/CHANGELOG.md). Zip: `python tools/zip_oeffentlich_forum.py` → **`UgreenNASAdmin_v22.5.0_oeffentlich_mit_EXE.zip`** (sources + `dist/UgreenNASAdmin.exe` + `images/`).
-- **Optional SSH password in OS vault (`keyring`):** v22.1+ — see *SSH password in the OS vault* in [`öffentlich/README.md`](öffentlich/README.md).
+## GitHub — two repos (private / public) · zwei Repos (privat / öffentlich)
 
-## GitHub — zwei getrennte Repos (privat / öffentlich)
+| What / Was | Where / Wo | GitHub |
+|------------|-------------|--------|
+| **Private** — full workspace; **`öffentlich/`** not in this repo’s index | Project root `NAS_Admin_Project` | e.g. keep repo **private**; `git push` from here only |
+| **Public** — release sources for builds / distribution | Folder **`öffentlich/`** (own `.git`) | separate **public** repo; `git push` from `cd öffentlich` |
 
-| Was | Wo | GitHub |
-|-----|-----|--------|
-| **Privat** — ganzer Arbeitsordner ohne `öffentlich/` im Index | Projektroot `NAS_Admin_Project` | z. B. Repo **private** schalten oder eigenes privates Repo; `git push` nur von hier |
-| **Öffentlich** — nur Release-Quelle zum Bauen/Verteilen | Ordner **`öffentlich/`** (eigenes `.git`) | separates **public** Repo; `git push` von `cd öffentlich` |
-
-- Root: **`öffentlich/`** steht in **`.gitignore`** — der öffentliche Inhalt wird **nicht** mit dem privaten Repo mitgeschickt.
-- Nach frischem **Clone** des privaten Repos fehlt `öffentlich/` in Git — Ordner lokal anlegen und `git clone <public-repo-url> öffentlich` **oder** Dateien wie bisher aus dem Hauptprojekt kopieren.
-- **Öffentlich pushen:** `cd öffentlich` → `git push` (Remote mit **`setup_public_remote.ps1`** oder `git remote add origin …` setzen).
-- **Privat pushen:** im Root `git push` (Repo auf GitHub unter **Settings → General → Danger zone** auf **Private** stellen, falls bisher alles in einem Repo lag).
+- **English:** **`öffentlich/`** is listed in **`.gitignore`** here — public sources are **not** pushed with the private repo. After a fresh **clone** of the private repo, create `öffentlich/` locally: `git clone <public-repo-url> öffentlich` or copy files as before. **Push public:** `cd öffentlich` → `git push` (set remote with **`setup_public_remote.ps1`** or `git remote add origin …`).
+- **Deutsch:** Root: **`öffentlich/`** steht in **`.gitignore`** — öffentlicher Inhalt wird nicht mit dem privaten Repo mitgeschickt. Nach frischem **Clone** des privaten Repos `öffentlich/` lokal anlegen (`git clone <public-repo-url> öffentlich` oder kopieren). **Öffentlich pushen:** `cd öffentlich` → `git push`.
 
 Do **not** commit `nas_admin_connection.json` or `telegram_notify.json` (ignored via `.gitignore`).
 
-**Hinweis:** Wenn dein bisheriges GitHub-Repo noch den **kompletten** Ordner enthält: entweder auf **Private** stellen und ein **neues leeres public** Repo für nur `öffentlich/` anlegen, oder Inhalt des public Repos bewusst ersetzen (nur `öffentlich/` pushen — ggf. mit neuer Repo-URL).
+**Hinweis / Note:** If your GitHub repo still contains the **full** tree, either make it **private** and create a **new empty public** repo for **`öffentlich/`** only, or replace the public repo content intentionally.
 
-## Lizenz / License
+## License · Lizenz
 
-Deutsch: Dieses Projekt steht unter der MIT-Lizenz. Details siehe Datei `LICENSE`.
+**English:** This project is licensed under the MIT License. See the `LICENSE` file for details.
 
-English: This project is licensed under the MIT License. See the `LICENSE` file for details.
+**Deutsch:** Dieses Projekt steht unter der MIT-Lizenz. Details siehe Datei `LICENSE`.

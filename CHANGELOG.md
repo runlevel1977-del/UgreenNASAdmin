@@ -4,7 +4,9 @@
 
 _(noch nicht veröffentlicht)_
 
-- **Update-Hinweis:** ca. **4,5 s** nach Start (Hintergrund, **kein** Blockieren der UI) Abfrage von **GitHub Releases** (`runlevel1977-del/UgreenNASAdmin`); bei neuerer Version als `__version__` Dialog mit Link. Cooldown **24 h** (`last_github_update_check.txt`). Siehe `.cursor/rules/github_release_update_check.mdc`.
+## 22.6.0 — 2026-04-07
+
+Kurz: SSH-**Profile**, Docker **Live-Log** + **Compose** (config/ps/up-d, Plugin/Legacy-Fallback), Script-**Vorlagen** rsync/restic/rclone, Tk-**Frame**-Padding-Fix, ZIP-Version aus `nas_manager.py`. Details: **`öffentlich/CHANGELOG.md`**.
 
 ## 22.5.0 — 2026-04-04
 
