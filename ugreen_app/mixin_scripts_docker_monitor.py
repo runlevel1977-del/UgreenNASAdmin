@@ -6,7 +6,6 @@ import os
 import posixpath
 import shlex
 import shutil
-import shlex
 import stat
 import sys
 import uuid

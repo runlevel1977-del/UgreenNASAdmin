@@ -462,18 +462,6 @@ class MixinTabsSetup:
         tk.Label(tele, text=self.t("health.telegram_title"), bg=self.color_surface_alt, fg=self.color_text, font=self.font_head, anchor="w").pack(fill=tk.X, pady=(0, 8))
         tk.Label(tele, text=self.t("health.telegram_hint"), bg=self.color_surface_alt, fg=self.color_text_muted, font=("Segoe UI", 8), anchor="w", wraplength=900, justify=tk.LEFT).pack(fill=tk.X, pady=(0, 10))
 
-        r1 = tk.Frame(tele, bg=self.color_surface_alt)
-        r1.pack(fill=tk.X, pady=2)
-        tk.Label(r1, text=self.t("health.bot_token"), bg=self.color_surface_alt, fg=self.color_text_muted, width=14, anchor="w").pack(side=tk.LEFT)
-        self.entry_telegram_token = tk.Entry(r1, show="*", font=self.font_mono, relief="flat", highlightbackground=self.color_border, highlightthickness=1, bg=self.color_input_bg, fg=self.color_input_fg, insertbackground=self.color_input_fg)
-        self.entry_telegram_token.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=4)
-
-        r2 = tk.Frame(tele, bg=self.color_surface_alt)
-        r2.pack(fill=tk.X, pady=2)
-        tk.Label(r2, text=self.t("health.chat_id"), bg=self.color_surface_alt, fg=self.color_text_muted, width=14, anchor="w").pack(side=tk.LEFT)
-        self.entry_telegram_chat = tk.Entry(r2, font=self.font_mono, relief="flat", highlightbackground=self.color_border, highlightthickness=1, bg=self.color_input_bg, fg=self.color_input_fg, insertbackground=self.color_input_fg)
-        self.entry_telegram_chat.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=4)
-
         r3 = tk.Frame(tele, bg=self.color_surface_alt)
         r3.pack(fill=tk.X, pady=8)
         self.var_telegram_enabled = tk.BooleanVar(value=False)
@@ -499,7 +487,6 @@ class MixinTabsSetup:
 
         r6 = tk.Frame(tele, bg=self.color_surface_alt)
         r6.pack(fill=tk.X, pady=(12, 4))
-        self._register_danger_rounded(self.create_modern_btn(r6, self.t("health.tg_save"), self.telegram_save_config, self.color_user)).pack(side=tk.LEFT, padx=4)
         self._register_danger_rounded(self.create_modern_btn(r6, self.t("health.tg_test"), self.telegram_send_test, self.color_btn_blue)).pack(side=tk.LEFT, padx=4)
         self._register_danger_rounded(self.create_modern_btn(r6, self.t("health.tg_check"), self.telegram_run_checks_manual, self.color_cron)).pack(side=tk.LEFT, padx=4)
         self.lbl_telegram_status = tk.Label(tele, text="", bg=self.color_surface_alt, fg=self.color_text_muted, font=("Segoe UI", 9), anchor="w")
@@ -663,3 +650,309 @@ class MixinTabsSetup:
             font=self.font_mono, relief="flat", highlightbackground=self.color_border, highlightthickness=1, padx=10, pady=10)
         self.snap_output.pack(fill=tk.BOTH, expand=True)
         self.snap_output.insert("1.0", self.t("snap.intro"))
+
+    def setup_settings_tab(self):
+        wrap = tk.Frame(self.tab_settings, bg=self.tab_colors["scripts"])
+        wrap.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+
+        header = tk.Frame(
+            wrap,
+            bg=self.color_surface_alt,
+            highlightbackground=self.color_border,
+            highlightthickness=1,
+            padx=12,
+            pady=10,
+        )
+        header.pack(fill=tk.X, pady=(0, 10))
+        tk.Label(
+            header,
+            text=self.t("settings.title"),
+            bg=self.color_surface_alt,
+            fg=self.color_text,
+            font=self.font_head,
+            anchor="w",
+        ).pack(fill=tk.X)
+        tk.Label(
+            header,
+            text=self.t("settings.hint"),
+            bg=self.color_surface_alt,
+            fg=self.color_text_muted,
+            font=("Segoe UI", 9),
+            anchor="w",
+            justify=tk.LEFT,
+            wraplength=1000,
+        ).pack(fill=tk.X, pady=(4, 0))
+
+        self.settings_output = scrolledtext.ScrolledText(
+            wrap,
+            height=8,
+            bg=self.color_log_bg,
+            fg=self.color_log_fg,
+            insertbackground=self.color_log_fg,
+            font=self.font_mono,
+            relief="flat",
+            highlightbackground=self.color_border,
+            highlightthickness=1,
+            padx=10,
+            pady=10,
+        )
+        self.settings_output.pack(side=tk.BOTTOM, fill=tk.X, pady=(8, 0))
+
+        top_btns = tk.Frame(wrap, bg=self.tab_colors["scripts"])
+        top_btns.pack(fill=tk.X, pady=(0, 8))
+        self.create_modern_btn(top_btns, self.t("settings.load"), self.settings_load_to_ui, self.color_text_muted).pack(side=tk.LEFT, padx=(0, 8))
+        self._register_danger_rounded(self.create_modern_btn(top_btns, self.t("settings.apply_to_current_ui"), self.settings_apply_to_current_ui, self.color_btn_blue)).pack(side=tk.LEFT, padx=(0, 8))
+        self._register_danger_rounded(self.create_modern_btn(top_btns, self.t("settings.save"), self.settings_save_from_ui, self.color_user)).pack(side=tk.LEFT)
+
+        # Kleine, unaufdringliche Status-Ampel (Setup-Check)
+        status_row = tk.Frame(wrap, bg=self.tab_colors["scripts"])
+        status_row.pack(fill=tk.X, pady=(0, 6))
+        self.lbl_settings_status_conn = tk.Label(
+            status_row,
+            text="",
+            bg=self.tab_colors["scripts"],
+            fg=self.color_text_muted,
+            font=("Segoe UI", 8),
+            anchor="w",
+        )
+        self.lbl_settings_status_conn.pack(side=tk.LEFT, padx=(2, 12))
+        self.lbl_settings_status_tg = tk.Label(
+            status_row,
+            text="",
+            bg=self.tab_colors["scripts"],
+            fg=self.color_text_muted,
+            font=("Segoe UI", 8),
+            anchor="w",
+        )
+        self.lbl_settings_status_tg.pack(side=tk.LEFT, padx=(0, 12))
+        self.lbl_settings_status_mail = tk.Label(
+            status_row,
+            text="",
+            bg=self.tab_colors["scripts"],
+            fg=self.color_text_muted,
+            font=("Segoe UI", 8),
+            anchor="w",
+        )
+        self.lbl_settings_status_mail.pack(side=tk.LEFT, padx=(0, 12))
+
+        settings_scroll_outer = tk.Frame(wrap, bg=self.tab_colors["scripts"])
+        settings_scroll_outer.pack(fill=tk.BOTH, expand=True)
+        settings_scroll_outer.grid_rowconfigure(0, weight=1)
+        settings_scroll_outer.grid_columnconfigure(0, weight=1)
+
+        settings_canvas = tk.Canvas(settings_scroll_outer, bg=self.tab_colors["scripts"], highlightthickness=0)
+        settings_vsb = ttk.Scrollbar(settings_scroll_outer, orient="vertical", command=settings_canvas.yview)
+        settings_canvas.configure(yscrollcommand=settings_vsb.set)
+        settings_canvas.grid(row=0, column=0, sticky="nsew")
+        settings_vsb.grid(row=0, column=1, sticky="ns")
+
+        form = tk.Frame(
+            settings_canvas,
+            bg=self.color_surface_alt,
+            highlightbackground=self.color_border,
+            highlightthickness=1,
+            padx=12,
+            pady=10,
+        )
+        form_window = settings_canvas.create_window((0, 0), window=form, anchor="nw")
+
+        def _settings_canvas_inner_width(event):
+            settings_canvas.itemconfigure(form_window, width=max(event.width - 2, 1))
+
+        def _settings_canvas_scrollregion(_event=None):
+            box = settings_canvas.bbox("all")
+            if box:
+                settings_canvas.configure(scrollregion=box)
+
+        settings_canvas.bind("<Configure>", _settings_canvas_inner_width)
+        form.bind("<Configure>", _settings_canvas_scrollregion)
+        for c in range(4):
+            form.grid_columnconfigure(c, weight=1 if c in (1, 3) else 0)
+
+        def _add_row(row, label_key, attr_name, default="", width=36, pwd=False):
+            tk.Label(form, text=self.t(label_key), bg=self.color_surface_alt, fg=self.color_text_muted, anchor="w").grid(row=row, column=0, sticky="w", padx=(0, 8), pady=4)
+            e = tk.Entry(
+                form,
+                font=self.font_mono,
+                width=width,
+                show="*" if pwd else "",
+                relief="flat",
+                highlightbackground=self.color_border,
+                highlightthickness=1,
+                bg=self.color_input_bg,
+                fg=self.color_input_fg,
+                insertbackground=self.color_input_fg,
+            )
+            e.grid(row=row, column=1, sticky="ew", pady=4, ipady=4)
+            e.insert(0, default)
+            setattr(self, attr_name, e)
+
+        # Verbindung (aus Header nach Settings verschoben)
+        conn_title = tk.Label(
+            form,
+            text=self.t("settings.connection_title"),
+            bg=self.color_surface_alt,
+            fg=self.color_text,
+            font=self.font_bold,
+            anchor="w",
+        )
+        conn_title.grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 6))
+
+        prof_row = tk.Frame(form, bg=self.color_surface_alt)
+        prof_row.grid(row=1, column=0, columnspan=4, sticky="ew", pady=(0, 6))
+        tk.Label(
+            prof_row,
+            text=self.t("header.profile"),
+            bg=self.color_surface_alt,
+            fg=self.color_text_muted,
+            font=("Segoe UI", 9, "bold"),
+        ).pack(side=tk.LEFT)
+        self.combo_connection_profile = ttk.Combobox(prof_row, state="readonly", width=22, font=self.font_base)
+        self.combo_connection_profile.pack(side=tk.LEFT, padx=(8, 6))
+        self.combo_connection_profile.bind("<<ComboboxSelected>>", self.connection_profile_combo_changed)
+        self.create_modern_btn(
+            prof_row,
+            self.t("header.profile_add"),
+            self.connection_profile_add,
+            self.color_text_muted,
+            width=8,
+        ).pack(side=tk.LEFT, padx=(0, 4))
+        self.create_modern_btn(
+            prof_row,
+            self.t("header.profile_delete"),
+            self.connection_profile_delete,
+            "#fee2e2",
+            "#b91c1c",
+            width=8,
+        ).pack(side=tk.LEFT, padx=(0, 4))
+
+        _add_row(2, "header.nas_ip", "entry_ip", "")
+        _add_row(3, "header.port", "entry_port", "22", width=8)
+        _add_row(4, "header.user", "entry_user", "")
+        _add_row(5, "header.password", "entry_pwd", "", pwd=True)
+
+        self.var_ssh_use_key = tk.BooleanVar(value=False)
+        ck_conn = tk.Frame(form, bg=self.color_surface_alt)
+        ck_conn.grid(row=6, column=1, sticky="w", pady=(2, 2))
+        tk.Checkbutton(
+            ck_conn,
+            text=self.t("header.ssh_key_toggle"),
+            variable=self.var_ssh_use_key,
+            bg=self.color_surface_alt,
+            fg=self.color_text,
+            selectcolor=self.color_surface,
+            activebackground=self.color_surface_alt,
+            font=self.font_base,
+        ).pack(side=tk.LEFT)
+
+        _add_row(7, "header.use_ssh_key", "entry_ssh_key_path", "", width=48)
+        _add_row(8, "header.ssh_key_pass_label", "entry_ssh_key_pass", "", width=18, pwd=True)
+
+        conn_btns = tk.Frame(form, bg=self.color_surface_alt)
+        conn_btns.grid(row=9, column=1, sticky="w", pady=(6, 2))
+        self._register_danger_rounded(
+            self.create_modern_btn(
+                conn_btns,
+                self.t("header.save_connection"),
+                self._save_connection_config_clicked,
+                self.color_header_subtle,
+                width=15,
+            )
+        ).pack(side=tk.LEFT, padx=(0, 8))
+        self.create_modern_btn(
+            conn_btns,
+            self.t("header.keyring_save"),
+            self._keyring_store_password_clicked,
+            self.color_text_muted,
+            width=10,
+        ).pack(side=tk.LEFT)
+
+        # Telegram
+        tg_title = tk.Label(
+            form,
+            text=self.t("settings.telegram_title"),
+            bg=self.color_surface_alt,
+            fg=self.color_text,
+            font=self.font_bold,
+            anchor="w",
+        )
+        tg_title.grid(row=10, column=0, columnspan=4, sticky="w", pady=(12, 6))
+        _add_row(11, "settings.telegram_token", "entry_settings_telegram_token", "")
+        _add_row(12, "settings.telegram_chat", "entry_settings_telegram_chat", "")
+
+        # E-Mail
+        mail_title = tk.Label(
+            form,
+            text=self.t("settings.email_title"),
+            bg=self.color_surface_alt,
+            fg=self.color_text,
+            font=self.font_bold,
+            anchor="w",
+        )
+        mail_title.grid(row=13, column=0, columnspan=4, sticky="w", pady=(12, 6))
+        _add_row(14, "settings.smtp_host", "entry_settings_smtp_host", "")
+        _add_row(15, "settings.smtp_port", "entry_settings_smtp_port", "587", width=8)
+        _add_row(16, "settings.smtp_user", "entry_settings_smtp_user", "")
+        _add_row(17, "settings.smtp_pass", "entry_settings_smtp_pass", "", pwd=True)
+        _add_row(18, "settings.smtp_from", "entry_settings_smtp_from", "")
+        _add_row(19, "settings.smtp_to", "entry_settings_smtp_to", "")
+
+        # Standardpfade
+        path_title = tk.Label(
+            form,
+            text=self.t("settings.paths_title"),
+            bg=self.color_surface_alt,
+            fg=self.color_text,
+            font=self.font_bold,
+            anchor="w",
+        )
+        path_title.grid(row=20, column=0, columnspan=4, sticky="w", pady=(12, 6))
+        _add_row(21, "settings.path_scripts", "entry_settings_path_scripts", "/volume1/scripts/")
+        _add_row(22, "settings.path_compose", "entry_settings_path_compose", "/volume1/docker/docker-compose.yml")
+        _add_row(23, "settings.path_explorer_root", "entry_settings_path_explorer_root", "/volume1")
+
+        self.var_settings_smtp_starttls = tk.BooleanVar(value=True)
+        self.var_settings_smtp_ssl = tk.BooleanVar(value=False)
+        ck_row = tk.Frame(form, bg=self.color_surface_alt)
+        ck_row.grid(row=24, column=1, sticky="w", pady=(4, 4))
+        tk.Checkbutton(
+            ck_row,
+            text=self.t("settings.smtp_starttls"),
+            variable=self.var_settings_smtp_starttls,
+            bg=self.color_surface_alt,
+            fg=self.color_text,
+            selectcolor=self.color_surface,
+            activebackground=self.color_surface_alt,
+            font=self.font_base,
+        ).pack(side=tk.LEFT, padx=(0, 12))
+        tk.Checkbutton(
+            ck_row,
+            text=self.t("settings.smtp_ssl"),
+            variable=self.var_settings_smtp_ssl,
+            bg=self.color_surface_alt,
+            fg=self.color_text,
+            selectcolor=self.color_surface,
+            activebackground=self.color_surface_alt,
+            font=self.font_base,
+        ).pack(side=tk.LEFT)
+
+        btns = tk.Frame(form, bg=self.color_surface_alt)
+        btns.grid(row=25, column=0, columnspan=4, sticky="w", pady=(10, 0))
+        self.create_modern_btn(btns, self.t("settings.load"), self.settings_load_to_ui, self.color_text_muted).pack(side=tk.LEFT, padx=(0, 8))
+        self._register_danger_rounded(self.create_modern_btn(btns, self.t("settings.apply_to_current_ui"), self.settings_apply_to_current_ui, self.color_btn_blue)).pack(side=tk.LEFT, padx=(0, 8))
+        self._register_danger_rounded(
+            self.create_modern_btn(btns, self.t("settings.save"), self.settings_save_from_ui, self.color_user)
+        ).pack(side=tk.LEFT)
+
+        def _settings_wheel(event):
+            d = getattr(event, "delta", 0) or 0
+            if sys.platform == "darwin":
+                settings_canvas.yview_scroll(-d, "units")
+            else:
+                settings_canvas.yview_scroll(int(-d / 120), "units")
+            return "break"
+
+        settings_canvas.bind("<MouseWheel>", _settings_wheel)
+        form.bind("<MouseWheel>", _settings_wheel)
+
+        self.settings_load_to_ui()

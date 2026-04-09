@@ -2,7 +2,24 @@
 
 ## Unreleased
 
-_(noch nicht veröffentlicht)_
+### Deutsch (ausführlich)
+
+- **Zentrale Einstellungen (`⚙️ Settings`):** Verbindungsdaten (inkl. Profile/SSH-Key), Telegram, E-Mail und Standardpfade sind jetzt zentral gebündelt.
+- **Header aufgeräumt:** Verbindungsfelder aus dem Header entfernt; Hinweise und globale Aktionen bleiben kompakt rechts.
+- **System & Health vereinfacht:** Telegram-Zugangsdaten sowie SMTP-Verbindungsfelder entfernt; dort bleiben Kanal-/Prüfoptionen, Schwellen, Cooldown und Testaktionen.
+- **NAS-Zentral-Wächter / Tagesbericht:** Telegram- und SMTP-Credentials werden aus den zentralen Settings übernommen.
+- **Erststart-Hinweis:** Sidebar-Button **Settings** pulsiert dezent, bis eine Verbindung gespeichert wurde.
+- **Setup-Status:** Kleine Ampelzeile in Settings zeigt **Verbindung / Telegram / E-Mail** als `OK` oder `fehlt`.
+- **Public-Defaults:** Öffentliche App startet mit leeren Standardwerten für NAS-IP und Benutzername.
+
+### English (summary)
+
+- **Central settings tab** for connection profiles/SSH key, Telegram, email, and default paths.
+- **Cleaner header** and streamlined Health tab (credentials moved to Settings).
+- **NAS watch / daily report** now read Telegram/SMTP credentials from central settings.
+- **Gentle first-run attention pulse** on Settings button until a connection is saved.
+- **Small setup status badges** for connection, Telegram, and email readiness.
+- **Public defaults** start with empty NAS IP/user.
 
 ## 22.6.0 — 2026-04-07
 

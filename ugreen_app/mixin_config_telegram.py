@@ -105,6 +105,21 @@ class MixinConfigTelegram:
         except Exception:
             return {}
 
+    def _has_saved_connection_config(self):
+        data = self._connection_read_full_json()
+        if not data:
+            return False
+        try:
+            profs, _ai = self._connection_profiles_from_disk_dict(data)
+        except Exception:
+            return False
+        for p in profs or []:
+            ip = str(p.get("ip") or "").strip()
+            user = str(p.get("user") or "").strip()
+            if ip and user:
+                return True
+        return False
+
     def _connection_profile_dict_from_ui(self, name_override=None):
         idx = int(getattr(self, "_connection_active_index", 0) or 0)
         profs = getattr(self, "_connection_profiles", None)
@@ -310,6 +325,11 @@ class MixinConfigTelegram:
             with open(p, "w", encoding="utf-8") as f:
                 json.dump(payload, f, indent=2)
             self.set_status(self.t("msg.connection_saved", name=os.path.basename(p)))
+            try:
+                self._update_settings_nav_attention()
+                self._update_settings_status_badges()
+            except Exception:
+                pass
             messagebox.showinfo(self.t("msg.connection"), self.t("msg.saved_to", path=p))
         except Exception as e:
             messagebox.showerror(self.t("msg.connection"), str(e))
@@ -336,24 +356,234 @@ class MixinConfigTelegram:
     def _telegram_config_path(self):
         return os.path.join(self._app_data_dir(), "telegram_notify.json")
 
-    def _telegram_load_config(self):
-        p = self._telegram_config_path()
+    def _settings_telegram_creds(self) -> tuple[str, str]:
+        cfg = self._load_app_settings()
+        t = dict(cfg.get("telegram") or {})
+        return str(t.get("bot_token") or "").strip(), str(t.get("chat_id") or "").strip()
+
+    def _app_settings_path(self):
+        return os.path.join(self._app_data_dir(), "app_settings.json")
+
+    def _default_app_settings(self):
+        return {
+            "telegram": {
+                "bot_token": "",
+                "chat_id": "",
+            },
+            "email": {
+                "smtp_host": "",
+                "smtp_port": 587,
+                "smtp_user": "",
+                "smtp_pass": "",
+                "smtp_from": "",
+                "smtp_to": "",
+                "smtp_starttls": True,
+                "smtp_ssl": False,
+            },
+            "paths": {
+                "scripts_dir": "/volume1/scripts/",
+                "docker_compose_path": "/volume1/docker/docker-compose.yml",
+                "explorer_root": "/volume1",
+            },
+        }
+
+    def _load_app_settings(self):
+        data = self._default_app_settings()
+        p = self._app_settings_path()
         if not os.path.isfile(p):
-            return {}
+            return data
         try:
             with open(p, encoding="utf-8") as f:
-                return json.load(f)
+                raw = json.load(f)
+            if isinstance(raw, dict):
+                for sec in ("telegram", "email", "paths"):
+                    if isinstance(raw.get(sec), dict):
+                        data[sec].update(raw[sec])
         except Exception:
-            return {}
+            pass
+        return data
+
+    def _collect_app_settings_from_ui(self):
+        smtp_port_raw = (self.entry_settings_smtp_port.get().strip() if hasattr(self, "entry_settings_smtp_port") else "587") or "587"
+        try:
+            smtp_port = int(smtp_port_raw)
+        except ValueError:
+            smtp_port = 587
+        smtp_port = max(1, min(65535, smtp_port))
+        return {
+            "telegram": {
+                "bot_token": self.entry_settings_telegram_token.get().strip() if hasattr(self, "entry_settings_telegram_token") else "",
+                "chat_id": self.entry_settings_telegram_chat.get().strip() if hasattr(self, "entry_settings_telegram_chat") else "",
+            },
+            "email": {
+                "smtp_host": self.entry_settings_smtp_host.get().strip() if hasattr(self, "entry_settings_smtp_host") else "",
+                "smtp_port": smtp_port,
+                "smtp_user": self.entry_settings_smtp_user.get().strip() if hasattr(self, "entry_settings_smtp_user") else "",
+                "smtp_pass": self.entry_settings_smtp_pass.get() if hasattr(self, "entry_settings_smtp_pass") else "",
+                "smtp_from": self.entry_settings_smtp_from.get().strip() if hasattr(self, "entry_settings_smtp_from") else "",
+                "smtp_to": self.entry_settings_smtp_to.get().strip() if hasattr(self, "entry_settings_smtp_to") else "",
+                "smtp_starttls": bool(self.var_settings_smtp_starttls.get()) if hasattr(self, "var_settings_smtp_starttls") else True,
+                "smtp_ssl": bool(self.var_settings_smtp_ssl.get()) if hasattr(self, "var_settings_smtp_ssl") else False,
+            },
+            "paths": {
+                "scripts_dir": self.entry_settings_path_scripts.get().strip() if hasattr(self, "entry_settings_path_scripts") else "/volume1/scripts/",
+                "docker_compose_path": self.entry_settings_path_compose.get().strip() if hasattr(self, "entry_settings_path_compose") else "/volume1/docker/docker-compose.yml",
+                "explorer_root": self.entry_settings_path_explorer_root.get().strip() if hasattr(self, "entry_settings_path_explorer_root") else "/volume1",
+            },
+        }
+
+    def _settings_status_snapshot(self, cfg=None):
+        cfg = cfg or self._load_app_settings()
+        conn_ok = bool(self._has_saved_connection_config())
+        tg = dict(cfg.get("telegram") or {})
+        tg_ok = bool(str(tg.get("bot_token") or "").strip() and str(tg.get("chat_id") or "").strip())
+        em = dict(cfg.get("email") or {})
+        mail_ok = bool(
+            str(em.get("smtp_host") or "").strip()
+            and str(em.get("smtp_from") or "").strip()
+            and str(em.get("smtp_to") or "").strip()
+        )
+        return conn_ok, tg_ok, mail_ok
+
+    def _update_settings_status_badges(self, cfg=None):
+        if not hasattr(self, "lbl_settings_status_conn"):
+            return
+        conn_ok, tg_ok, mail_ok = self._settings_status_snapshot(cfg)
+        ok = self.t("settings.status_ok")
+        miss = self.t("settings.status_missing")
+        self.lbl_settings_status_conn.config(
+            text=self.t("settings.status_conn", state=(ok if conn_ok else miss)),
+            fg=(self.color_user if conn_ok else self.color_cron),
+        )
+        self.lbl_settings_status_tg.config(
+            text=self.t("settings.status_tg", state=(ok if tg_ok else miss)),
+            fg=(self.color_user if tg_ok else self.color_cron),
+        )
+        self.lbl_settings_status_mail.config(
+            text=self.t("settings.status_mail", state=(ok if mail_ok else miss)),
+            fg=(self.color_user if mail_ok else self.color_cron),
+        )
+
+    def settings_load_to_ui(self):
+        try:
+            self._load_connection_config()
+        except Exception:
+            pass
+        cfg = self._load_app_settings()
+        if hasattr(self, "entry_settings_telegram_token"):
+            self.entry_settings_telegram_token.delete(0, tk.END)
+            self.entry_settings_telegram_token.insert(0, str(cfg["telegram"].get("bot_token") or ""))
+        if hasattr(self, "entry_settings_telegram_chat"):
+            self.entry_settings_telegram_chat.delete(0, tk.END)
+            self.entry_settings_telegram_chat.insert(0, str(cfg["telegram"].get("chat_id") or ""))
+        if hasattr(self, "entry_settings_smtp_host"):
+            self.entry_settings_smtp_host.delete(0, tk.END)
+            self.entry_settings_smtp_host.insert(0, str(cfg["email"].get("smtp_host") or ""))
+        if hasattr(self, "entry_settings_smtp_port"):
+            self.entry_settings_smtp_port.delete(0, tk.END)
+            self.entry_settings_smtp_port.insert(0, str(int(cfg["email"].get("smtp_port") or 587)))
+        if hasattr(self, "entry_settings_smtp_user"):
+            self.entry_settings_smtp_user.delete(0, tk.END)
+            self.entry_settings_smtp_user.insert(0, str(cfg["email"].get("smtp_user") or ""))
+        if hasattr(self, "entry_settings_smtp_pass"):
+            self.entry_settings_smtp_pass.delete(0, tk.END)
+            self.entry_settings_smtp_pass.insert(0, str(cfg["email"].get("smtp_pass") or ""))
+        if hasattr(self, "entry_settings_smtp_from"):
+            self.entry_settings_smtp_from.delete(0, tk.END)
+            self.entry_settings_smtp_from.insert(0, str(cfg["email"].get("smtp_from") or ""))
+        if hasattr(self, "entry_settings_smtp_to"):
+            self.entry_settings_smtp_to.delete(0, tk.END)
+            self.entry_settings_smtp_to.insert(0, str(cfg["email"].get("smtp_to") or ""))
+        if hasattr(self, "var_settings_smtp_starttls"):
+            self.var_settings_smtp_starttls.set(bool(cfg["email"].get("smtp_starttls", True)))
+        if hasattr(self, "var_settings_smtp_ssl"):
+            self.var_settings_smtp_ssl.set(bool(cfg["email"].get("smtp_ssl", False)))
+        if hasattr(self, "entry_settings_path_scripts"):
+            self.entry_settings_path_scripts.delete(0, tk.END)
+            self.entry_settings_path_scripts.insert(0, str(cfg["paths"].get("scripts_dir") or "/volume1/scripts/"))
+        if hasattr(self, "entry_settings_path_compose"):
+            self.entry_settings_path_compose.delete(0, tk.END)
+            self.entry_settings_path_compose.insert(0, str(cfg["paths"].get("docker_compose_path") or "/volume1/docker/docker-compose.yml"))
+        if hasattr(self, "entry_settings_path_explorer_root"):
+            self.entry_settings_path_explorer_root.delete(0, tk.END)
+            self.entry_settings_path_explorer_root.insert(0, str(cfg["paths"].get("explorer_root") or "/volume1"))
+        if hasattr(self, "settings_output"):
+            self.settings_output.delete("1.0", tk.END)
+            self.settings_output.insert("1.0", self.t("settings.loaded", path=os.path.abspath(self._app_settings_path())))
+        self._update_settings_status_badges(cfg)
+
+    def settings_save_from_ui(self):
+        if not self._danger_gate():
+            return
+        cfg = self._collect_app_settings_from_ui()
+        path = os.path.abspath(self._app_settings_path())
+        try:
+            # Verbindungsdaten parallel in die bestehende Connection-Datei schreiben.
+            self._save_connection_config_clicked()
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(cfg, f, indent=2)
+            try:
+                self._telegram_update_path_label()
+                self.telegram_restart_monitor()
+            except Exception:
+                pass
+            self.set_status(self.t("settings.saved_short"))
+            if hasattr(self, "settings_output"):
+                self.settings_output.delete("1.0", tk.END)
+                self.settings_output.insert("1.0", self.t("settings.saved", path=path))
+            self._update_settings_status_badges(cfg)
+        except Exception as e:
+            messagebox.showerror(self.t("settings.title"), str(e))
+
+    def settings_apply_to_current_ui(self):
+        cfg = self._collect_app_settings_from_ui()
+        # Start-Integration: zentrale Settings in bestehende Felder spiegeln.
+        try:
+            # Telegram-Credentials kommen jetzt zentral aus Settings; Health-Felder entfallen.
+            if hasattr(self, "entry_docker_compose"):
+                self.entry_docker_compose.delete(0, tk.END)
+                self.entry_docker_compose.insert(0, cfg["paths"]["docker_compose_path"])
+            if hasattr(self, "entry_storage_top_path"):
+                self.entry_storage_top_path.delete(0, tk.END)
+                self.entry_storage_top_path.insert(0, cfg["paths"]["explorer_root"])
+            if hasattr(self, "entry_acl_path"):
+                self.entry_acl_path.delete(0, tk.END)
+                self.entry_acl_path.insert(0, cfg["paths"]["explorer_root"])
+            if hasattr(self, "entry_snap_base"):
+                self.entry_snap_base.delete(0, tk.END)
+                self.entry_snap_base.insert(0, cfg["paths"]["explorer_root"])
+            if hasattr(self, "_telegram_update_path_label"):
+                self._telegram_update_path_label()
+            if hasattr(self, "settings_output"):
+                self.settings_output.delete("1.0", tk.END)
+                self.settings_output.insert("1.0", self.t("settings.applied"))
+            self._update_settings_status_badges(cfg)
+            self.set_status(self.t("settings.applied_short"))
+        except Exception as e:
+            messagebox.showerror(self.t("settings.title"), str(e))
+
+    def _telegram_load_config(self):
+        p = self._telegram_config_path()
+        base = {}
+        if not os.path.isfile(p):
+            base = {}
+        else:
+            try:
+                with open(p, encoding="utf-8") as f:
+                    base = json.load(f)
+            except Exception:
+                base = {}
+        tok, cid = self._settings_telegram_creds()
+        if tok:
+            base["bot_token"] = tok
+        if cid:
+            base["chat_id"] = cid
+        return base
 
     def telegram_load_ui_from_file(self):
-        if not hasattr(self, "entry_telegram_token"):
+        if not hasattr(self, "var_telegram_enabled"):
             return
         c = self._telegram_load_config()
-        self.entry_telegram_token.delete(0, tk.END)
-        self.entry_telegram_token.insert(0, c.get("bot_token", "") or "")
-        self.entry_telegram_chat.delete(0, tk.END)
-        self.entry_telegram_chat.insert(0, str(c.get("chat_id", "") or ""))
         self.var_telegram_enabled.set(bool(c.get("enabled", False)))
         self.spin_telegram_interval.delete(0, tk.END)
         self.spin_telegram_interval.insert(0, str(int(c.get("interval_sec", 300))))
@@ -368,9 +598,10 @@ class MixinConfigTelegram:
         self._telegram_update_path_label()
 
     def telegram_collect_config_dict(self):
+        token, chat = self._settings_telegram_creds()
         return {
-            "bot_token": self.entry_telegram_token.get().strip(),
-            "chat_id": self.entry_telegram_chat.get().strip(),
+            "bot_token": token,
+            "chat_id": chat,
             "enabled": self.var_telegram_enabled.get(),
             "interval_sec": max(60, int(self.spin_telegram_interval.get() or 300)),
             "disk_warn_percent": max(1, min(99, int(self.spin_telegram_disk_warn.get() or 85))),
@@ -385,8 +616,10 @@ class MixinConfigTelegram:
         p = os.path.abspath(self._telegram_config_path())
         ex = os.path.isfile(p)
         status = self.t("telegram.file_ok" if ex else "telegram.file_missing")
+        tok, cid = self._settings_telegram_creds()
+        creds_status = self.t("telegram.creds_ok" if (tok and cid) else "telegram.creds_missing")
         self.lbl_telegram_path.config(
-            text=f"{self.t('telegram.path_header')}\n{p}\n{status}"
+            text=f"{self.t('telegram.path_header')}\n{p}\n{status}\n{creds_status}"
         )
 
     def telegram_save_config(self):
@@ -450,14 +683,11 @@ class MixinConfigTelegram:
     def telegram_send_test(self):
         if not self._danger_gate():
             return
-        if hasattr(self, "entry_telegram_token"):
-            try:
-                cfg = self.telegram_collect_config_dict()
-            except ValueError:
-                messagebox.showerror(self.t("msg.telegram"), self.t("msg.telegram_invalid"))
-                return
-        else:
-            cfg = self._telegram_load_config()
+        try:
+            cfg = self.telegram_collect_config_dict()
+        except ValueError:
+            messagebox.showerror(self.t("msg.telegram"), self.t("msg.telegram_invalid"))
+            return
         ts = time.strftime("%Y-%m-%d %H:%M:%S")
         ok, err = self.telegram_send_raw(self.t("msg.telegram_test_body", ts=ts), cfg)
         if ok:

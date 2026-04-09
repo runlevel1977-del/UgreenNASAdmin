@@ -218,15 +218,11 @@ class MixinThemeUI:
         self.header_frame = tk.Frame(self.root, bg=self.color_header, pady=6, padx=14)
         self.header_frame.pack(side=tk.TOP, fill=tk.X)
         self.header_frame.grid_columnconfigure(1, weight=1)
+        self.header_frame.grid_columnconfigure(2, weight=0)
         self.header_frame.grid_rowconfigure(0, weight=0)
 
-        header_right_outer = tk.Frame(self.header_frame, bg=self.color_header)
-        header_right_outer.grid(row=0, column=2, rowspan=2, sticky="nsew", padx=(8, 0))
-        header_right_outer.grid_columnconfigure(0, weight=1)
-        header_right_outer.grid_rowconfigure(0, weight=1)
-        tk.Frame(header_right_outer, bg=self.color_header).grid(row=0, column=0, sticky="nsew")
-        header_right = tk.Frame(header_right_outer, bg=self.color_header)
-        header_right.grid(row=1, column=0, sticky="se")
+        header_right = tk.Frame(self.header_frame, bg=self.color_header)
+        header_right.grid(row=0, column=2, rowspan=2, sticky="e", padx=(8, 0))
 
         toggle_text = self.t("header.theme_light") if self.current_theme == "dark" else self.t("header.theme_dark")
         _pp_fg, _pp_hov = "#93c5fd", "#bfdbfe"
@@ -241,20 +237,6 @@ class MixinThemeUI:
         self.btn_danger_power.pack(side=tk.LEFT, padx=(0, 4))
         self.btn_theme_toggle = self.create_modern_btn(header_right, toggle_text, self.toggle_theme, self.color_btn_purple, width=9)
         self.btn_theme_toggle.pack(side=tk.LEFT, padx=(0, 4))
-        self.create_modern_btn(
-            header_right,
-            self.t("header.save_connection"),
-            self._save_connection_config_clicked,
-            self.color_header_subtle,
-            width=15,
-        ).pack(side=tk.LEFT, padx=(0, 4))
-        self.create_modern_btn(
-            header_right,
-            self.t("header.keyring_save"),
-            self._keyring_store_password_clicked,
-            self.color_header_subtle,
-            width=10,
-        ).pack(side=tk.LEFT, padx=(0, 4))
         self._paypal_label = tk.Label(
             header_right,
             text=self.t("header.coffee"),
@@ -273,115 +255,11 @@ class MixinThemeUI:
         if self._photo_app_icon:
             tk.Label(brand_left, image=self._photo_app_icon, bg=self.color_header).pack(side=tk.LEFT)
 
-        grid_loader = tk.Frame(self.header_frame, bg=self.color_header)
-        grid_loader.grid(row=0, column=1, sticky="ew")
-        grid_loader.grid_columnconfigure(0, weight=1)
-
-        profile_row = tk.Frame(grid_loader, bg=self.color_header)
-        profile_row.grid(row=0, column=0, sticky="ew", pady=(0, 4))
-        tk.Label(
-            profile_row,
-            text=self.t("header.profile"),
-            bg=self.color_header,
-            fg=self.color_header_subtle,
-            font=("Segoe UI", 8, "bold"),
-        ).pack(side=tk.LEFT)
-        self.combo_connection_profile = ttk.Combobox(profile_row, state="readonly", width=22, font=self.font_base)
-        self.combo_connection_profile.pack(side=tk.LEFT, padx=(8, 6))
-        self.combo_connection_profile.bind("<<ComboboxSelected>>", self.connection_profile_combo_changed)
-        self.create_modern_btn(
-            profile_row,
-            self.t("header.profile_add"),
-            self.connection_profile_add,
-            self.color_header_subtle,
-            width=8,
-        ).pack(side=tk.LEFT, padx=(0, 4))
-        self.create_modern_btn(
-            profile_row,
-            self.t("header.profile_delete"),
-            self.connection_profile_delete,
-            "#fee2e2",
-            "#b91c1c",
-            width=8,
-        ).pack(side=tk.LEFT, padx=(0, 4))
-
-        conn_row = tk.Frame(grid_loader, bg=self.color_header)
-        conn_row.grid(row=1, column=0, sticky="ew")
-        # SSH-Key-Spalte: keine weight=1 — sonst wird das Feld maximiert endlos breit.
-        # Feste Zeichenbreite + Mindestpixel, normal groß genug, maximiert nicht zu lang.
-        conn_row.grid_columnconfigure(4, weight=0, minsize=200)
-        conn_row.grid_columnconfigure(6, weight=1)
-
-        # Kompakt, aber IPv4 und typische User/Pfade lesbar; weniger Abstand zwischen Spalten (add_grid_field padx).
-        self.entry_ip = self.add_grid_field(conn_row, self.t("header.nas_ip"), "192.168.2.168", 0, width=16, justify="left")
-        self.entry_port = self.add_grid_field(conn_row, self.t("header.port"), "22", 1, width=6)
-        self.entry_user = self.add_grid_field(conn_row, self.t("header.user"), "papa", 2, width=12, justify="left")
-        self.entry_pwd = self.add_grid_field(conn_row, self.t("header.password"), "", 3, is_pwd=True, width=12)
-
-        self.var_ssh_use_key = tk.BooleanVar(value=False)
-        f_ssh = tk.Frame(conn_row, bg=self.color_header)
-        f_ssh.grid(row=0, column=4, padx=(4, 4), sticky="nw")
-        tk.Checkbutton(
-            f_ssh,
-            text=self.t("header.ssh_key_toggle"),
-            variable=self.var_ssh_use_key,
-            bg=self.color_header,
-            fg=self.color_header_subtle,
-            selectcolor=self.color_header,
-            activebackground=self.color_header,
-            activeforeground=self.color_header_subtle,
-            font=("Segoe UI", 8, "bold"),
-            relief="flat",
-            highlightthickness=0,
-        ).pack(anchor=tk.W)
-        # width = Zeichen (Monospace): sichtbarer Pfad ohne maximiert „endlos“ breit zu werden.
-        self.entry_ssh_key_path = tk.Entry(
-            f_ssh,
-            font=self.font_mono,
-            width=28,
-            justify="left",
-            bg=self.color_input_bg,
-            fg=self.color_input_fg,
-            insertbackground=self.color_input_fg,
-            relief="flat",
-            highlightbackground=self.color_border,
-            highlightthickness=1,
-        )
-        self.entry_ssh_key_path.pack(anchor=tk.W, pady=(2, 0), ipady=3)
-        self.entry_ssh_key_path.insert(0, "")
-
-        f_keypass = tk.Frame(conn_row, bg=self.color_header)
-        f_keypass.grid(row=0, column=5, padx=(0, 4), sticky="nw")
-        tk.Label(
-            f_keypass,
-            text=self.t("header.ssh_key_pass_label"),
-            bg=self.color_header,
-            fg=self.color_header_subtle,
-            font=("Segoe UI", 8, "bold"),
-        ).pack(anchor=tk.W)
-        self.entry_ssh_key_pass = tk.Entry(
-            f_keypass,
-            show="*",
-            font=self.font_mono,
-            width=11,
-            justify="center",
-            bg=self.color_input_bg,
-            fg=self.color_input_fg,
-            insertbackground=self.color_input_fg,
-            relief="flat",
-            highlightbackground=self.color_border,
-            highlightthickness=1,
-        )
-        self.entry_ssh_key_pass.pack(pady=(2, 0), ipady=3)
-        self.entry_ssh_key_pass.insert(0, "")
-
-        tk.Frame(conn_row, bg=self.color_header).grid(row=0, column=6, sticky="nsew")
-
         hint_fr = tk.Frame(self.header_frame, bg=self.color_header)
         hint_fr.grid(row=1, column=1, sticky="ew", pady=(4, 0))
         self._header_hint_label = tk.Label(
             hint_fr,
-            text=self.t("header.security_hint"),
+            text=self.t("header.settings_hint"),
             font=("Segoe UI", 8),
             bg=self.color_header,
             fg=self.color_header_subtle,
@@ -435,6 +313,7 @@ class MixinThemeUI:
         self.tab_storage = tk.Frame(self.notebook, bg=self.tab_colors["scripts"])
         self.tab_acl = tk.Frame(self.notebook, bg=self.tab_colors["scripts"])
         self.tab_snapshots = tk.Frame(self.notebook, bg=self.tab_colors["scripts"])
+        self.tab_settings = tk.Frame(self.notebook, bg=self.tab_colors["scripts"])
         
         self.notebook.add(self.tab_scripts, text=self.t("tab.scripts"))
         self.notebook.add(self.tab_explorer, text=self.t("tab.explorer"))
@@ -443,6 +322,7 @@ class MixinThemeUI:
         self.notebook.add(self.tab_storage, text=self.t("tab.storage"))
         self.notebook.add(self.tab_acl, text=self.t("tab.acl"))
         self.notebook.add(self.tab_snapshots, text=self.t("tab.snapshots"))
+        self.notebook.add(self.tab_settings, text=self.t("tab.settings"))
         self.notebook.bind("<<NotebookTabChanged>>", lambda e: self._sync_sidebar_with_tab())
         try:
             self.notebook.configure(style="ModernHiddenTabs.TNotebook")
@@ -468,6 +348,7 @@ class MixinThemeUI:
         self.setup_storage_tab()
         self.setup_acl_tab()
         self.setup_snapshots_tab()
+        self.setup_settings_tab()
         self.setup_scheduler_ui()
         self.setup_sidebar_nav()
         self._sync_sidebar_with_tab()
@@ -492,6 +373,7 @@ class MixinThemeUI:
             ("storage", self.t("nav.storage")),
             ("acl", self.t("nav.acl")),
             ("snapshots", self.t("nav.snapshots")),
+            ("settings", self.t("nav.settings")),
         ]
         for key, title in nav_items:
             btn = create_rounded_button(
@@ -516,6 +398,70 @@ class MixinThemeUI:
         ).pack(fill=tk.X, padx=12)
 
         self._setup_sidebar_monitor(sb)
+        self._update_settings_nav_attention()
+
+    def _stop_settings_blink(self):
+        jid = getattr(self, "_settings_blink_job", None)
+        self._settings_blink_job = None
+        if jid is not None:
+            try:
+                self.root.after_cancel(jid)
+            except Exception:
+                pass
+        btn = getattr(self, "nav_buttons", {}).get("settings")
+        if btn is not None:
+            try:
+                idx = self.notebook.index(self.notebook.select())
+            except Exception:
+                idx = 0
+            if idx == 7:
+                btn.set_theme(self.color_selected_bg, self.color_selected_fg)
+            else:
+                btn.set_theme(self.color_surface_alt, self.color_text)
+
+    def _settings_blink_tick(self):
+        need = False
+        try:
+            need = not bool(self._has_saved_connection_config())
+        except Exception:
+            need = False
+        if not need:
+            self._stop_settings_blink()
+            return
+        btn = getattr(self, "nav_buttons", {}).get("settings")
+        if btn is None:
+            return
+        try:
+            idx = self.notebook.index(self.notebook.select())
+        except Exception:
+            idx = 0
+        if idx == 7:
+            # Aktiver Tab bleibt immer im normalen aktiven Stil.
+            btn.set_theme(self.color_selected_bg, self.color_selected_fg)
+        else:
+            # Sanftes Pulsieren: 4 Stufen, langsam, ohne starkes Flackern.
+            steps = getattr(
+                self,
+                "_settings_pulse_steps",
+                [self.color_surface_alt, "#f8edd1", "#fde8b6", "#f8edd1"],
+            )
+            i = int(getattr(self, "_settings_pulse_idx", 0) or 0) % len(steps)
+            btn.set_theme(steps[i], self.color_text)
+            self._settings_pulse_idx = (i + 1) % len(steps)
+        self._settings_blink_job = self.root.after(900, self._settings_blink_tick)
+
+    def _update_settings_nav_attention(self):
+        need = False
+        try:
+            need = not bool(self._has_saved_connection_config())
+        except Exception:
+            need = False
+        if not need:
+            self._stop_settings_blink()
+            return
+        if getattr(self, "_settings_blink_job", None) is None:
+            self._settings_pulse_idx = 0
+            self._settings_blink_tick()
 
     def _setup_sidebar_monitor(self, sb):
         """Live-Monitor unten in der Sidebar (über der Statusleiste / Sprachumschaltung)."""
@@ -578,7 +524,7 @@ class MixinThemeUI:
             pass
 
     def switch_view(self, key):
-        index_map = {"scripts": 0, "explorer": 1, "docker": 2, "health": 3, "storage": 4, "acl": 5, "snapshots": 6}
+        index_map = {"scripts": 0, "explorer": 1, "docker": 2, "health": 3, "storage": 4, "acl": 5, "snapshots": 6, "settings": 7}
         idx = index_map.get(key, 0)
         try:
             self.notebook.select(idx)
@@ -591,20 +537,22 @@ class MixinThemeUI:
             idx = self.notebook.index(self.notebook.select())
         except Exception:
             return
-        rev = {0: "scripts", 1: "explorer", 2: "docker", 3: "health", 4: "storage", 5: "acl", 6: "snapshots"}
+        rev = {0: "scripts", 1: "explorer", 2: "docker", 3: "health", 4: "storage", 5: "acl", 6: "snapshots", 7: "settings"}
         active = rev.get(idx, "scripts")
         for key, btn in getattr(self, "nav_buttons", {}).items():
             if key == active:
                 btn.set_theme(self.color_selected_bg, self.color_selected_fg)
             else:
                 btn.set_theme(self.color_surface_alt, self.color_text)
+        # Nach dem normalen Sync ggf. Aufmerksamkeit auf "Settings" wieder setzen.
+        self._update_settings_nav_attention()
 
     def _nav_btn_leave(self, btn, key):
         try:
             idx = self.notebook.index(self.notebook.select())
         except Exception:
             idx = 0
-        rev = {0: "scripts", 1: "explorer", 2: "docker", 3: "health", 4: "storage", 5: "acl", 6: "snapshots"}
+        rev = {0: "scripts", 1: "explorer", 2: "docker", 3: "health", 4: "storage", 5: "acl", 6: "snapshots", 7: "settings"}
         if rev.get(idx) == key:
             btn.set_theme(self.color_selected_bg, self.color_selected_fg)
         else:
