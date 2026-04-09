@@ -5,9 +5,16 @@ Diese Datei dient als dauerhafte Merkhilfe fuer deine Veroeffentlichung.
 ## Hauptlinks
 
 - GitHub (Public Source): https://github.com/runlevel1977-del/UgreenNASAdmin
+- GitHub (Latest Release): https://github.com/runlevel1977-del/UgreenNASAdmin/releases/latest
 - YouTube (Walkthrough / Demo): https://youtu.be/7420gGg6u0s
 - SourceForge (Projektseite): https://sourceforge.net/projects/ugreennasadmin/
 - SourceForge (Files): https://sourceforge.net/projects/ugreennasadmin/files/
+- SourceForge (Direct latest download): https://sourceforge.net/projects/ugreennasadmin/files/latest/download
+
+## Wichtiger Hinweis
+
+- GitHub **Code -> Download ZIP** liefert immer den Quellcode-Snapshot (ohne EXE).
+- Fuer die aktuelle EXE immer **GitHub Releases/Assets** oder **SourceForge latest/download** verwenden.
 
 ## Kurzablauf pro neuer Version
 

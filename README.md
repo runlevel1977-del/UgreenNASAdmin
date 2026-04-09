@@ -2,6 +2,14 @@
 
 The app is available in **English** and **German**; switch language in the status bar. · Die App ist auf **Englisch** und **Deutsch** verfügbar; die Sprache wechselst du in der Statusleiste.
 
+## Download (always latest)
+
+- **GitHub latest release page:** https://github.com/runlevel1977-del/UgreenNASAdmin/releases/latest
+- **SourceForge direct latest download:** https://sourceforge.net/projects/ugreennasadmin/files/latest/download
+
+> Important: GitHub **Code -> Download ZIP** is only source code (no EXE).  
+> For the app EXE, always download from **Releases/Assets** or SourceForge.
+
 ## English
 
 **Ugreen NAS Admin** is a desktop **control center** for a **Ugreen NAS** over **SSH**: scripts, file explorer (upload/download), Docker, system health, storage, ACL, snapshots, optional Telegram / email alerts. **MIT licensed.**
