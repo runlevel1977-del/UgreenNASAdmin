@@ -1,6 +1,6 @@
 # Changelog — Ugreen NAS Admin
 
-## Unreleased
+## 22.7.0 — 2026-04-09
 
 ### Deutsch (ausführlich)
 
@@ -40,7 +40,7 @@
 
 ### Build
 
-- **`tools/zip_oeffentlich_forum.py`:** ZIP-Dateinamen aus **`__version__`** in **`öffentlich/ugreen_app/nas_manager.py`** (aktuell **v22.6.0**).
+- **`tools/zip_oeffentlich_forum.py`:** ZIP-Dateinamen aus **`__version__`** in **`öffentlich/ugreen_app/nas_manager.py`** (aktuell **v22.7.0**).
 
 ## 22.5.0 — 2026-04-04
 
