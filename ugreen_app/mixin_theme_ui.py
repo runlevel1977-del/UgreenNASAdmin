@@ -308,6 +308,7 @@ class MixinThemeUI:
         
         self.tab_scripts = tk.Frame(self.notebook, bg=self.tab_colors["scripts"])
         self.tab_explorer = tk.Frame(self.notebook, bg=self.tab_colors["explorer"])
+        self.tab_nas2nas = tk.Frame(self.notebook, bg=self.tab_colors["explorer"])
         self.tab_docker = tk.Frame(self.notebook, bg=self.tab_colors["docker"])
         self.tab_health = tk.Frame(self.notebook, bg=self.tab_colors["scripts"])
         self.tab_storage = tk.Frame(self.notebook, bg=self.tab_colors["scripts"])
@@ -317,6 +318,7 @@ class MixinThemeUI:
         
         self.notebook.add(self.tab_scripts, text=self.t("tab.scripts"))
         self.notebook.add(self.tab_explorer, text=self.t("tab.explorer"))
+        self.notebook.add(self.tab_nas2nas, text=self.t("tab.nas2nas"))
         self.notebook.add(self.tab_docker, text=self.t("tab.docker"))
         self.notebook.add(self.tab_health, text=self.t("tab.health"))
         self.notebook.add(self.tab_storage, text=self.t("tab.storage"))
@@ -343,6 +345,7 @@ class MixinThemeUI:
 
         self.setup_script_tab()
         self.setup_explorer_tab()
+        self.setup_nas_to_nas_tab()
         self.setup_docker_tab()
         self.setup_health_tab()
         self.setup_storage_tab()
@@ -368,6 +371,7 @@ class MixinThemeUI:
         nav_items = [
             ("scripts", self.t("nav.scripts")),
             ("explorer", self.t("nav.explorer")),
+            ("nas2nas", self.t("nav.nas2nas")),
             ("docker", self.t("nav.docker")),
             ("health", self.t("nav.health")),
             ("storage", self.t("nav.storage")),
@@ -414,7 +418,7 @@ class MixinThemeUI:
                 idx = self.notebook.index(self.notebook.select())
             except Exception:
                 idx = 0
-            if idx == 7:
+            if idx == 8:
                 btn.set_theme(self.color_selected_bg, self.color_selected_fg)
             else:
                 btn.set_theme(self.color_surface_alt, self.color_text)
@@ -435,7 +439,7 @@ class MixinThemeUI:
             idx = self.notebook.index(self.notebook.select())
         except Exception:
             idx = 0
-        if idx == 7:
+        if idx == 8:
             # Aktiver Tab bleibt immer im normalen aktiven Stil.
             btn.set_theme(self.color_selected_bg, self.color_selected_fg)
         else:
@@ -524,7 +528,17 @@ class MixinThemeUI:
             pass
 
     def switch_view(self, key):
-        index_map = {"scripts": 0, "explorer": 1, "docker": 2, "health": 3, "storage": 4, "acl": 5, "snapshots": 6, "settings": 7}
+        index_map = {
+            "scripts": 0,
+            "explorer": 1,
+            "nas2nas": 2,
+            "docker": 3,
+            "health": 4,
+            "storage": 5,
+            "acl": 6,
+            "snapshots": 7,
+            "settings": 8,
+        }
         idx = index_map.get(key, 0)
         try:
             self.notebook.select(idx)
@@ -537,7 +551,17 @@ class MixinThemeUI:
             idx = self.notebook.index(self.notebook.select())
         except Exception:
             return
-        rev = {0: "scripts", 1: "explorer", 2: "docker", 3: "health", 4: "storage", 5: "acl", 6: "snapshots", 7: "settings"}
+        rev = {
+            0: "scripts",
+            1: "explorer",
+            2: "nas2nas",
+            3: "docker",
+            4: "health",
+            5: "storage",
+            6: "acl",
+            7: "snapshots",
+            8: "settings",
+        }
         active = rev.get(idx, "scripts")
         for key, btn in getattr(self, "nav_buttons", {}).items():
             if key == active:
@@ -546,13 +570,27 @@ class MixinThemeUI:
                 btn.set_theme(self.color_surface_alt, self.color_text)
         # Nach dem normalen Sync ggf. Aufmerksamkeit auf "Settings" wieder setzen.
         self._update_settings_nav_attention()
+        try:
+            self._n2n_on_notebook_tab_changed(idx)
+        except Exception:
+            pass
 
     def _nav_btn_leave(self, btn, key):
         try:
             idx = self.notebook.index(self.notebook.select())
         except Exception:
             idx = 0
-        rev = {0: "scripts", 1: "explorer", 2: "docker", 3: "health", 4: "storage", 5: "acl", 6: "snapshots", 7: "settings"}
+        rev = {
+            0: "scripts",
+            1: "explorer",
+            2: "nas2nas",
+            3: "docker",
+            4: "health",
+            5: "storage",
+            6: "acl",
+            7: "snapshots",
+            8: "settings",
+        }
         if rev.get(idx) == key:
             btn.set_theme(self.color_selected_bg, self.color_selected_fg)
         else:

@@ -1,5 +1,25 @@
 # Changelog — Ugreen NAS Admin
 
+## 23.1.0 — 2026-04-10
+
+### Deutsch (ausführlich)
+
+- **NAS ↔ NAS (SMB) entkoppelt von QNAP-Branding:** Feste QNAP-Beschriftungen wurden aus der UI entfernt. Der SMB-Teil ist jetzt neutral als „zweites NAS (SMB)“ geführt.
+- **Eigener Anzeigename für zweites NAS:** In **`⚙️ Settings -> Zweites NAS (SMB)`** gibt es ein neues Feld **Anzeigename** (z. B. „Synology“, „QNAP“, „Backup-NAS“). Dieser Name wird direkt als rechter Pane-Titel im Tab **NAS ↔ NAS** angezeigt.
+- **Toolbar im NAS↔NAS-Tab verbessert:** Buttons **„NAS scannen“** und **„Freigaben scannen“** stehen links nun übersichtlich **untereinander**.
+- **Mehrfachauswahl-Upload repariert:** Beim Rechtsklick auf bereits markierte Einträge bleibt die Mehrfachauswahl erhalten; Uploads betreffen wieder alle selektierten Elemente (NAS↔NAS und Explorer-Kontextmenüs).
+- **Sprachwechsel DE/EN stabilisiert:** Fix für einen Rebuild-Fehler beim Umschalten der Sprache (verwaiste Tk-Widget-Referenzen im NAS↔NAS-Bereich). Ergebnis: keine „halb leere“ Oberfläche mehr nach Language-Toggle.
+- **SMB-/Dokutexte aktualisiert:** Hinweise auf alte Pfade/Klartextdateien bereinigt; öffentliche Texte auf `app_settings.json` und neutralen SMB-Wortlaut vereinheitlicht.
+
+### English (summary)
+
+- **NAS ↔ NAS UI is vendor-neutral:** removed hardcoded QNAP labels; now shown as generic second NAS (SMB).
+- **Custom peer display name:** new Settings field to label the second NAS (e.g., Synology/QNAP) and show it in the NAS↔NAS pane header.
+- **Improved NAS↔NAS toolbar:** “Scan NAS” and “Scan shares” are stacked vertically on the left.
+- **Multi-select upload fix:** right-click no longer collapses multi-selection when clicking an already selected item.
+- **DE/EN language toggle fix:** resolved Tk rebuild crash that caused partially empty UI after switching language.
+- **SMB/help text cleanup:** wording and config references updated for current settings storage.
+
 ## 22.7.0 — 2026-04-09
 
 ### Deutsch (ausführlich)

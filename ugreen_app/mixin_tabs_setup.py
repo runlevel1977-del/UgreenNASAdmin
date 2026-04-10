@@ -867,6 +867,34 @@ class MixinTabsSetup:
             width=10,
         ).pack(side=tk.LEFT)
 
+        # Zweites NAS (SMB) — Zugangsdaten zentral unterhalb SSH/Ugreen
+        smb_title = tk.Label(
+            form,
+            text=self.t("settings.second_nas_title"),
+            bg=self.color_surface_alt,
+            fg=self.color_text,
+            font=self.font_bold,
+            anchor="w",
+        )
+        smb_title.grid(row=10, column=0, columnspan=4, sticky="w", pady=(14, 6))
+        _add_row(11, "settings.second_nas_peer_label", "entry_settings_second_nas_peer_label", "")
+        _add_row(12, "settings.second_nas_host", "entry_settings_second_nas_host", "")
+        _add_row(13, "settings.second_nas_user", "entry_settings_second_nas_user", "")
+        _add_row(14, "settings.second_nas_password", "entry_settings_second_nas_pwd", "", pwd=True)
+        self.var_settings_second_nas_save_pw = tk.BooleanVar(value=False)
+        smb_ck = tk.Frame(form, bg=self.color_surface_alt)
+        smb_ck.grid(row=15, column=1, sticky="w", pady=(2, 2))
+        tk.Checkbutton(
+            smb_ck,
+            text=self.t("settings.second_nas_save_pw"),
+            variable=self.var_settings_second_nas_save_pw,
+            bg=self.color_surface_alt,
+            fg=self.color_text,
+            selectcolor=self.color_surface,
+            activebackground=self.color_surface_alt,
+            font=self.font_base,
+        ).pack(side=tk.LEFT)
+
         # Telegram
         tg_title = tk.Label(
             form,
@@ -876,9 +904,9 @@ class MixinTabsSetup:
             font=self.font_bold,
             anchor="w",
         )
-        tg_title.grid(row=10, column=0, columnspan=4, sticky="w", pady=(12, 6))
-        _add_row(11, "settings.telegram_token", "entry_settings_telegram_token", "")
-        _add_row(12, "settings.telegram_chat", "entry_settings_telegram_chat", "")
+        tg_title.grid(row=16, column=0, columnspan=4, sticky="w", pady=(12, 6))
+        _add_row(17, "settings.telegram_token", "entry_settings_telegram_token", "")
+        _add_row(18, "settings.telegram_chat", "entry_settings_telegram_chat", "")
 
         # E-Mail
         mail_title = tk.Label(
@@ -889,13 +917,13 @@ class MixinTabsSetup:
             font=self.font_bold,
             anchor="w",
         )
-        mail_title.grid(row=13, column=0, columnspan=4, sticky="w", pady=(12, 6))
-        _add_row(14, "settings.smtp_host", "entry_settings_smtp_host", "")
-        _add_row(15, "settings.smtp_port", "entry_settings_smtp_port", "587", width=8)
-        _add_row(16, "settings.smtp_user", "entry_settings_smtp_user", "")
-        _add_row(17, "settings.smtp_pass", "entry_settings_smtp_pass", "", pwd=True)
-        _add_row(18, "settings.smtp_from", "entry_settings_smtp_from", "")
-        _add_row(19, "settings.smtp_to", "entry_settings_smtp_to", "")
+        mail_title.grid(row=19, column=0, columnspan=4, sticky="w", pady=(12, 6))
+        _add_row(20, "settings.smtp_host", "entry_settings_smtp_host", "")
+        _add_row(21, "settings.smtp_port", "entry_settings_smtp_port", "587", width=8)
+        _add_row(22, "settings.smtp_user", "entry_settings_smtp_user", "")
+        _add_row(23, "settings.smtp_pass", "entry_settings_smtp_pass", "", pwd=True)
+        _add_row(24, "settings.smtp_from", "entry_settings_smtp_from", "")
+        _add_row(25, "settings.smtp_to", "entry_settings_smtp_to", "")
 
         # Standardpfade
         path_title = tk.Label(
@@ -906,15 +934,15 @@ class MixinTabsSetup:
             font=self.font_bold,
             anchor="w",
         )
-        path_title.grid(row=20, column=0, columnspan=4, sticky="w", pady=(12, 6))
-        _add_row(21, "settings.path_scripts", "entry_settings_path_scripts", "/volume1/scripts/")
-        _add_row(22, "settings.path_compose", "entry_settings_path_compose", "/volume1/docker/docker-compose.yml")
-        _add_row(23, "settings.path_explorer_root", "entry_settings_path_explorer_root", "/volume1")
+        path_title.grid(row=26, column=0, columnspan=4, sticky="w", pady=(12, 6))
+        _add_row(27, "settings.path_scripts", "entry_settings_path_scripts", "/volume1/scripts/")
+        _add_row(28, "settings.path_compose", "entry_settings_path_compose", "/volume1/docker/docker-compose.yml")
+        _add_row(29, "settings.path_explorer_root", "entry_settings_path_explorer_root", "/volume1")
 
         self.var_settings_smtp_starttls = tk.BooleanVar(value=True)
         self.var_settings_smtp_ssl = tk.BooleanVar(value=False)
         ck_row = tk.Frame(form, bg=self.color_surface_alt)
-        ck_row.grid(row=24, column=1, sticky="w", pady=(4, 4))
+        ck_row.grid(row=30, column=1, sticky="w", pady=(4, 4))
         tk.Checkbutton(
             ck_row,
             text=self.t("settings.smtp_starttls"),
@@ -937,7 +965,7 @@ class MixinTabsSetup:
         ).pack(side=tk.LEFT)
 
         btns = tk.Frame(form, bg=self.color_surface_alt)
-        btns.grid(row=25, column=0, columnspan=4, sticky="w", pady=(10, 0))
+        btns.grid(row=31, column=0, columnspan=4, sticky="w", pady=(10, 0))
         self.create_modern_btn(btns, self.t("settings.load"), self.settings_load_to_ui, self.color_text_muted).pack(side=tk.LEFT, padx=(0, 8))
         self._register_danger_rounded(self.create_modern_btn(btns, self.t("settings.apply_to_current_ui"), self.settings_apply_to_current_ui, self.color_btn_blue)).pack(side=tk.LEFT, padx=(0, 8))
         self._register_danger_rounded(

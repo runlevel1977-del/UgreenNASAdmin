@@ -6,7 +6,7 @@ Diese Datei dient als dauerhafte Merkhilfe fuer deine Veroeffentlichung.
 
 - GitHub (Public Source): https://github.com/runlevel1977-del/UgreenNASAdmin
 - GitHub (Latest Release): https://github.com/runlevel1977-del/UgreenNASAdmin/releases/latest
-- YouTube (Walkthrough / Demo): https://youtu.be/7420gGg6u0s
+- YouTube (Walkthrough / Demo): https://youtu.be/RDaEZhuEbCc
 - SourceForge (Projektseite): https://sourceforge.net/projects/ugreennasadmin/
 - SourceForge (Files): https://sourceforge.net/projects/ugreennasadmin/files/
 - SourceForge (Direct latest download): https://sourceforge.net/projects/ugreennasadmin/files/latest/download

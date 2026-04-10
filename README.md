@@ -16,7 +16,7 @@ The app is available in **English** and **German**; switch language in the statu
 
 ### Demo video
 
-**Walkthrough on YouTube:** [https://youtu.be/7420gGg6u0s](https://youtu.be/7420gGg6u0s)
+**Walkthrough on YouTube:** [https://youtu.be/RDaEZhuEbCc](https://youtu.be/RDaEZhuEbCc)
 
 This folder **`öffentlich/`** is the **canonical public release tree** for GitHub (separate `.git`). The parent project **`NAS_Admin_Project`** stays private and does not track this folder. Set the remote with **`setup_public_remote.ps1`** or `git remote add origin …` here. **Release links & workflow:** see **`RELEASE_LINKS.md`**.
 
@@ -197,7 +197,7 @@ Without extra packages, **“Save connection”** still stores the password **in
 
 **Screenshots** und die **englische Kurzbeschreibung** stehen oben im Abschnitt **English** (README ist für GitHub-Besucher zuerst auf Englisch).
 
-**Demo-Video (YouTube):** [https://youtu.be/7420gGg6u0s](https://youtu.be/7420gGg6u0s)
+**Demo-Video (YouTube):** [https://youtu.be/RDaEZhuEbCc](https://youtu.be/RDaEZhuEbCc)
 
 ### Wichtig
 

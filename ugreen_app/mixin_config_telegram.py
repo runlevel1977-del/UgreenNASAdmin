@@ -280,8 +280,7 @@ class MixinConfigTelegram:
                 self._connection_refresh_profile_combo()
             return
         try:
-            if data.get("ui_lang") in ("de", "en"):
-                self.ui_lang = data["ui_lang"]
+            # ui_lang nicht aus der Datei überschreiben: kommt von Toggle/__init__; sonst Mismatch nach rebuild_ui.
             profs, ai = self._connection_profiles_from_disk_dict(data)
             self._connection_profiles = profs
             self._connection_active_index = ai
@@ -349,6 +348,11 @@ class MixinConfigTelegram:
         except Exception:
             pass
         try:
+            if hasattr(self, "n2n_disconnect_peer_smb"):
+                self.n2n_disconnect_peer_smb()
+        except Exception:
+            pass
+        try:
             self.root.destroy()
         except Exception:
             pass
@@ -385,6 +389,12 @@ class MixinConfigTelegram:
                 "docker_compose_path": "/volume1/docker/docker-compose.yml",
                 "explorer_root": "/volume1",
             },
+            "second_nas_smb": {
+                "peer_label": "",
+                "host": "",
+                "user": "",
+                "password": "",
+            },
         }
 
     def _load_app_settings(self):
@@ -396,7 +406,7 @@ class MixinConfigTelegram:
             with open(p, encoding="utf-8") as f:
                 raw = json.load(f)
             if isinstance(raw, dict):
-                for sec in ("telegram", "email", "paths"):
+                for sec in ("telegram", "email", "paths", "second_nas_smb"):
                     if isinstance(raw.get(sec), dict):
                         data[sec].update(raw[sec])
         except Exception:
@@ -410,6 +420,15 @@ class MixinConfigTelegram:
         except ValueError:
             smtp_port = 587
         smtp_port = max(1, min(65535, smtp_port))
+        second_nas: dict = {
+            "peer_label": self.entry_settings_second_nas_peer_label.get().strip()
+            if hasattr(self, "entry_settings_second_nas_peer_label")
+            else "",
+            "host": self.entry_settings_second_nas_host.get().strip() if hasattr(self, "entry_settings_second_nas_host") else "",
+            "user": self.entry_settings_second_nas_user.get().strip() if hasattr(self, "entry_settings_second_nas_user") else "",
+        }
+        if hasattr(self, "var_settings_second_nas_save_pw") and self.var_settings_second_nas_save_pw.get():
+            second_nas["password"] = self.entry_settings_second_nas_pwd.get() if hasattr(self, "entry_settings_second_nas_pwd") else ""
         return {
             "telegram": {
                 "bot_token": self.entry_settings_telegram_token.get().strip() if hasattr(self, "entry_settings_telegram_token") else "",
@@ -430,6 +449,7 @@ class MixinConfigTelegram:
                 "docker_compose_path": self.entry_settings_path_compose.get().strip() if hasattr(self, "entry_settings_path_compose") else "/volume1/docker/docker-compose.yml",
                 "explorer_root": self.entry_settings_path_explorer_root.get().strip() if hasattr(self, "entry_settings_path_explorer_root") else "/volume1",
             },
+            "second_nas_smb": second_nas,
         }
 
     def _settings_status_snapshot(self, cfg=None):
@@ -507,10 +527,38 @@ class MixinConfigTelegram:
         if hasattr(self, "entry_settings_path_explorer_root"):
             self.entry_settings_path_explorer_root.delete(0, tk.END)
             self.entry_settings_path_explorer_root.insert(0, str(cfg["paths"].get("explorer_root") or "/volume1"))
+        if hasattr(self, "entry_settings_second_nas_host"):
+            smb = dict(cfg.get("second_nas_smb") or {})
+            if not str(smb.get("host") or "").strip():
+                leg_p = os.path.join(self._app_data_dir(), "qnap_smb_prefs.json")
+                if os.path.isfile(leg_p):
+                    try:
+                        with open(leg_p, encoding="utf-8") as f:
+                            leg = json.load(f)
+                        if isinstance(leg, dict) and str(leg.get("host") or "").strip():
+                            smb["host"] = str(leg.get("host") or "").strip()
+                            smb["user"] = str(leg.get("user") or "").strip()
+                            smb["password"] = str(leg.get("password") or "")
+                    except Exception:
+                        pass
+            if hasattr(self, "entry_settings_second_nas_peer_label"):
+                self.entry_settings_second_nas_peer_label.delete(0, tk.END)
+                self.entry_settings_second_nas_peer_label.insert(0, str(smb.get("peer_label") or ""))
+            self.entry_settings_second_nas_host.delete(0, tk.END)
+            self.entry_settings_second_nas_host.insert(0, str(smb.get("host") or ""))
+            self.entry_settings_second_nas_user.delete(0, tk.END)
+            self.entry_settings_second_nas_user.insert(0, str(smb.get("user") or ""))
+            self.entry_settings_second_nas_pwd.delete(0, tk.END)
+            pw = str(smb.get("password") or "")
+            self.entry_settings_second_nas_pwd.insert(0, pw)
+            if hasattr(self, "var_settings_second_nas_save_pw"):
+                self.var_settings_second_nas_save_pw.set(bool(pw))
         if hasattr(self, "settings_output"):
             self.settings_output.delete("1.0", tk.END)
             self.settings_output.insert("1.0", self.t("settings.loaded", path=os.path.abspath(self._app_settings_path())))
         self._update_settings_status_badges(cfg)
+        if hasattr(self, "_n2n_refresh_peer_pane_title"):
+            self._n2n_refresh_peer_pane_title()
 
     def settings_save_from_ui(self):
         if not self._danger_gate():
@@ -532,6 +580,8 @@ class MixinConfigTelegram:
                 self.settings_output.delete("1.0", tk.END)
                 self.settings_output.insert("1.0", self.t("settings.saved", path=path))
             self._update_settings_status_badges(cfg)
+            if hasattr(self, "_n2n_refresh_peer_pane_title"):
+                self._n2n_refresh_peer_pane_title()
         except Exception as e:
             messagebox.showerror(self.t("settings.title"), str(e))
 
@@ -559,6 +609,8 @@ class MixinConfigTelegram:
                 self.settings_output.insert("1.0", self.t("settings.applied"))
             self._update_settings_status_badges(cfg)
             self.set_status(self.t("settings.applied_short"))
+            if hasattr(self, "_n2n_refresh_peer_pane_title"):
+                self._n2n_refresh_peer_pane_title()
         except Exception as e:
             messagebox.showerror(self.t("settings.title"), str(e))
 
