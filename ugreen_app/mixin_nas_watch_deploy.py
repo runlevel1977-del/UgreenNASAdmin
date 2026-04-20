@@ -47,14 +47,6 @@ class MixinNasWatchDeploy:
         p = self._nas_watch_local_path()
         data = {
             "notify_channel": self.var_nw_channel.get(),
-            "smtp_host": self.entry_nw_smtp_host.get().strip(),
-            "smtp_port": self.entry_nw_smtp_port.get().strip() or "587",
-            "smtp_user": self.entry_nw_smtp_user.get().strip(),
-            "smtp_password": self.entry_nw_smtp_pass.get(),
-            "smtp_from": self.entry_nw_smtp_from.get().strip(),
-            "smtp_to": self.entry_nw_smtp_to.get().strip(),
-            "smtp_tls": bool(self.var_nw_smtp_tls.get()),
-            "smtp_ssl": bool(self.var_nw_smtp_ssl.get()),
             "require_containers": self.entry_nw_require.get().strip(),
             "docker_ignore": self.entry_nw_ignore.get().strip(),
             "docker_auto_restart": self.entry_nw_autorestart.get().strip(),
@@ -67,26 +59,29 @@ class MixinNasWatchDeploy:
         if ch not in ("telegram", "email", "both"):
             ch = "telegram"
         self.var_nw_channel.set(ch)
-        self.entry_nw_smtp_host.delete(0, tk.END)
-        self.entry_nw_smtp_host.insert(0, d.get("smtp_host") or "")
-        self.entry_nw_smtp_port.delete(0, tk.END)
-        self.entry_nw_smtp_port.insert(0, str(d.get("smtp_port") or "587"))
-        self.entry_nw_smtp_user.delete(0, tk.END)
-        self.entry_nw_smtp_user.insert(0, d.get("smtp_user") or "")
-        self.entry_nw_smtp_pass.delete(0, tk.END)
-        self.entry_nw_smtp_pass.insert(0, d.get("smtp_password") or "")
-        self.entry_nw_smtp_from.delete(0, tk.END)
-        self.entry_nw_smtp_from.insert(0, d.get("smtp_from") or "")
-        self.entry_nw_smtp_to.delete(0, tk.END)
-        self.entry_nw_smtp_to.insert(0, d.get("smtp_to") or "")
-        self.var_nw_smtp_tls.set(bool(d.get("smtp_tls", True)))
-        self.var_nw_smtp_ssl.set(bool(d.get("smtp_ssl", False)))
         self.entry_nw_require.delete(0, tk.END)
         self.entry_nw_require.insert(0, d.get("require_containers") or "")
         self.entry_nw_ignore.delete(0, tk.END)
         self.entry_nw_ignore.insert(0, d.get("docker_ignore") or "")
         self.entry_nw_autorestart.delete(0, tk.END)
         self.entry_nw_autorestart.insert(0, d.get("docker_auto_restart") or "")
+
+    def _settings_notify_credentials(self) -> dict:
+        cfg = self._load_app_settings() if hasattr(self, "_load_app_settings") else {}
+        t = dict(cfg.get("telegram") or {})
+        e = dict(cfg.get("email") or {})
+        return {
+            "bot_token": str(t.get("bot_token") or "").strip(),
+            "chat_id": str(t.get("chat_id") or "").strip(),
+            "smtp_host": str(e.get("smtp_host") or "").strip(),
+            "smtp_port": int(e.get("smtp_port") or 587),
+            "smtp_user": str(e.get("smtp_user") or "").strip(),
+            "smtp_password": str(e.get("smtp_pass") or ""),
+            "smtp_from": str(e.get("smtp_from") or "").strip(),
+            "smtp_to": str(e.get("smtp_to") or "").strip(),
+            "smtp_tls": bool(e.get("smtp_starttls", True)),
+            "smtp_ssl": bool(e.get("smtp_ssl", False)),
+        }
 
     def _nw_split_list(self, s: str) -> list[str]:
         return [x.strip() for x in (s or "").replace(";", ",").split(",") if x.strip()]
@@ -103,17 +98,17 @@ class MixinNasWatchDeploy:
             raise ValueError("thresholds")
         if dw >= dc:
             raise ValueError("disk_order")
+        creds = self._settings_notify_credentials()
         ch = self.var_nw_channel.get().strip().lower()
-        tok = self.entry_telegram_token.get().strip()
-        cid = self.entry_telegram_chat.get().strip()
+        tok = creds["bot_token"]
+        cid = creds["chat_id"]
         if ch in ("telegram", "both") and (not tok or not cid):
             raise ValueError("telegram")
         if ch in ("email", "both"):
-            if not self.entry_nw_smtp_host.get().strip() or not self.entry_nw_smtp_from.get().strip() or not self.entry_nw_smtp_to.get().strip():
+            if not creds["smtp_host"] or not creds["smtp_from"] or not creds["smtp_to"]:
                 raise ValueError("smtp")
-        port_s = self.entry_nw_smtp_port.get().strip() or "587"
         try:
-            port = int(port_s)
+            port = int(creds["smtp_port"] or 587)
             if not (1 <= port <= 65535):
                 raise ValueError
         except ValueError:
@@ -128,14 +123,14 @@ class MixinNasWatchDeploy:
             "notify_channel": ch,
             "bot_token": tok,
             "chat_id": cid,
-            "smtp_host": self.entry_nw_smtp_host.get().strip(),
+            "smtp_host": creds["smtp_host"],
             "smtp_port": port,
-            "smtp_user": self.entry_nw_smtp_user.get().strip(),
-            "smtp_password": self.entry_nw_smtp_pass.get(),
-            "smtp_from": self.entry_nw_smtp_from.get().strip(),
-            "smtp_to": self.entry_nw_smtp_to.get().strip(),
-            "smtp_tls": bool(self.var_nw_smtp_tls.get()),
-            "smtp_ssl": bool(self.var_nw_smtp_ssl.get()),
+            "smtp_user": creds["smtp_user"],
+            "smtp_password": creds["smtp_password"],
+            "smtp_from": creds["smtp_from"],
+            "smtp_to": creds["smtp_to"],
+            "smtp_tls": bool(creds["smtp_tls"]),
+            "smtp_ssl": bool(creds["smtp_ssl"]),
             "cooldown_sec": cool,
             "disk_warn_percent": dw,
             "disk_crit_percent": dc,
@@ -328,16 +323,16 @@ class MixinNasWatchDeploy:
         ch = self.var_nw_channel.get().strip().lower()
         if ch not in ("telegram", "email", "both"):
             ch = "telegram"
-        tok = self.entry_telegram_token.get().strip()
-        cid = self.entry_telegram_chat.get().strip()
+        creds = self._settings_notify_credentials()
+        tok = creds["bot_token"]
+        cid = creds["chat_id"]
         if ch in ("telegram", "both") and (not tok or not cid):
             raise ValueError("telegram")
         if ch in ("email", "both"):
-            if not self.entry_nw_smtp_host.get().strip() or not self.entry_nw_smtp_from.get().strip() or not self.entry_nw_smtp_to.get().strip():
+            if not creds["smtp_host"] or not creds["smtp_from"] or not creds["smtp_to"]:
                 raise ValueError("smtp")
-        port_s = self.entry_nw_smtp_port.get().strip() or "587"
         try:
-            port = int(port_s)
+            port = int(creds["smtp_port"] or 587)
             if not (1 <= port <= 65535):
                 raise ValueError
         except ValueError:
@@ -351,14 +346,14 @@ class MixinNasWatchDeploy:
             "notify_channel": ch,
             "bot_token": tok,
             "chat_id": cid,
-            "smtp_host": self.entry_nw_smtp_host.get().strip(),
+            "smtp_host": creds["smtp_host"],
             "smtp_port": port,
-            "smtp_user": self.entry_nw_smtp_user.get().strip(),
-            "smtp_password": self.entry_nw_smtp_pass.get(),
-            "smtp_from": self.entry_nw_smtp_from.get().strip(),
-            "smtp_to": self.entry_nw_smtp_to.get().strip(),
-            "smtp_tls": bool(self.var_nw_smtp_tls.get()),
-            "smtp_ssl": bool(self.var_nw_smtp_ssl.get()),
+            "smtp_user": creds["smtp_user"],
+            "smtp_password": creds["smtp_password"],
+            "smtp_from": creds["smtp_from"],
+            "smtp_to": creds["smtp_to"],
+            "smtp_tls": bool(creds["smtp_tls"]),
+            "smtp_ssl": bool(creds["smtp_ssl"]),
         }
 
     def daily_report_save_panel(self):
@@ -547,46 +542,16 @@ class MixinNasWatchDeploy:
                 font=self.font_base,
             ).pack(side=tk.LEFT, padx=(0, 12))
 
-        sm = tk.Frame(fr, bg=self.color_surface_alt)
-        sm.pack(fill=tk.X, pady=(8, 4))
-        tk.Label(sm, text=self.t("nas_watch.smtp_host"), bg=self.color_surface_alt, fg=self.color_text_muted, width=14, anchor="w").grid(row=0, column=0, sticky="w", pady=2)
-        self.entry_nw_smtp_host = tk.Entry(sm, font=self.font_mono, relief="flat", highlightbackground=self.color_border, highlightthickness=1, bg=self.color_input_bg, fg=self.color_input_fg, insertbackground=self.color_input_fg)
-        self.entry_nw_smtp_host.grid(row=0, column=1, sticky="ew", padx=(0, 8), ipady=3)
-        tk.Label(sm, text=self.t("nas_watch.smtp_port"), bg=self.color_surface_alt, fg=self.color_text_muted).grid(row=0, column=2, sticky="w")
-        self.entry_nw_smtp_port = tk.Entry(sm, width=6, font=self.font_mono, relief="flat", highlightbackground=self.color_border, highlightthickness=1, bg=self.color_input_bg, fg=self.color_input_fg, insertbackground=self.color_input_fg)
-        self.entry_nw_smtp_port.grid(row=0, column=3, sticky="w", ipady=3)
-        sm.grid_columnconfigure(1, weight=1)
-
-        r2 = tk.Frame(fr, bg=self.color_surface_alt)
-        r2.pack(fill=tk.X, pady=2)
-        tk.Label(r2, text=self.t("nas_watch.smtp_user"), bg=self.color_surface_alt, fg=self.color_text_muted, width=14, anchor="w").pack(side=tk.LEFT)
-        self.entry_nw_smtp_user = tk.Entry(r2, font=self.font_mono, relief="flat", highlightbackground=self.color_border, highlightthickness=1, bg=self.color_input_bg, fg=self.color_input_fg, insertbackground=self.color_input_fg)
-        self.entry_nw_smtp_user.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=3)
-
-        r3 = tk.Frame(fr, bg=self.color_surface_alt)
-        r3.pack(fill=tk.X, pady=2)
-        tk.Label(r3, text=self.t("nas_watch.smtp_pass"), bg=self.color_surface_alt, fg=self.color_text_muted, width=14, anchor="w").pack(side=tk.LEFT)
-        self.entry_nw_smtp_pass = tk.Entry(r3, show="*", font=self.font_mono, relief="flat", highlightbackground=self.color_border, highlightthickness=1, bg=self.color_input_bg, fg=self.color_input_fg, insertbackground=self.color_input_fg)
-        self.entry_nw_smtp_pass.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=3)
-
-        r4 = tk.Frame(fr, bg=self.color_surface_alt)
-        r4.pack(fill=tk.X, pady=2)
-        tk.Label(r4, text=self.t("nas_watch.smtp_from"), bg=self.color_surface_alt, fg=self.color_text_muted, width=14, anchor="w").pack(side=tk.LEFT)
-        self.entry_nw_smtp_from = tk.Entry(r4, font=self.font_mono, relief="flat", highlightbackground=self.color_border, highlightthickness=1, bg=self.color_input_bg, fg=self.color_input_fg, insertbackground=self.color_input_fg)
-        self.entry_nw_smtp_from.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=3)
-
-        r5 = tk.Frame(fr, bg=self.color_surface_alt)
-        r5.pack(fill=tk.X, pady=2)
-        tk.Label(r5, text=self.t("nas_watch.smtp_to"), bg=self.color_surface_alt, fg=self.color_text_muted, width=14, anchor="w").pack(side=tk.LEFT)
-        self.entry_nw_smtp_to = tk.Entry(r5, font=self.font_mono, relief="flat", highlightbackground=self.color_border, highlightthickness=1, bg=self.color_input_bg, fg=self.color_input_fg, insertbackground=self.color_input_fg)
-        self.entry_nw_smtp_to.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=3)
-
-        r6 = tk.Frame(fr, bg=self.color_surface_alt)
-        r6.pack(fill=tk.X, pady=4)
-        self.var_nw_smtp_tls = tk.BooleanVar(value=True)
-        self.var_nw_smtp_ssl = tk.BooleanVar(value=False)
-        tk.Checkbutton(r6, text=self.t("nas_watch.smtp_tls"), variable=self.var_nw_smtp_tls, bg=self.color_surface_alt, fg=self.color_text, selectcolor=self.color_surface, activebackground=self.color_surface_alt, font=self.font_base).pack(side=tk.LEFT, padx=(0, 16))
-        tk.Checkbutton(r6, text=self.t("nas_watch.smtp_ssl"), variable=self.var_nw_smtp_ssl, bg=self.color_surface_alt, fg=self.color_text, selectcolor=self.color_surface, activebackground=self.color_surface_alt, font=self.font_base).pack(side=tk.LEFT)
+        tk.Label(
+            fr,
+            text=self.t("nas_watch.creds_from_settings"),
+            bg=self.color_surface_alt,
+            fg=self.color_text_muted,
+            font=("Segoe UI", 8),
+            anchor="w",
+            justify=tk.LEFT,
+            wraplength=900,
+        ).pack(fill=tk.X, pady=(4, 8))
 
         chk = tk.Frame(fr, bg=self.color_surface_alt)
         chk.pack(fill=tk.X, pady=(10, 4))

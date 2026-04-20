@@ -30,18 +30,26 @@ import nas_ssh
 import nas_utils
 from ugreen_app._paramiko import _paramiko
 from ugreen_app import docker_deploy_wizard as _ddw
+from ugreen_app.scroll_helpers import (
+    smooth_bind_mousewheel_tree,
+    smooth_canvas_scrollregion_cb,
+    smooth_canvas_wheel_handlers,
+)
 
 class MixinExplorer:
     def _explorer_type(self, kind):
         return self.t(f"explorer.type.{kind}")
 
     def scan_nas(self):
-        self.tree.delete(*self.tree.get_children())
+        self._nas_explorer_scan_tree(self.tree, getattr(self, "lbl_explorer_path", None))
+
+    def _nas_explorer_scan_tree(self, tree, path_label):
+        tree.delete(*tree.get_children())
         for v in ["volume1", "volume2"]:
-            n = self.tree.insert("", tk.END, text=f"  🖴 {v}", values=(self._explorer_type("drive"), "—"), open=False)
-            self.tree.insert(n, tk.END, text=self.t("explorer.loading"))
-        if hasattr(self, "lbl_explorer_path"):
-            self.lbl_explorer_path.config(text="/")
+            n = tree.insert("", tk.END, text=f"  🖴 {v}", values=(self._explorer_type("drive"), "—"), open=False)
+            tree.insert(n, tk.END, text=self.t("explorer.loading"))
+        if path_label is not None:
+            path_label.config(text="/")
         self.set_status(self.t("msg.explorer_scan_done"))
 
     def _explorer_sanitize_ls_line(self, line):
@@ -70,15 +78,21 @@ class MixinExplorer:
             self.root.after(0, self._refresh_visible_nas_size_cells)
 
     def _refresh_visible_nas_size_cells(self):
+        for tr in (self.tree, getattr(self, "tree_n2n_ugreen", None)):
+            if tr is not None:
+                self._refresh_visible_nas_size_cells_for_tree(tr)
+
+    def _refresh_visible_nas_size_cells_for_tree(self, tree):
         def walk(parent=""):
-            for iid in self.tree.get_children(parent):
-                vals = self.tree.item(iid, "values")
+            for iid in tree.get_children(parent):
+                vals = tree.item(iid, "values")
                 if vals and len(vals) >= 1 and vals[0] == self._explorer_type("folder"):
-                    rp = self.get_full_path(iid)
+                    rp = self.get_full_path_for_tree(tree, iid)
                     sz = self._nas_dir_size_cache.get(rp)
                     if sz is not None:
-                        self.tree.item(iid, values=(self._explorer_type("folder"), self._fmt_bytes(sz)))
+                        tree.item(iid, values=(self._explorer_type("folder"), self._fmt_bytes(sz)))
                 walk(iid)
+
         try:
             walk("")
         except Exception:
@@ -162,23 +176,28 @@ class MixinExplorer:
             pass
 
     def on_tree_expand(self, event):
-        item = self.tree.focus()
-        p = self.get_full_path(item)
+        self._nas_explorer_on_expand_tree(self.tree, getattr(self, "lbl_explorer_path", None), event)
 
-        for c in self.tree.get_children(item):
-            if self.tree.item(c, "text") == self.t("explorer.loading"):
-                self.tree.delete(c)
+    def _nas_explorer_on_expand_tree(self, tree, path_label, event):
+        item = tree.focus()
+        if not item:
+            return
+        p = self.get_full_path_for_tree(tree, item)
 
-        load_ph = self.tree.insert(item, tk.END, text=self.t("explorer.loading"))
+        for c in tree.get_children(item):
+            if tree.item(c, "text") == self.t("explorer.loading"):
+                tree.delete(c)
+
+        load_ph = tree.insert(item, tk.END, text=self.t("explorer.loading"))
 
         def worker():
             res = self.run_ssh_cmd(f"LC_ALL=C ls -lnAp {shlex.quote(p)}", False, update_status=False)
 
             def apply_listing():
-                if not self.tree.exists(item):
+                if not tree.exists(item):
                     return
-                if self.tree.exists(load_ph):
-                    self.tree.delete(load_ph)
+                if tree.exists(load_ph):
+                    tree.delete(load_ph)
                 self._nas_dir_fetch_seq += 1
                 seq = self._nas_dir_fetch_seq
                 folder_paths = []
@@ -191,17 +210,17 @@ class MixinExplorer:
                         dir_path = self._normalize_nas_tree_path(f"{p.rstrip('/')}/{name}")
                         cached = self._nas_dir_size_cache.get(dir_path)
                         size_txt = self._fmt_bytes(cached) if cached is not None else "…"
-                        x = self.tree.insert(item, tk.END, text=f"  📁 {name}", values=(self._explorer_type("folder"), size_txt))
-                        self.tree.insert(x, tk.END, text=self.t("explorer.loading"))
+                        x = tree.insert(item, tk.END, text=f"  📁 {name}", values=(self._explorer_type("folder"), size_txt))
+                        tree.insert(x, tk.END, text=self.t("explorer.loading"))
                         folder_paths.append(dir_path)
                     else:
-                        self.tree.insert(
+                        tree.insert(
                             item,
                             tk.END,
                             text=f"  📄 {name}",
                             values=(self._explorer_type("file"), self._fmt_bytes(size_b)),
                         )
-                self.explorer_update_breadcrumb()
+                self._explorer_update_breadcrumb_for_tree(tree, path_label)
                 if folder_paths:
                     threading.Thread(target=self._nas_fetch_dir_sizes_thread, args=(seq, folder_paths), daemon=True).start()
 
@@ -210,10 +229,15 @@ class MixinExplorer:
         threading.Thread(target=worker, daemon=True).start()
 
     def explorer_update_breadcrumb(self, event=None):
-        sel = self.tree.selection()
-        if sel and hasattr(self, "lbl_explorer_path"):
-            p = self.get_full_path(sel[0])
-            self.lbl_explorer_path.config(text=p)
+        self._explorer_update_breadcrumb_for_tree(self.tree, getattr(self, "lbl_explorer_path", None), event)
+
+    def _explorer_update_breadcrumb_for_tree(self, tree, path_label, event=None):
+        if path_label is None:
+            return
+        sel = tree.selection()
+        if sel:
+            p = self.get_full_path_for_tree(tree, sel[0])
+            path_label.config(text=p)
 
     def explorer_search_current(self):
         q = ""
@@ -225,7 +249,7 @@ class MixinExplorer:
             return
         sel = self.tree.selection()
         base_item = sel[0] if sel else ""
-        base_path = self.get_full_path(base_item) if base_item else "/volume1"
+        base_path = self.get_full_path_for_tree(self.tree, base_item) if base_item else "/volume1"
         cmd = f"ls -1p {shlex.quote(base_path)}"
 
         def worker():
@@ -260,13 +284,15 @@ class MixinExplorer:
         threading.Thread(target=worker, daemon=True).start()
 
     def get_full_path(self, item_id):
+        return self.get_full_path_for_tree(self.tree, item_id)
+
+    def get_full_path_for_tree(self, tree, item_id):
         parts = []
         curr = item_id
-        while curr: 
-            # Bereinige die Icons beim Pfad auslesen
-            text = self.tree.item(curr, "text").replace("  🖴 ", "").replace("  📁 ", "").replace("  📄 ", "").strip()
+        while curr:
+            text = tree.item(curr, "text").replace("  🖴 ", "").replace("  📁 ", "").replace("  📄 ", "").strip()
             parts.insert(0, text)
-            curr = self.tree.parent(curr)
+            curr = tree.parent(curr)
         raw = "/" + "/".join(parts)
         return self._normalize_nas_tree_path(raw)
 
@@ -336,10 +362,6 @@ class MixinExplorer:
         def _close_vars_win():
             w = getattr(dw, "_wiz_vars_win", None)
             if w is not None and w.winfo_exists():
-                try:
-                    w.unbind_all("<MouseWheel>")
-                except Exception:
-                    pass
                 w.destroy()
             dw._wiz_vars_win = None
 
@@ -388,12 +410,8 @@ class MixinExplorer:
             vsb = ttk.Scrollbar(form_outer, orient="vertical", command=canvas.yview)
             form_inner = tk.Frame(canvas, bg=self.color_surface_alt)
 
-            def _form_canvas_scrollregion(_event=None):
-                box = canvas.bbox("all")
-                if box:
-                    canvas.configure(scrollregion=box)
-
-            form_inner.bind("<Configure>", _form_canvas_scrollregion)
+            _form_scrollregion = smooth_canvas_scrollregion_cb(self.root, canvas)
+            form_inner.bind("<Configure>", _form_scrollregion)
             cw = canvas.create_window((0, 0), window=form_inner, anchor="nw")
 
             def _canvas_resize(event):
@@ -404,20 +422,12 @@ class MixinExplorer:
             canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
             vsb.pack(side=tk.RIGHT, fill=tk.Y)
 
-            def _wheel_canvas(e):
-                canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
-
-            def _wheel_bind(_):
-                vw.bind_all("<MouseWheel>", _wheel_canvas)
-
-            def _wheel_unbind(_):
-                try:
-                    vw.unbind_all("<MouseWheel>")
-                except Exception:
-                    pass
-
-            canvas.bind("<Enter>", _wheel_bind)
-            canvas.bind("<Leave>", _wheel_unbind)
+            _ww, _w4, _w5 = smooth_canvas_wheel_handlers(canvas)
+            canvas.bind("<MouseWheel>", _ww)
+            if sys.platform.startswith("linux"):
+                canvas.bind("<Button-4>", _w4)
+                canvas.bind("<Button-5>", _w5)
+            smooth_bind_mousewheel_tree(form_inner, _ww, _w4, _w5)
 
             for v in vl:
                 row = tk.Frame(form_inner, bg=self.color_surface_alt)
@@ -445,10 +455,9 @@ class MixinExplorer:
                     insertbackground=self.color_input_fg,
                 ).pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=3)
             canvas.update_idletasks()
-            _form_canvas_scrollregion()
+            _form_scrollregion()
 
             def _on_vars_close():
-                _wheel_unbind(None)
                 if dw._wiz_vars_win is vw:
                     dw._wiz_vars_win = None
                 vw.destroy()
@@ -533,7 +542,7 @@ class MixinExplorer:
             activebackground=self.color_surface_alt,
             font=self.font_base,
         ).pack(side=tk.LEFT, padx=(12, 0))
-        _dock_btn(start_row, self.t("docker.btn_start_container"), run_it).pack(fill=tk.X)
+        _dock_btn(start_row, self.t("docker.start"), run_it).pack(fill=tk.X)
 
         # Wie im ursprünglichen Commit: zuerst Header + Editor, Leiste zuletzt mit side=BOTTOM.
         header.pack(fill=tk.X)
@@ -600,6 +609,8 @@ class MixinExplorer:
         sel = self.script_listbox.curselection()
         if sel:
             fn = self.script_listbox.get(sel[0]).strip()
+            if hasattr(self, "_script_notify_clean_list_name"):
+                fn = self._script_notify_clean_list_name(fn)
             if messagebox.askyesno(self.t("msg.delete"), self.t("msg.delete_confirm_file", fn=fn)):
                 self.run_ssh_cmd(f"rm /volume1/scripts/{fn}", True)
                 self.refresh_script_list()
@@ -609,9 +620,24 @@ class MixinExplorer:
         if not self._danger_gate():
             return
         fn = self.entry_filename.get().strip()
-        if fn and fn != "STABLE_TASKS": 
+        if fn and fn != "STABLE_TASKS":
             self.log(f"🚀 Testlauf (Host) {fn}...")
-            self.log(self.run_ssh_cmd(f"bash /volume1/scripts/{fn}", True))
+            marker = "__UG_SCRIPT_EXIT__:"
+            qfn = shlex.quote(fn)
+            cmd = f"/bin/bash /volume1/scripts/{qfn}; rc=$?; echo {marker}$rc"
+            out = self.run_ssh_cmd(cmd, True)
+            self.log(out)
+            ok = False
+            for line in str(out or "").splitlines():
+                s = line.strip()
+                if s.startswith(marker):
+                    ok = s == f"{marker}0"
+                    break
+            if hasattr(self, "script_notify_send_for_result"):
+                try:
+                    self.script_notify_send_for_result(fn, ok, out)
+                except Exception:
+                    pass
 
     def test_script_docker(self):
         if not self._danger_gate():
@@ -644,8 +670,9 @@ class MixinExplorer:
 
     def show_context_menu(self, event):
         item = self.tree.identify_row(event.y)
-        if item: 
-            self.tree.selection_set(item)
+        if item:
+            if item not in self.tree.selection():
+                self.tree.selection_set(item)
             vals = self.tree.item(item, "values")
             is_dir = (self._explorer_type("folder") in vals) or (self._explorer_type("drive") in vals)
             try:
@@ -874,7 +901,8 @@ class MixinExplorer:
     def show_context_menu_local(self, event):
         row = self.tree_local.identify_row(event.y)
         if row:
-            self.tree_local.selection_set(row)
+            if row not in self.tree_local.selection():
+                self.tree_local.selection_set(row)
             try:
                 self.context_menu_local.entryconfig(3, state=(tk.NORMAL if self.danger_functions_unlocked else tk.DISABLED))
             except Exception:
@@ -961,12 +989,15 @@ class MixinExplorer:
         return items
 
     def _nas_expand_selection_to_download_pairs(self):
-        sel = self.tree.selection()
+        return self._nas_expand_tree_selection_to_download_pairs(self.tree)
+
+    def _nas_expand_tree_selection_to_download_pairs(self, tree):
+        sel = tree.selection()
         pairs = []
         seen_remote = set()
         for item_id in sel:
-            path = self.get_full_path(item_id)
-            vals = self.tree.item(item_id, "values")
+            path = self.get_full_path_for_tree(tree, item_id)
+            vals = tree.item(item_id, "values")
             if self._explorer_type("file") in vals:
                 if path not in seen_remote:
                     seen_remote.add(path)

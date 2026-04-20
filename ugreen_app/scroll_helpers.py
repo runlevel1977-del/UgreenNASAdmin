@@ -1,0 +1,100 @@
+# -*- coding: utf-8 -*-
+"""Gemeinsame Canvas-Mausrad- und scrollregion-Hilfen für flüssigeres Scrollen."""
+from __future__ import annotations
+
+import sys
+import tkinter as tk
+from tkinter import scrolledtext, ttk
+
+_SMOOTH_SKIP_MOUSEWHEEL = (
+    tk.Spinbox,
+    tk.Entry,
+    tk.Text,
+    scrolledtext.ScrolledText,
+    ttk.Entry,
+    ttk.Combobox,
+)
+try:
+    _SMOOTH_SKIP_MOUSEWHEEL += (ttk.Spinbox,)  # type: ignore[assignment]
+except AttributeError:
+    pass
+
+
+def smooth_canvas_scrollregion_cb(root: tk.Misc, canvas: tk.Canvas):
+    """scrollregion nur verzögert setzen — weniger Ruckeln bei vielen Configure-Events."""
+    job_attr = "_ug_smooth_scrollregion_job"
+
+    def on_configure(_event=None):
+        old = getattr(canvas, job_attr, None)
+        if old is not None:
+            try:
+                root.after_cancel(old)
+            except Exception:
+                pass
+
+        def apply():
+            setattr(canvas, job_attr, None)
+            try:
+                box = canvas.bbox("all")
+                if box:
+                    canvas.configure(scrollregion=box)
+            except tk.TclError:
+                pass
+
+        setattr(canvas, job_attr, root.after(20, apply))
+
+    return on_configure
+
+
+def smooth_canvas_wheel_handlers(canvas: tk.Canvas):
+    """Gleichmäßiges Scrollen: pro Rad-Kerbe genug Pixel, ohne Layout-Sturm (s. scrollregion-CB)."""
+    # Pixel pro „unit“ — höher = schneller ans Ende, aber noch kontrollierbar.
+    try:
+        canvas.configure(yscrollincrement=16)
+    except tk.TclError:
+        pass
+    # Kleinerer Divisor = mehr units pro delta (Windows typ. ±120 pro Kerbe).
+    divisor = 36 if sys.platform == "darwin" else 34
+
+    def on_wheel(event):
+        d = getattr(event, "delta", 0) or 0
+        try:
+            if d:
+                n = int(-d / divisor)
+                if n == 0:
+                    n = -1 if d > 0 else 1
+                canvas.yview_scroll(n, "units")
+        except tk.TclError:
+            pass
+        return "break"
+
+    def on_up(_event=None):
+        try:
+            canvas.yview_scroll(-5, "units")
+        except tk.TclError:
+            pass
+        return "break"
+
+    def on_dn(_event=None):
+        try:
+            canvas.yview_scroll(5, "units")
+        except tk.TclError:
+            pass
+        return "break"
+
+    return on_wheel, on_up, on_dn
+
+
+def smooth_bind_mousewheel_tree(w: tk.Misc, on_wheel, on_b4, on_b5):
+    if isinstance(w, _SMOOTH_SKIP_MOUSEWHEEL):
+        return
+    w.bind("<MouseWheel>", on_wheel)
+    if sys.platform.startswith("linux"):
+        w.bind("<Button-4>", on_b4)
+        w.bind("<Button-5>", on_b5)
+    try:
+        children = w.winfo_children()
+    except tk.TclError:
+        return
+    for ch in children:
+        smooth_bind_mousewheel_tree(ch, on_wheel, on_b4, on_b5)

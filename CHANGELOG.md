@@ -2,7 +2,44 @@
 
 ## Unreleased
 
-_(noch nicht veröffentlicht)_
+### Deutsch (ausführlich)
+
+- **Mehrere SMB-Ziele (NAS ↔ NAS):**
+  - Settings unterstützen jetzt **Profil-Liste** für das zweite NAS (`second_nas_smb_peers`) inkl. aktivem Index.
+  - Profile können in den Settings per Dropdown gewählt, hinzugefügt und gelöscht werden.
+  - Der aktive Peer wird im NAS↔NAS-Tab übernommen; beim Wechsel werden SMB-Verbindungen sauber getrennt und die Peer-Ansicht geleert.
+  - Kompatibilität zu älteren Settings bleibt erhalten (`second_nas_smb` als aktives Profil).
+- **Settings-Privacy für sensible Felder:**
+  - Telegram- und E-Mail-Identitätsdaten (Token/Chat, SMTP User/Pass/From/To) werden beim Laden maskiert.
+  - Neue **Show/Hide**-Schalter im Settings-Tab; maskierte Werte bleiben speicherbar ohne Klartext-Re-Edit.
+  - Beim Wechsel in den Settings-Tab werden sensible Felder erneut aus Settings gezogen und maskiert angezeigt.
+- **Script-Benachrichtigungen (neu):**
+  - Neuer Block in den Settings: **Script wählen**, Kanal (**Telegram/E-Mail**), Trigger (**Erfolg/Fehler/beides**), Regeln verwalten.
+  - Regeln werden in `app_settings.json` unter `script_notifications.rules` gespeichert.
+  - Manuelle Host-Testläufe senden Benachrichtigungen regelbasiert.
+  - Fehler beim Versand werden sichtbar geloggt (Telegram/SMTP-Fehlermeldung statt „still“).
+- **Automatisch für Cron/Nachtläufe (ohne PC):**
+  - Neuer NAS-Runner: `ugreen_script_notify_runner.py` + `ugreen_script_notify_config.json` auf `/volume1/scripts/`.
+  - Cron-Einträge für Host/Docker-Skripte werden über den Runner gewrappt, damit Benachrichtigungen auch bei z. B. 03:00 Uhr funktionieren.
+  - Neuer Settings-Button **„Auf NAS sync“** zum expliziten Upload von Runner + Config.
+  - Robuster EXE-Fallback: wenn Runner-Datei lokal (PyInstaller-Temp) fehlt, wird eingebetteter Runner-Quelltext verwendet.
+- **Sichtbarkeit „welche Scripts melden“:**
+  - Script-Liste markiert aktive Regeln klar mit **`🔔`**-Präfix.
+  - Zusätzliche Übersichtszeile zeigt für das ausgewählte Script den aktiven Notify-Status (Kanal + Trigger).
+- **Media/Generator-Tools ergänzt:**
+  - `tools/generate_code_rain_video.py` erweitert (Qualität/Duration/FPS/Workers/Codec, inkl. AV1-Optionen).
+  - `tools/generate_window_sea_video.py` (30s Fenster-Meer-Animation).
+  - `tools/generate_light_rain_audio.py` (WAV/MP3-Ausgabe, sanfter Regen).
+
+### English (summary)
+
+- Multi-peer SMB profiles for NAS↔NAS, with active profile switching and UI sync.
+- Settings privacy masking + Show/Hide for Telegram/Email sensitive values.
+- New script notification rules in Settings (script + channel + trigger).
+- NAS-side runner for cron/night jobs (`/volume1/scripts/ugreen_script_notify_runner.py`) so alerts work even when the PC is off.
+- New “sync to NAS” button and robust packaged-app fallback for runner source.
+- Script list now visibly marks notification-enabled entries with `🔔`.
+- Added/extended media generation helper tools (code-rain video, sea-window video, light rain audio).
 
 ## 22.6.0 — 2026-04-07
 

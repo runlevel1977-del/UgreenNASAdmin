@@ -1186,7 +1186,9 @@ class MixinTransfer:
                             nonlocal files_since_full
                             uploaded_paths.append(used)
                             if fsz > 0:
-                                uploaded_meta.append((used, fsz))
+                                # Verifikation per SSH-„stat“ braucht einen absoluten POSIX-Pfad (beginnt mit /).
+                                # „used“ kann je nach SFTP-Kandidat relativ sein — dann wäre remote=0 trotz OK-Upload.
+                                uploaded_meta.append((remote_path, fsz))
                             progress["overall_done"] = progress["file_base"] + fsz
                             progress["file_done"] = fsz
                             touch_progress_ui()

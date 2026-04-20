@@ -6,7 +6,6 @@ import os
 import posixpath
 import shlex
 import shutil
-import shlex
 import stat
 import sys
 import uuid
@@ -197,12 +196,14 @@ class MixinScriptsDockerMonitor:
     def show_docker_inspect(self):
         sel = self.docker_tree.selection()
         if sel:
-            name = self.docker_tree.item(sel[0], "text")
+            name = (self.docker_tree.item(sel[0], "text") or "").strip()
+            if not name:
+                return
             self.docker_log_view.delete("1.0", tk.END)
             self.docker_log_view.insert("1.0", self.t("docker.log_inspect", name=name) + "\n")
 
             def worker():
-                res = self.run_ssh_cmd(f"docker inspect {name}", True, update_status=False)
+                res = self.run_ssh_cmd(f"docker inspect {shlex.quote(name)}", True, update_status=False)
 
                 def apply():
                     self.docker_log_view.insert(tk.END, res)
@@ -547,4 +548,15 @@ class MixinScriptsDockerMonitor:
         self.script_listbox.delete(0, tk.END)
         for f in res.splitlines():
             if f and "ls:" not in f:
-                self.script_listbox.insert(tk.END, f"  {f.strip()}")
+                n = f.strip()
+                if hasattr(self, "_script_notify_decorate_list_name"):
+                    try:
+                        n = self._script_notify_decorate_list_name(n)
+                    except Exception:
+                        pass
+                self.script_listbox.insert(tk.END, f"  {n}")
+        if hasattr(self, "_script_notify_update_scripts_overview_ui"):
+            try:
+                self._script_notify_update_scripts_overview_ui()
+            except Exception:
+                pass

@@ -36,13 +36,14 @@ from ugreen_app.mixin_storage_acl_snap import MixinStorageAclSnap
 from ugreen_app.mixin_config_telegram import MixinConfigTelegram
 from ugreen_app.mixin_scripts_docker_monitor import MixinScriptsDockerMonitor
 from ugreen_app.mixin_nas_watch_deploy import MixinNasWatchDeploy
+from ugreen_app.mixin_qnap_smb import MixinQnapSmb
 from ugreen_app.mixin_explorer import MixinExplorer
 from ugreen_app.mixin_transfer import MixinTransfer
 from ugreen_app.mixin_editor_cron import MixinEditorCron
 from ugreen_app.mixin_update_check import MixinUpdateCheck
 from ugreen_app.i18n import cron_mappings_for_lang, translate
 
-__version__ = "22.6.0"
+__version__ = "23.1.0"
 
 class NASManager(
     MixinSafetyLock,
@@ -52,6 +53,7 @@ class NASManager(
     MixinConfigTelegram,
     MixinScriptsDockerMonitor,
     MixinNasWatchDeploy,
+    MixinQnapSmb,
     MixinExplorer,
     MixinTransfer,
     MixinEditorCron,

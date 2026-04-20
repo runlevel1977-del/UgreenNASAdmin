@@ -2,6 +2,7 @@ import os
 import shutil
 import sys
 import time
+import hashlib
 
 import PyInstaller.__main__
 
@@ -10,6 +11,14 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SPEC_NAME = "UgreenNASAdmin.spec"
 EXE_NAME = "UgreenNASAdmin"
 # ---------------------
+
+
+def _sha256(path: str) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def build():
@@ -67,9 +76,17 @@ def build():
         if os.path.isfile(dist_exe):
             em = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(os.path.getmtime(dist_exe)))
             print(f"Neue EXE: {dist_exe} ({em})")
+            print(f"SHA256: {_sha256(dist_exe)}")
         print(
             "\nTipp: Zeigt Windows noch das alte Symbol, Kurz umbenennen (z.B. UgreenNASAdmin2.exe)\n"
             "oder Explorer neu starten — Icon-Cache von Windows, nicht vom Builder."
+        )
+        print(
+            "\nWindows-Hinweis:\n"
+            "- Defender-Fehlalarme werden durch den Build reduziert (UPX ist deaktiviert).\n"
+            "- SmartScreen-Warnungen lassen sich ohne Code-Signatur nicht vollstaendig vermeiden.\n"
+            "- Fuer lokale Starts hilft meist ein Defender-Exclude fuer den dist-Ordner (Admin):\n"
+            f"  Add-MpPreference -ExclusionPath \"{os.path.join(BASE_DIR, 'dist')}\""
         )
     except Exception as e:
         print(f"\nFEHLER: {e}")
