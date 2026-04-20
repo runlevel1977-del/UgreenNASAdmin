@@ -15,7 +15,7 @@ Desktop **control center** for a **Ugreen NAS** over **SSH**: scripts, file expl
   - **Privacy masking** in Settings for Telegram + Email sensitive values (Show/Hide).
   - **Visible script markers** (`🔔`) in script list for scripts with active notification rules.
 - **Remove legacy Docker web stack on the NAS:** see [`NAS_WEB_STACK_ENTFERNEN.md`](NAS_WEB_STACK_ENTFERNEN.md) (German doc).
-- **Public release / build EXE:** folder **`öffentlich/`** — full readme with **screenshots**, notifications, feature list: [`öffentlich/README.md`](öffentlich/README.md), changelog: [`öffentlich/CHANGELOG.md`](öffentlich/CHANGELOG.md). Zip: `python tools/zip_oeffentlich_forum.py` → **`UgreenNASAdmin_v<version>_oeffentlich_mit_EXE.zip`** (version from `ugreen_app/nas_manager.py`, e.g. **v23.1.0**; includes sources + `dist/UgreenNASAdmin.exe` + `images/`).
+- **Public release / build EXE:** folder **`öffentlich/`** — full readme with **screenshots**, notifications, feature list: [`öffentlich/README.md`](öffentlich/README.md), changelog: [`öffentlich/CHANGELOG.md`](öffentlich/CHANGELOG.md). Zip: `python tools/zip_oeffentlich_forum.py` → **`UgreenNASAdmin_v<version>_oeffentlich_mit_EXE.zip`** (version from `ugreen_app/nas_manager.py`, e.g. **v23.2.0**; includes sources + `dist/UgreenNASAdmin.exe` + `images/`).
 - **Optional SSH password in Windows Credential Manager (`keyring`):** v22.1+ — see *SSH password in the OS vault* in [`öffentlich/README.md`](öffentlich/README.md).
 
 ## Deutsch
@@ -28,7 +28,7 @@ Desktop **control center** for a **Ugreen NAS** over **SSH**: scripts, file expl
   - **Maskierung sensibler Settings-Werte** (Telegram/E-Mail) mit Anzeigen/Ausblenden.
   - **Sichtbare Markierung** (`🔔`) in der Script-Liste bei aktiver Benachrichtigungsregel.
 - **Früherer Docker-Web-Stack auf dem NAS entfernen:** siehe [`NAS_WEB_STACK_ENTFERNEN.md`](NAS_WEB_STACK_ENTFERNEN.md).
-- **Öffentliche Release-Quelle / EXE bauen:** Ordner **`öffentlich/`** — ausführliche README mit **Screenshots**, Benachrichtigungen, Funktionsliste: [`öffentlich/README.md`](öffentlich/README.md), [`öffentlich/CHANGELOG.md`](öffentlich/CHANGELOG.md). Release-ZIP: `python tools/zip_oeffentlich_forum.py` → **`UgreenNASAdmin_v<version>_oeffentlich_mit_EXE.zip`** (Version aus `ugreen_app/nas_manager.py`, z. B. **v23.1.0**; Quellen + `dist/UgreenNASAdmin.exe` + `images/`).
+- **Öffentliche Release-Quelle / EXE bauen:** Ordner **`öffentlich/`** — ausführliche README mit **Screenshots**, Benachrichtigungen, Funktionsliste: [`öffentlich/README.md`](öffentlich/README.md), [`öffentlich/CHANGELOG.md`](öffentlich/CHANGELOG.md). Release-ZIP: `python tools/zip_oeffentlich_forum.py` → **`UgreenNASAdmin_v<version>_oeffentlich_mit_EXE.zip`** (Version aus `ugreen_app/nas_manager.py`, z. B. **v23.2.0**; Quellen + `dist/UgreenNASAdmin.exe` + `images/`).
 - **Optional SSH-Passwort im Windows-Tresor (`keyring`):** ab v22.1 — Anleitung im Abschnitt *SSH-Passwort im Windows-Tresor* in [`öffentlich/README.md`](öffentlich/README.md).
 
 **Screenshots und die ausführliche GitHub-Doku (Englisch zuerst, dann Deutsch)** stehen in [`öffentlich/README.md`](öffentlich/README.md).

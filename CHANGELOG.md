@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+_(noch nicht veröffentlicht)_
+
+## 23.2.0 — 2026-04-20
+
 ### Deutsch (ausführlich)
 
 - **Mehrere SMB-Ziele (NAS ↔ NAS):**
