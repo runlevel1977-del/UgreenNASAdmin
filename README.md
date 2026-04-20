@@ -6,6 +6,17 @@ The app is available in **English** and **German**; switch language in the statu
 
 Desktop **control center** for a **Ugreen NAS** over **SSH**: scripts, file explorer (upload/download), Docker, system health, storage, ACL, snapshots, optional Telegram guard. **MIT licensed.**
 
+- **Core app capabilities (v23.2.0):**
+  - **Connection & security:** SSH login (password or key), optional Windows Credential Manager (`keyring`) support.
+  - **Script management:** upload/edit/run shell scripts, stable cron entries, docker cron entries, quick test runs.
+  - **Script notifications:** rule-based alerts per script (Telegram/Email, success/fail/both), including NAS-side runner for scheduled jobs.
+  - **File operations:** NAS explorer with upload/download, local PC explorer panel, and cross-copy workflows.
+  - **NAS↔NAS transfers:** SMB peer profiles for a second NAS/server, profile selection in Settings and NAS↔NAS tab.
+  - **Docker tools:** container list/actions, live logs/stats/inspect, compose-aware helper paths.
+  - **System operations:** health checks, storage info, ACL helpers, snapshot functions, watcher/deploy helper modules.
+  - **Privacy UX:** Show/Hide masking for sensitive Telegram and Email settings fields.
+  - **Internationalization:** complete DE/EN UI with language switch from the status bar.
+  - **Build & release tooling:** PyInstaller EXE build, forum/public ZIP packaging, version-driven release artifact naming.
 - **Demo video (YouTube):** https://youtu.be/RDaEZhuEbCc
 - **Run from repo root:** `python -m pip install -r öffentlich/requirements.txt`, then `python ugreen_nas_admin.py`.
 - **Current highlights (v23.x):**
