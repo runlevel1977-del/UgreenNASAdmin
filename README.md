@@ -14,6 +14,15 @@ The app is available in **English** and **German**; switch language in the statu
 
 **Ugreen NAS Admin** is a desktop **control center** for a **Ugreen NAS** over **SSH**: scripts, file explorer (upload/download), Docker, system health, storage, ACL, snapshots, optional Telegram / email alerts. **MIT licensed.**
 
+### What's new in v23.2.0
+
+- **Multi-NAS SMB profiles:** manage multiple second-NAS/server targets and switch them directly in Settings/NAS↔NAS workflow.
+- **Script notification rules:** choose script + channel (**Telegram/Email**) + trigger (**success/fail/both**).
+- **Cron-ready NAS notifications:** NAS-side runner supports automatic jobs even when the desktop app is offline.
+- **Privacy controls in Settings:** Telegram and email credentials support **Show/Hide** masking on tab entry.
+- **Better notification visibility:** scripts with active notify rules are clearly marked in the scripts list.
+- **Release & packaging updates:** versioned `v23.2.0` release artifacts and latest release publishing flow updated.
+
 ### Demo video
 
 **Walkthrough on YouTube:** [https://youtu.be/RDaEZhuEbCc](https://youtu.be/RDaEZhuEbCc)
