@@ -17,6 +17,36 @@ _N2N_TAB_INDEX = 2
 
 
 class MixinQnapSmb:
+    def n2n_clear_peer_tree_ui(self) -> None:
+        """SMB-Peer-Baum leeren (z. B. nach Profilwechsel), Verbindungen vorher per n2n_disconnect_peer_smb trennen."""
+        if sys.platform != "win32":
+            return
+        tree = getattr(self, "tree_n2n_peer", None)
+        if tree is None:
+            return
+        try:
+            if not tree.winfo_exists():
+                return
+        except tk.TclError:
+            return
+        try:
+            for c in tree.get_children():
+                tree.delete(c)
+        except tk.TclError:
+            return
+        try:
+            self._n2n_peer_meta.clear()
+        except Exception:
+            pass
+        w = getattr(self, "lbl_n2n_peer_path", None)
+        if w is not None:
+            try:
+                if w.winfo_exists():
+                    w.config(text=self.t("nas2nas.peer_path_placeholder"))
+            except tk.TclError:
+                pass
+        self._n2n_peer_set_status("")
+
     def n2n_disconnect_peer_smb(self) -> None:
         conns = getattr(self, "_n2n_smb_connected", None)
         if not conns:
@@ -125,6 +155,21 @@ class MixinQnapSmb:
             font=self.font_bold,
             anchor="w",
         ).pack(anchor="w", fill=tk.X, pady=(6, 0))
+        if sys.platform == "win32":
+            peer_sel_row = tk.Frame(info_col, bg=self.color_surface_alt)
+            peer_sel_row.pack(anchor="w", fill=tk.X, pady=(2, 0))
+            tk.Label(
+                peer_sel_row,
+                text=self.t("nas2nas.peer_select_short"),
+                bg=self.color_surface_alt,
+                fg=self.color_text_muted,
+                font=("Segoe UI", 9),
+            ).pack(side=tk.LEFT, padx=(0, 8))
+            self.combo_n2n_second_peer = ttk.Combobox(peer_sel_row, state="readonly", width=24, font=self.font_base)
+            self.combo_n2n_second_peer.pack(side=tk.LEFT)
+            self.combo_n2n_second_peer.bind("<<ComboboxSelected>>", self._second_nas_n2n_combo_selected)
+        else:
+            self.combo_n2n_second_peer = None  # type: ignore[assignment]
         tk.Label(
             info_col,
             text=self.t("nas2nas.smb_credentials_hint"),

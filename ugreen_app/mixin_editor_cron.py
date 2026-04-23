@@ -47,6 +47,13 @@ class MixinEditorCron:
         sel = self.script_listbox.curselection()
         if sel:
             fn = self.script_listbox.get(sel[0]).strip()
+            if hasattr(self, "_script_notify_clean_list_name"):
+                fn = self._script_notify_clean_list_name(fn)
+            if hasattr(self, "_script_notify_update_scripts_overview_ui"):
+                try:
+                    self._script_notify_update_scripts_overview_ui()
+                except Exception:
+                    pass
             self.entry_filename.delete(0, tk.END)
             self.entry_filename.insert(0, fn)
             
@@ -173,6 +180,12 @@ class MixinEditorCron:
             cmd = f"/usr/bin/python3 {shlex.quote(script_path)}"
         else:
             cmd = f"/bin/bash {shlex.quote(script_path)}"
+        if hasattr(self, "ensure_script_notify_runner_on_nas"):
+            ok_run, err_run = self.ensure_script_notify_runner_on_nas()
+            if not ok_run:
+                self.log(f"⚠️ Script-Notify-Runner konnte nicht auf NAS aktualisiert werden: {err_run}")
+        runner = "/volume1/scripts/ugreen_script_notify_runner.py"
+        cmd = f"/usr/bin/python3 {shlex.quote(runner)} --script-name {shlex.quote(posixpath.basename(fn))} -- {cmd}"
 
         if self.var_first_week.get():
             cmd = f"[ $(date +\\%d) -le 7 ] && {cmd}"
@@ -198,6 +211,12 @@ class MixinEditorCron:
         
         docker_cmd = f"docker rm -f {container_name} 2>/dev/null; docker run --name {container_name} -v /volume1:/volume1 -v /volume2:/volume2 ubuntu:latest /bin/bash -c 'apt-get update -qq && apt-get install -yqq curl sudo wget && /bin/bash /volume1/scripts/{fn}'"
         cmd = f'/bin/bash -lc "{docker_cmd}"'
+        if hasattr(self, "ensure_script_notify_runner_on_nas"):
+            ok_run, err_run = self.ensure_script_notify_runner_on_nas()
+            if not ok_run:
+                self.log(f"⚠️ Script-Notify-Runner konnte nicht auf NAS aktualisiert werden: {err_run}")
+        runner = "/volume1/scripts/ugreen_script_notify_runner.py"
+        cmd = f"/usr/bin/python3 {shlex.quote(runner)} --script-name {shlex.quote(posixpath.basename(fn))} -- {cmd}"
         
         if self.var_first_week.get(): 
             cmd = f"[ $(date +\\%d) -le 7 ] && {cmd}"

@@ -1,5 +1,35 @@
 # Changelog — Ugreen NAS Admin
 
+## 23.3.0 — 2026-04-23
+
+### Deutsch (ausführlich)
+
+- **Webcam Recorder stark erweitert:**
+  - Neues Webcam-Panel mit Geräte-Scan, Live-Preview, Sofortaufnahme und täglicher Zeitplanung.
+  - Kamera-Controls direkt in der App: Auto/Manual Exposure, Exposure-Wert, Gain, 50/60Hz Netzfrequenz.
+  - Aufnahmedauer als Dropdown (Sekunden, Minuten, Stunden, Tage).
+  - Qualitätsprofile (`compatible`, `hq`, `space`) mit Encoder-Fallbacks.
+  - Pre-Flight-Check (Tools, Device, Schreibrechte, Speicher) und 1-Klick Selbsttest (3s Testaufnahme + Dateicheck).
+  - Optionale Motion Detection und Dateirotation (keep N Files).
+  - Statuszeile mit klarer Rückmeldung und letzter Ausgabedatei.
+- **Berechtigungen robuster:**
+  - Unterscheidung zwischen User-Write und Root-Write.
+  - Manuelle Aufnahmen laufen mit User-Rechten, geplante/root-basierte Flows nutzen bei Bedarf Root-Write.
+- **Storage:**
+  - Disk-Imaging/Restore-Workflows für ganze Datenträger (Image auf PC/NAS, Restore von PC/NAS) mit Sicherheitsabfragen.
+- **Docker:**
+  - Docker-Hub-Katalog als Deployment-Helfer, Übergabe in den Assistenten (`docker run` oder Compose-Preset).
+- **DE/EN i18n und UX:**
+  - Neue Texte und Statusmeldungen für Webcam-Features.
+  - NAS-Ordnerbrowser priorisiert sichere Datenpfade (`/volume*`) statt Systemverzeichnisse.
+
+### English (summary)
+
+- Added a production-ready **Webcam Recorder suite**: preview, immediate/scheduled recording, in-app camera controls, quality profiles, preflight checks, self-test, optional motion detection, and file rotation.
+- Improved permission handling by separating **user write** and **root write** logic for different recording flows.
+- Added **disk imaging/restore** workflows and **Docker Hub catalog** deployment helper.
+- Expanded DE/EN UX and status messaging for all new release features.
+
 ## 23.1.0 — 2026-04-10
 
 ### Deutsch (ausführlich)

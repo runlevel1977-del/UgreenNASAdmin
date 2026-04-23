@@ -14,14 +14,14 @@ The app is available in **English** and **German**; switch language in the statu
 
 **Ugreen NAS Admin** is a desktop **control center** for a **Ugreen NAS** over **SSH**: scripts, file explorer (upload/download), Docker, system health, storage, ACL, snapshots, optional Telegram / email alerts. **MIT licensed.**
 
-### What's new in v23.2.0
+### What's new in v23.3.0
 
-- **Multi-NAS SMB profiles:** manage multiple second-NAS/server targets and switch them directly in Settings/NAS↔NAS workflow.
-- **Script notification rules:** choose script + channel (**Telegram/Email**) + trigger (**success/fail/both**).
-- **Cron-ready NAS notifications:** NAS-side runner supports automatic jobs even when the desktop app is offline.
-- **Privacy controls in Settings:** Telegram and email credentials support **Show/Hide** masking on tab entry.
-- **Better notification visibility:** scripts with active notify rules are clearly marked in the scripts list.
-- **Release & packaging updates:** versioned `v23.2.0` release artifacts and latest release publishing flow updated.
+- **Webcam Recorder suite:** live preview, immediate and scheduled recording, quality profiles, preflight checks, self-test, file rotation, optional motion detection.
+- **Webcam controls in-app:** auto/manual exposure, exposure value, gain and 50/60Hz power-line settings (`v4l2-ctl` integration).
+- **Smarter reliability:** explicit user/root write checks, clear recording status with last output filename, robust dependency checks (`ffmpeg`, `v4l2-ctl`).
+- **Disk imaging & restore:** select disks, image to PC or NAS, and restore from PC/NAS image files (with safety prompts).
+- **Docker Catalog:** browse/search Docker Hub images and prefill deployment wizard as `docker run` command or compose YAML presets.
+- **UI & docs refresh:** updated DE/EN strings, safer NAS folder browser (data volumes first), and updated release docs/assets for `v23.3.0`.
 
 ### Demo video
 
@@ -193,12 +193,13 @@ Without extra packages, **“Save connection”** still stores the password **in
 | **General** | SSH (IP, port, user, password, optional **SSH key**), **save connection**, **connection profiles** (v22.6+), optional **🔐 PW vault** (`keyring`), **DE/EN**, **light/dark** theme, **live monitor** (CPU/RAM), status bar, **restricted mode** / **full access** |
 | **Scripts** | `/volume1/scripts/` listing, **read/save** (root or user), **chmod 755**, **cron** (`/etc/cron.d/…`, stable jobs, **STABLE_TASKS**), **backup templates** (rsync / restic / rclone snippets), shortcuts |
 | **Explorer** | NAS tree + **This PC**, **upload/download**, **copy** NAS↔PC, recursive folders, progress, search, folder sizes, context menu (delete with gate) |
-| **Docker** | Container list, **start/stop/restart/remove** (with prompts), **stats / logs / inspect**, **live log tail** + stop, **Compose file** + **config** / **ps** / **up -d** (compose plugin or legacy), fix host mount perms, **“New container/stack” wizard** (Compose/`docker run`, variables, `mkdir` on NAS) |
+| **Docker** | Container list, **start/stop/restart/remove** (with prompts), **stats / logs / inspect**, **live log tail** + stop, **Compose file** + **config** / **ps** / **up -d** (compose plugin or legacy), fix host mount perms, **“New container/stack” wizard** (Compose/`docker run`, variables, `mkdir` on NAS), **Docker Hub catalog prefill helper** |
 | **System & Health** | **Refresh**, RAID, SMART, storage, report, **save health snapshot**, **NAS reboot/shutdown** (safety prompts), **Telegram guard** (while app runs), **NAS central watch** + **daily report** (install on NAS) |
-| **Storage** | Overview, **Samba testparm**, **NFS exports** |
+| **Storage** | Overview, **Samba testparm**, **NFS exports**, **disk imaging/restore** (device scan, image to PC/NAS, restore from image) |
 | **ACL** | Path, view/set ACL (with gate) |
 | **Snapshots** | Btrfs / ZFS / Snapper — depending on NAS |
 | **Schedules** | Cron editor and host jobs (with gate) |
+| **Webcam** | Device scan (`/dev/video*`), live preview, immediate recording, daily scheduled recording, quality profiles, camera controls, preflight + self-test, optional motion detection, automatic file rotation |
 
 ---
 
@@ -336,12 +337,13 @@ Ohne Zusatzpaket bleibt alles wie bisher: **„Verbindung speichern“** schreib
 | **Allgemein** | SSH-Verbindung (IP, Port, User, Passwort, optional **SSH-Key**), **Verbindung speichern**, **Verbindungsprofile** (ab v22.6), optional **🔐 PW Tresor** (`keyring`), **DE/EN**, **Hell/Dunkel**, **Live-Monitor** (CPU/RAM), Statuszeile, **eingeschränkter Modus** / **Volle Rechte** |
 | **Scripte** | Verzeichnis `/volume1/scripts/`, Dateien **lesen/speichern** (root oder Benutzer), **chmod 755**, **Cron** (`/etc/cron.d/…`, stabile Jobs, **STABLE_TASKS**), **Vorlagen** rsync/restic/rclone, Shortcuts |
 | **Explorer** | NAS-Baum + **Dieser PC**, **Upload/Download**, **Kopieren** NAS↔PC, Ordner rekursiv, Fortschritt, Suche, Ordnergrößen, Kontextmenü (Löschen mit Freigabe) |
-| **Docker** | Container-Liste, **Start/Stop/Restart/Entfernen** (mit Rückfragen), **Stats / Logs / Inspect**, **Live-Log** + Stop, **Compose-Datei** + **config** / **ps** / **up -d** (Plugin oder Legacy), Berechtigungen Host-Mounts, **Assistent „Neuer Container/Stack“** (Compose/`docker run`, Variablen, `mkdir` auf NAS) |
+| **Docker** | Container-Liste, **Start/Stop/Restart/Entfernen** (mit Rückfragen), **Stats / Logs / Inspect**, **Live-Log** + Stop, **Compose-Datei** + **config** / **ps** / **up -d** (Plugin oder Legacy), Berechtigungen Host-Mounts, **Assistent „Neuer Container/Stack“** (Compose/`docker run`, Variablen, `mkdir` auf NAS), **Docker-Hub-Katalog als Prefill-Helfer** |
 | **System & Health** | **Refresh**, RAID, SMART, Speicher, Bericht, **Snapshot speichern**, **NAS neustarten/herunterfahren** (mit Sicherheitsdialogen), **Telegram-Wächter** (PC-Sitzung), **NAS-Zentral-Wächter** + **Tagesbericht** (Installation auf NAS) |
-| **Speicher** | Übersicht, **Samba testparm**, **NFS exports** |
+| **Speicher** | Übersicht, **Samba testparm**, **NFS exports**, **Disk-Imaging/Restore** (Scan, Image auf PC/NAS, Restore aus Image) |
 | **Rechte (ACL)** | Pfad wählen, ACL anzeigen/setzen (mit Freigabe) |
 | **Snapshots** | Btrfs / ZFS / Snapper — je nach NAS angebunden |
 | **Zeitpläne** | Cron-Editor und Host-Jobs (mit Freigabe) |
+| **Webcam** | Gerätescan (`/dev/video*`), Livebild, Sofortaufnahme, tägliche Zeitplanung, Qualitätsprofile, Kamera-Controls, Preflight + Selbsttest, optionale Motion Detection, automatische Dateirotation |
 
 ## License
 

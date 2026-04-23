@@ -29,6 +29,11 @@ import urllib.parse
 import nas_ssh
 import nas_utils
 from ugreen_app._paramiko import _paramiko
+from ugreen_app.scroll_helpers import (
+    smooth_bind_mousewheel_tree,
+    smooth_canvas_scrollregion_cb,
+    smooth_canvas_wheel_handlers,
+)
 
 class MixinTabsSetup:
     def setup_script_tab(self):
@@ -48,6 +53,16 @@ class MixinTabsSetup:
         ysb.pack(side=tk.RIGHT, fill=tk.Y)
         self.script_listbox.configure(yscrollcommand=ysb.set)
         self.script_listbox.bind('<<ListboxSelect>>', self.load_selected_script)
+        self.lbl_script_notify_info = tk.Label(
+            ls,
+            text=self.t("settings.script_notify_overview_hint"),
+            bg=self.color_surface_alt,
+            fg=self.color_text_muted,
+            font=("Segoe UI", 8),
+            anchor="w",
+            justify=tk.LEFT,
+        )
+        self.lbl_script_notify_info.pack(fill=tk.X, padx=15, pady=(0, 4))
         
         # Button-Container Links
         bc = tk.Frame(ls, bg=self.color_surface_alt)
@@ -272,6 +287,7 @@ class MixinTabsSetup:
         self._register_danger_rounded(self.create_modern_btn(row1, self.t("docker.restart"), lambda: self.docker_action("restart"), self.color_cron, "white")).pack(side=tk.LEFT, padx=5)
         self._register_danger_rounded(self.create_modern_btn(row2, self.t("docker.stop_all"), self.docker_stop_all, self.color_root)).pack(side=tk.LEFT, padx=5)
         self._register_danger_rounded(self.create_modern_btn(row2, self.t("docker.new"), self.open_docker_creator, "#3b82f6")).pack(side=tk.LEFT, padx=5)
+        self.create_modern_btn(row2, self.t("docker.catalog"), self.open_docker_catalog, self.color_header).pack(side=tk.LEFT, padx=5)
         
         # Untere Docker-Tools (Erweitert)
         tool_bot = tk.Frame(left, bg=self.color_surface_alt, pady=10, padx=10, highlightbackground=self.color_border, highlightthickness=1)
@@ -426,13 +442,10 @@ class MixinTabsSetup:
         def _health_canvas_inner_width(event):
             canvas.itemconfigure(mid_win, width=max(event.width, 1))
 
-        def _health_canvas_scrollregion(_event=None):
-            box = canvas.bbox("all")
-            if box:
-                canvas.configure(scrollregion=box)
+        _health_scrollregion = smooth_canvas_scrollregion_cb(self.root, canvas)
 
         canvas.bind("<Configure>", _health_canvas_inner_width)
-        mid.bind("<Configure>", _health_canvas_scrollregion)
+        mid.bind("<Configure>", _health_scrollregion)
 
         canvas.grid(row=0, column=0, sticky="nsew")
         vsb.grid(row=0, column=1, sticky="ns")
@@ -500,35 +513,12 @@ class MixinTabsSetup:
         self.setup_nas_central_watch_section(mid)
         self.setup_daily_report_section(mid)
 
-        def _health_wheel(event):
-            d = getattr(event, "delta", 0) or 0
-            if sys.platform == "darwin":
-                canvas.yview_scroll(-d, "units")
-            else:
-                canvas.yview_scroll(int(-d / 120), "units")
-            return "break"
-
-        def _health_wheel_linux_up(_event):
-            canvas.yview_scroll(-1, "units")
-            return "break"
-
-        def _health_wheel_linux_dn(_event):
-            canvas.yview_scroll(1, "units")
-            return "break"
-
-        def _bind_health_wheel_recursive(w):
-            w.bind("<MouseWheel>", _health_wheel, add="+")
-            if sys.platform.startswith("linux"):
-                w.bind("<Button-4>", _health_wheel_linux_up, add="+")
-                w.bind("<Button-5>", _health_wheel_linux_dn, add="+")
-            for ch in w.winfo_children():
-                _bind_health_wheel_recursive(ch)
-
-        canvas.bind("<MouseWheel>", _health_wheel)
+        _hwheel, _hup, _hdn = smooth_canvas_wheel_handlers(canvas)
+        canvas.bind("<MouseWheel>", _hwheel)
         if sys.platform.startswith("linux"):
-            canvas.bind("<Button-4>", _health_wheel_linux_up)
-            canvas.bind("<Button-5>", _health_wheel_linux_dn)
-        _bind_health_wheel_recursive(mid)
+            canvas.bind("<Button-4>", _hup)
+            canvas.bind("<Button-5>", _hdn)
+        smooth_bind_mousewheel_tree(mid, _hwheel, _hup, _hdn)
 
         self.health_text = scrolledtext.ScrolledText(
             wrap,
@@ -572,6 +562,38 @@ class MixinTabsSetup:
         self._register_danger_rounded(
             self.create_modern_btn(s2, self.t("storage.top20"), self.storage_top20_folders, self.color_cron)
         ).pack(side=tk.LEFT, padx=8)
+        s3 = tk.Frame(top, bg=self.color_surface_alt)
+        s3.pack(fill=tk.X, pady=(10, 0))
+        tk.Label(s3, text=self.t("storage.disk_device"), bg=self.color_surface_alt, fg=self.color_text_muted).pack(side=tk.LEFT, padx=(0, 8))
+        self.combo_storage_disk_device = ttk.Combobox(s3, state="readonly", width=42, font=self.font_base)
+        self.combo_storage_disk_device.pack(side=tk.LEFT, padx=(0, 8))
+        self.create_modern_btn(s3, self.t("storage.disk_scan"), self.storage_disk_scan_devices, self.color_btn_blue).pack(side=tk.LEFT, padx=(0, 8))
+        self.create_modern_btn(s3, self.t("storage.image_to_pc"), self.storage_disk_image_to_pc, self.color_user).pack(side=tk.LEFT, padx=(0, 8))
+        self._register_danger_rounded(
+            self.create_modern_btn(s3, self.t("storage.image_to_nas"), self.storage_disk_image_to_nas, self.color_cron)
+        ).pack(side=tk.LEFT, padx=(0, 8))
+        s4 = tk.Frame(top, bg=self.color_surface_alt)
+        s4.pack(fill=tk.X, pady=(10, 0))
+        tk.Label(s4, text=self.t("storage.image_remote_path"), bg=self.color_surface_alt, fg=self.color_text_muted).pack(side=tk.LEFT, padx=(0, 8))
+        self.entry_storage_image_remote = tk.Entry(
+            s4,
+            font=self.font_mono,
+            relief="flat",
+            highlightbackground=self.color_border,
+            highlightthickness=1,
+            bg=self.color_input_bg,
+            fg=self.color_input_fg,
+            insertbackground=self.color_input_fg,
+            width=58,
+        )
+        self.entry_storage_image_remote.insert(0, "/volume1/backup/disk_image.img")
+        self.entry_storage_image_remote.pack(side=tk.LEFT, ipady=5, fill=tk.X, expand=True, padx=(0, 8))
+        self._register_danger_rounded(
+            self.create_modern_btn(s4, self.t("storage.restore_from_pc"), self.storage_disk_restore_from_pc, self.color_root)
+        ).pack(side=tk.LEFT, padx=(0, 8))
+        self._register_danger_rounded(
+            self.create_modern_btn(s4, self.t("storage.restore_from_nas"), self.storage_disk_restore_from_nas, self.color_btn_purple)
+        ).pack(side=tk.LEFT)
         self.storage_output = scrolledtext.ScrolledText(
             wrap, height=22, bg=self.color_log_bg, fg=self.color_log_fg, insertbackground=self.color_log_fg,
             font=self.font_mono, relief="flat", highlightbackground=self.color_border, highlightthickness=1, padx=10, pady=10)
@@ -759,13 +781,10 @@ class MixinTabsSetup:
         def _settings_canvas_inner_width(event):
             settings_canvas.itemconfigure(form_window, width=max(event.width - 2, 1))
 
-        def _settings_canvas_scrollregion(_event=None):
-            box = settings_canvas.bbox("all")
-            if box:
-                settings_canvas.configure(scrollregion=box)
+        _settings_scrollregion = smooth_canvas_scrollregion_cb(self.root, settings_canvas)
 
         settings_canvas.bind("<Configure>", _settings_canvas_inner_width)
-        form.bind("<Configure>", _settings_canvas_scrollregion)
+        form.bind("<Configure>", _settings_scrollregion)
         for c in range(4):
             form.grid_columnconfigure(c, weight=1 if c in (1, 3) else 0)
 
@@ -877,13 +896,40 @@ class MixinTabsSetup:
             anchor="w",
         )
         smb_title.grid(row=10, column=0, columnspan=4, sticky="w", pady=(14, 6))
-        _add_row(11, "settings.second_nas_peer_label", "entry_settings_second_nas_peer_label", "")
-        _add_row(12, "settings.second_nas_host", "entry_settings_second_nas_host", "")
-        _add_row(13, "settings.second_nas_user", "entry_settings_second_nas_user", "")
-        _add_row(14, "settings.second_nas_password", "entry_settings_second_nas_pwd", "", pwd=True)
+        peer_prof = tk.Frame(form, bg=self.color_surface_alt)
+        peer_prof.grid(row=11, column=0, columnspan=4, sticky="ew", pady=(0, 8))
+        tk.Label(
+            peer_prof,
+            text=self.t("settings.second_nas_profile"),
+            bg=self.color_surface_alt,
+            fg=self.color_text_muted,
+            font=("Segoe UI", 9, "bold"),
+        ).pack(side=tk.LEFT, padx=(0, 8))
+        self.combo_second_nas_peer = ttk.Combobox(peer_prof, state="readonly", width=26, font=self.font_base)
+        self.combo_second_nas_peer.pack(side=tk.LEFT, padx=(0, 8))
+        self.combo_second_nas_peer.bind("<<ComboboxSelected>>", self._second_nas_peer_combo_selected)
+        self.create_modern_btn(
+            peer_prof,
+            self.t("settings.second_nas_profile_add"),
+            self._second_nas_peer_add,
+            self.color_btn_blue,
+            width=10,
+        ).pack(side=tk.LEFT, padx=(0, 6))
+        self.create_modern_btn(
+            peer_prof,
+            self.t("settings.second_nas_profile_delete"),
+            self._second_nas_peer_delete,
+            "#fee2e2",
+            "#b91c1c",
+            width=8,
+        ).pack(side=tk.LEFT, padx=(0, 4))
+        _add_row(12, "settings.second_nas_peer_label", "entry_settings_second_nas_peer_label", "")
+        _add_row(13, "settings.second_nas_host", "entry_settings_second_nas_host", "")
+        _add_row(14, "settings.second_nas_user", "entry_settings_second_nas_user", "")
+        _add_row(15, "settings.second_nas_password", "entry_settings_second_nas_pwd", "", pwd=True)
         self.var_settings_second_nas_save_pw = tk.BooleanVar(value=False)
         smb_ck = tk.Frame(form, bg=self.color_surface_alt)
-        smb_ck.grid(row=15, column=1, sticky="w", pady=(2, 2))
+        smb_ck.grid(row=16, column=1, sticky="w", pady=(2, 2))
         tk.Checkbutton(
             smb_ck,
             text=self.t("settings.second_nas_save_pw"),
@@ -896,34 +942,52 @@ class MixinTabsSetup:
         ).pack(side=tk.LEFT)
 
         # Telegram
-        tg_title = tk.Label(
-            form,
+        tg_bar = tk.Frame(form, bg=self.color_surface_alt)
+        tg_bar.grid(row=17, column=0, columnspan=4, sticky="ew", pady=(12, 6))
+        tk.Label(
+            tg_bar,
             text=self.t("settings.telegram_title"),
             bg=self.color_surface_alt,
             fg=self.color_text,
             font=self.font_bold,
             anchor="w",
+        ).pack(side=tk.LEFT)
+        self.btn_settings_tg_privacy = self.create_modern_btn(
+            tg_bar,
+            self.t("settings.secrets_show"),
+            self._settings_privacy_telegram_toggle,
+            self.color_text_muted,
+            width=12,
         )
-        tg_title.grid(row=16, column=0, columnspan=4, sticky="w", pady=(12, 6))
-        _add_row(17, "settings.telegram_token", "entry_settings_telegram_token", "")
-        _add_row(18, "settings.telegram_chat", "entry_settings_telegram_chat", "")
+        self.btn_settings_tg_privacy.pack(side=tk.RIGHT, padx=(8, 0))
+        _add_row(18, "settings.telegram_token", "entry_settings_telegram_token", "")
+        _add_row(19, "settings.telegram_chat", "entry_settings_telegram_chat", "")
 
         # E-Mail
-        mail_title = tk.Label(
-            form,
+        mail_bar = tk.Frame(form, bg=self.color_surface_alt)
+        mail_bar.grid(row=20, column=0, columnspan=4, sticky="ew", pady=(12, 6))
+        tk.Label(
+            mail_bar,
             text=self.t("settings.email_title"),
             bg=self.color_surface_alt,
             fg=self.color_text,
             font=self.font_bold,
             anchor="w",
+        ).pack(side=tk.LEFT)
+        self.btn_settings_email_privacy = self.create_modern_btn(
+            mail_bar,
+            self.t("settings.secrets_show"),
+            self._settings_privacy_email_toggle,
+            self.color_text_muted,
+            width=12,
         )
-        mail_title.grid(row=19, column=0, columnspan=4, sticky="w", pady=(12, 6))
-        _add_row(20, "settings.smtp_host", "entry_settings_smtp_host", "")
-        _add_row(21, "settings.smtp_port", "entry_settings_smtp_port", "587", width=8)
-        _add_row(22, "settings.smtp_user", "entry_settings_smtp_user", "")
-        _add_row(23, "settings.smtp_pass", "entry_settings_smtp_pass", "", pwd=True)
-        _add_row(24, "settings.smtp_from", "entry_settings_smtp_from", "")
-        _add_row(25, "settings.smtp_to", "entry_settings_smtp_to", "")
+        self.btn_settings_email_privacy.pack(side=tk.RIGHT, padx=(8, 0))
+        _add_row(21, "settings.smtp_host", "entry_settings_smtp_host", "")
+        _add_row(22, "settings.smtp_port", "entry_settings_smtp_port", "587", width=8)
+        _add_row(23, "settings.smtp_user", "entry_settings_smtp_user", "")
+        _add_row(24, "settings.smtp_pass", "entry_settings_smtp_pass", "", pwd=True)
+        _add_row(25, "settings.smtp_from", "entry_settings_smtp_from", "")
+        _add_row(26, "settings.smtp_to", "entry_settings_smtp_to", "")
 
         # Standardpfade
         path_title = tk.Label(
@@ -934,15 +998,98 @@ class MixinTabsSetup:
             font=self.font_bold,
             anchor="w",
         )
-        path_title.grid(row=26, column=0, columnspan=4, sticky="w", pady=(12, 6))
-        _add_row(27, "settings.path_scripts", "entry_settings_path_scripts", "/volume1/scripts/")
-        _add_row(28, "settings.path_compose", "entry_settings_path_compose", "/volume1/docker/docker-compose.yml")
-        _add_row(29, "settings.path_explorer_root", "entry_settings_path_explorer_root", "/volume1")
+        path_title.grid(row=27, column=0, columnspan=4, sticky="w", pady=(12, 6))
+        _add_row(28, "settings.path_scripts", "entry_settings_path_scripts", "/volume1/scripts/")
+        _add_row(29, "settings.path_compose", "entry_settings_path_compose", "/volume1/docker/docker-compose.yml")
+        _add_row(30, "settings.path_explorer_root", "entry_settings_path_explorer_root", "/volume1")
+
+        # Script-Benachrichtigungen
+        sn_title = tk.Label(
+            form,
+            text=self.t("settings.script_notify_title"),
+            bg=self.color_surface_alt,
+            fg=self.color_text,
+            font=self.font_bold,
+            anchor="w",
+        )
+        sn_title.grid(row=31, column=0, columnspan=4, sticky="w", pady=(12, 6))
+        sn_hint = tk.Label(
+            form,
+            text=self.t("settings.script_notify_hint"),
+            bg=self.color_surface_alt,
+            fg=self.color_text_muted,
+            font=("Segoe UI", 8),
+            anchor="w",
+            justify=tk.LEFT,
+            wraplength=860,
+        )
+        sn_hint.grid(row=32, column=0, columnspan=4, sticky="w", pady=(0, 4))
+        sn_cfg = tk.Frame(form, bg=self.color_surface_alt)
+        sn_cfg.grid(row=33, column=0, columnspan=4, sticky="ew", pady=(0, 4))
+        tk.Label(sn_cfg, text=self.t("settings.script_notify_script"), bg=self.color_surface_alt, fg=self.color_text_muted).pack(side=tk.LEFT)
+        self.combo_settings_script_notify_script = ttk.Combobox(sn_cfg, state="normal", width=26, font=self.font_base)
+        self.combo_settings_script_notify_script.pack(side=tk.LEFT, padx=(6, 8))
+        self.create_modern_btn(
+            sn_cfg,
+            self.t("settings.script_notify_refresh"),
+            self._script_notify_refresh_script_choices,
+            self.color_text_muted,
+            width=10,
+        ).pack(side=tk.LEFT, padx=(0, 10))
+        tk.Label(sn_cfg, text=self.t("settings.script_notify_channel"), bg=self.color_surface_alt, fg=self.color_text_muted).pack(side=tk.LEFT)
+        self.combo_settings_script_notify_channel = ttk.Combobox(
+            sn_cfg, state="readonly", width=10, font=self.font_base, values=("telegram", "email")
+        )
+        self.combo_settings_script_notify_channel.pack(side=tk.LEFT, padx=(6, 10))
+        self.combo_settings_script_notify_channel.set("telegram")
+        tk.Label(sn_cfg, text=self.t("settings.script_notify_when"), bg=self.color_surface_alt, fg=self.color_text_muted).pack(side=tk.LEFT)
+        self.combo_settings_script_notify_when = ttk.Combobox(
+            sn_cfg, state="readonly", width=10, font=self.font_base, values=("success", "fail", "both")
+        )
+        self.combo_settings_script_notify_when.pack(side=tk.LEFT, padx=(6, 10))
+        self.combo_settings_script_notify_when.set("both")
+        self.create_modern_btn(
+            sn_cfg,
+            self.t("settings.script_notify_add"),
+            self._script_notify_rule_add,
+            self.color_btn_blue,
+            width=8,
+        ).pack(side=tk.LEFT, padx=(0, 6))
+        self.create_modern_btn(
+            sn_cfg,
+            self.t("settings.script_notify_delete"),
+            self._script_notify_rule_delete_selected,
+            "#fee2e2",
+            "#b91c1c",
+            width=8,
+        ).pack(side=tk.LEFT)
+        self.create_modern_btn(
+            sn_cfg,
+            self.t("settings.script_notify_sync"),
+            self.script_notify_sync_now_clicked,
+            self.color_header_subtle,
+            width=14,
+        ).pack(side=tk.LEFT, padx=(8, 0))
+        self.list_settings_script_notify_rules = tk.Listbox(
+            form,
+            height=5,
+            font=self.font_base,
+            bg=self.color_input_bg,
+            fg=self.color_input_fg,
+            selectbackground=self.color_selected_bg,
+            selectforeground=self.color_selected_fg,
+            relief="flat",
+            highlightbackground=self.color_border,
+            highlightthickness=1,
+            exportselection=False,
+            selectmode=tk.EXTENDED,
+        )
+        self.list_settings_script_notify_rules.grid(row=34, column=0, columnspan=4, sticky="ew", pady=(0, 4), ipady=2)
 
         self.var_settings_smtp_starttls = tk.BooleanVar(value=True)
         self.var_settings_smtp_ssl = tk.BooleanVar(value=False)
         ck_row = tk.Frame(form, bg=self.color_surface_alt)
-        ck_row.grid(row=30, column=1, sticky="w", pady=(4, 4))
+        ck_row.grid(row=35, column=1, sticky="w", pady=(4, 4))
         tk.Checkbutton(
             ck_row,
             text=self.t("settings.smtp_starttls"),
@@ -965,22 +1112,18 @@ class MixinTabsSetup:
         ).pack(side=tk.LEFT)
 
         btns = tk.Frame(form, bg=self.color_surface_alt)
-        btns.grid(row=31, column=0, columnspan=4, sticky="w", pady=(10, 0))
+        btns.grid(row=36, column=0, columnspan=4, sticky="w", pady=(10, 0))
         self.create_modern_btn(btns, self.t("settings.load"), self.settings_load_to_ui, self.color_text_muted).pack(side=tk.LEFT, padx=(0, 8))
         self._register_danger_rounded(self.create_modern_btn(btns, self.t("settings.apply_to_current_ui"), self.settings_apply_to_current_ui, self.color_btn_blue)).pack(side=tk.LEFT, padx=(0, 8))
         self._register_danger_rounded(
             self.create_modern_btn(btns, self.t("settings.save"), self.settings_save_from_ui, self.color_user)
         ).pack(side=tk.LEFT)
 
-        def _settings_wheel(event):
-            d = getattr(event, "delta", 0) or 0
-            if sys.platform == "darwin":
-                settings_canvas.yview_scroll(-d, "units")
-            else:
-                settings_canvas.yview_scroll(int(-d / 120), "units")
-            return "break"
-
-        settings_canvas.bind("<MouseWheel>", _settings_wheel)
-        form.bind("<MouseWheel>", _settings_wheel)
+        _swheel, _sup, _sdn = smooth_canvas_wheel_handlers(settings_canvas)
+        settings_canvas.bind("<MouseWheel>", _swheel)
+        if sys.platform.startswith("linux"):
+            settings_canvas.bind("<Button-4>", _sup)
+            settings_canvas.bind("<Button-5>", _sdn)
+        smooth_bind_mousewheel_tree(form, _swheel, _sup, _sdn)
 
         self.settings_load_to_ui()

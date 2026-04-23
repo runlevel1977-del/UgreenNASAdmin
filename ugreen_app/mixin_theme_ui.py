@@ -478,6 +478,13 @@ class MixinThemeUI:
             fg=self.color_text_muted,
             font=("Segoe UI", 8, "bold"),
         ).pack(anchor=tk.W, pady=(0, 6))
+        self.create_modern_btn(
+            wrap,
+            self.t("sidebar.webcam"),
+            self.open_webcam_panel,
+            self.color_btn_purple,
+            width=10,
+        ).pack(fill=tk.X, pady=(0, 8))
         self.btn_monitor = self.create_modern_btn(
             wrap,
             self.t("sidebar.monitor_go"),
@@ -570,6 +577,12 @@ class MixinThemeUI:
                 btn.set_theme(self.color_surface_alt, self.color_text)
         # Nach dem normalen Sync ggf. Aufmerksamkeit auf "Settings" wieder setzen.
         self._update_settings_nav_attention()
+        if idx == 8:
+            try:
+                if hasattr(self, "_settings_privacy_on_tab_enter"):
+                    self._settings_privacy_on_tab_enter()
+            except Exception:
+                pass
         try:
             self._n2n_on_notebook_tab_changed(idx)
         except Exception:
