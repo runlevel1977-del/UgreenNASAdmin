@@ -4,6 +4,39 @@
 
 _(noch nicht veröffentlicht)_
 
+## 23.3.0 — 2026-04-23
+
+### Deutsch (ausführlich)
+
+- **Webcam Recorder (neu, produktionsreif):**
+  - Neuer **Webcam-Panel-Workflow** in der App mit Geräte-Scan (`/dev/video*`), Live-Preview, Sofortaufnahme und täglicher Zeitplanung (Cron auf dem NAS).
+  - **Kamera-Controls integriert:** Auto/Manual Exposure, Exposure-Wert, Gain und 50/60Hz Netzfrequenz über `v4l2-ctl`.
+  - **Dauer-Auswahl verbessert:** Aufnahmezeit per Dropdown für **Sekunden, Minuten, Stunden, Tage**.
+  - **Qualitätsprofile:** `compatible`, `hq`, `space` mit Encoder-Fallbacks (`libx264` / `libx265` / `mpeg4`) für unterschiedliche NAS-Umgebungen.
+  - **Pre-Flight-Check:** Prüfung auf `ffmpeg`, `v4l2-ctl`, Device-Lesbarkeit, Zielordner-Schreibrechte und freien Speicher vor Aufnahme/Planung.
+  - **1-Klick Selbsttest:** 3s Testaufnahme inkl. Datei-Validierung und klarer Statusausgabe (OK/Fail + Dateipfad).
+  - **Dateirotation:** optionales Limit „keep N files“ löscht alte `webcam_*.mp4` automatisch.
+  - **Motion Detection (optional):** Bewegungserkennung (Frame-Hash-Vergleich) mit Skip bei statischem Bild.
+  - **Status & Transparenz:** Sichtbarer Aufnahme-Status inkl. letzter Ausgabedatei im Webcam-Fenster.
+  - **Ordnerbrowser gehärtet:** Root zeigt nur sichere Datenpfade (`/volume*`), keine Systemordner.
+- **Berechtigungen robuster behandelt:**
+  - Preflight unterscheidet sauber zwischen **User-Write** und **Root-Write**.
+  - Sofortaufnahme verlangt User-Schreibrecht; geplante Jobs/Selbsttest können bei Bedarf Root-Write nutzen.
+- **Storage ergänzt (Disk Imaging/Restore):**
+  - Scan von Block-Devices mit Kennzeichnung sensibler Ziele (System/RAID-Kontext) und Workflows für Image nach PC/NAS sowie Restore von PC/NAS.
+- **Docker ergänzt (Catalog):**
+  - Docker-Hub-Katalog mit Suche/Browse und Übergabe in den Docker-Assistenten (`docker run` / compose YAML mit Presets).
+- **i18n/UX erweitert:**
+  - Neue DE/EN-Texte für Webcam-Status, Preflight, Selbsttest, Qualitäts-/Motion-/Rotationsoptionen und Ordnerauswahl.
+
+### English (summary)
+
+- Added a full **Webcam Recorder suite**: device scan, live preview, immediate/scheduled recording, camera controls, quality profiles, preflight checks, self-test, rotation, optional motion detection, and clear status output with last file path.
+- Hardened permission handling by separating **user write** vs **root write** checks (manual recording vs scheduled/root-capable flows).
+- Added **disk imaging/restore** workflows with safer disk detection context.
+- Added **Docker Hub catalog** helper to prefill deployment wizard (`docker run` / compose presets).
+- Extended DE/EN i18n coverage for all new webcam and release-facing UI text.
+
 ## 23.2.0 — 2026-04-20
 
 ### Deutsch (ausführlich)

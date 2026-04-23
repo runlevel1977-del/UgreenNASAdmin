@@ -478,6 +478,13 @@ class MixinThemeUI:
             fg=self.color_text_muted,
             font=("Segoe UI", 8, "bold"),
         ).pack(anchor=tk.W, pady=(0, 6))
+        self.create_modern_btn(
+            wrap,
+            self.t("sidebar.webcam"),
+            self.open_webcam_panel,
+            self.color_btn_purple,
+            width=10,
+        ).pack(fill=tk.X, pady=(0, 8))
         self.btn_monitor = self.create_modern_btn(
             wrap,
             self.t("sidebar.monitor_go"),

@@ -6,25 +6,31 @@ The app is available in **English** and **German**; switch language in the statu
 
 Desktop **control center** for a **Ugreen NAS** over **SSH**: scripts, file explorer (upload/download), Docker, system health, storage, ACL, snapshots, optional Telegram guard. **MIT licensed.**
 
-- **Core app capabilities (v23.2.0):**
+- **Core app capabilities (v23.3.0):**
   - **Connection & security:** SSH login (password or key), optional Windows Credential Manager (`keyring`) support.
   - **Script management:** upload/edit/run shell scripts, stable cron entries, docker cron entries, quick test runs.
   - **Script notifications:** rule-based alerts per script (Telegram/Email, success/fail/both), including NAS-side runner for scheduled jobs.
   - **File operations:** NAS explorer with upload/download, local PC explorer panel, and cross-copy workflows.
   - **NAS↔NAS transfers:** SMB peer profiles for a second NAS/server, profile selection in Settings and NAS↔NAS tab.
   - **Docker tools:** container list/actions, live logs/stats/inspect, compose-aware helper paths.
+  - **Docker Catalog (Docker Hub):** browse/search images and pre-fill deployment wizard as `docker run` or compose with smart templates.
   - **System operations:** health checks, storage info, ACL helpers, snapshot functions, watcher/deploy helper modules.
+  - **Disk imaging & restore:** detect disks (incl. RAID/system markers), create images to PC/NAS, restore from PC/NAS with safety confirmations.
+  - **Webcam recorder panel:** webcam scan, live preview, direct recording, scheduled NAS recording, quality profiles, preflight + selftest, rotation, optional motion detection.
   - **Privacy UX:** Show/Hide masking for sensitive Telegram and Email settings fields.
   - **Internationalization:** complete DE/EN UI with language switch from the status bar.
   - **Build & release tooling:** PyInstaller EXE build, forum/public ZIP packaging, version-driven release artifact naming.
 - **Demo video (YouTube):** https://youtu.be/RDaEZhuEbCc
 - **Run from repo root:** `python -m pip install -r öffentlich/requirements.txt`, then `python ugreen_nas_admin.py`.
-- **Current highlights (v23.x):**
+- **Current highlights (v23.3.0):**
   - **Multi-NAS SMB profiles** for NAS↔NAS transfer target selection.
   - **Script notification rules** in Settings (choose script, channel Telegram/Email, trigger success/fail/both).
   - **Cron-ready NAS runner** so notifications also work for automatic night jobs (PC can be off).
   - **Privacy masking** in Settings for Telegram + Email sensitive values (Show/Hide).
   - **Visible script markers** (`🔔`) in script list for scripts with active notification rules.
+  - **Disk imaging + restore** workflows for full-disk backups and recovery.
+  - **Docker catalog helper** for faster container deployment from Docker Hub.
+  - **Webcam recording suite** (preview/schedule/preflight/selftest/motion/rotation) with NAS-side dependency checks.
 - **Remove legacy Docker web stack on the NAS:** see [`NAS_WEB_STACK_ENTFERNEN.md`](NAS_WEB_STACK_ENTFERNEN.md) (German doc).
 - **Public release / build EXE:** folder **`öffentlich/`** — full readme with **screenshots**, notifications, feature list: [`öffentlich/README.md`](öffentlich/README.md), changelog: [`öffentlich/CHANGELOG.md`](öffentlich/CHANGELOG.md). Zip: `python tools/zip_oeffentlich_forum.py` → **`UgreenNASAdmin_v<version>_oeffentlich_mit_EXE.zip`** (version from `ugreen_app/nas_manager.py`, e.g. **v23.2.0**; includes sources + `dist/UgreenNASAdmin.exe` + `images/`).
 - **Optional SSH password in Windows Credential Manager (`keyring`):** v22.1+ — see *SSH password in the OS vault* in [`öffentlich/README.md`](öffentlich/README.md).
@@ -39,7 +45,7 @@ Desktop **control center** for a **Ugreen NAS** over **SSH**: scripts, file expl
   - **Maskierung sensibler Settings-Werte** (Telegram/E-Mail) mit Anzeigen/Ausblenden.
   - **Sichtbare Markierung** (`🔔`) in der Script-Liste bei aktiver Benachrichtigungsregel.
 - **Früherer Docker-Web-Stack auf dem NAS entfernen:** siehe [`NAS_WEB_STACK_ENTFERNEN.md`](NAS_WEB_STACK_ENTFERNEN.md).
-- **Öffentliche Release-Quelle / EXE bauen:** Ordner **`öffentlich/`** — ausführliche README mit **Screenshots**, Benachrichtigungen, Funktionsliste: [`öffentlich/README.md`](öffentlich/README.md), [`öffentlich/CHANGELOG.md`](öffentlich/CHANGELOG.md). Release-ZIP: `python tools/zip_oeffentlich_forum.py` → **`UgreenNASAdmin_v<version>_oeffentlich_mit_EXE.zip`** (Version aus `ugreen_app/nas_manager.py`, z. B. **v23.2.0**; Quellen + `dist/UgreenNASAdmin.exe` + `images/`).
+- **Öffentliche Release-Quelle / EXE bauen:** Ordner **`öffentlich/`** — ausführliche README mit **Screenshots**, Benachrichtigungen, Funktionsliste: [`öffentlich/README.md`](öffentlich/README.md), [`öffentlich/CHANGELOG.md`](öffentlich/CHANGELOG.md). Release-ZIP: `python tools/zip_oeffentlich_forum.py` → **`UgreenNASAdmin_v<version>_oeffentlich_mit_EXE.zip`** (Version aus `ugreen_app/nas_manager.py`, z. B. **v23.3.0**; Quellen + `dist/UgreenNASAdmin.exe` + `images/`).
 - **Optional SSH-Passwort im Windows-Tresor (`keyring`):** ab v22.1 — Anleitung im Abschnitt *SSH-Passwort im Windows-Tresor* in [`öffentlich/README.md`](öffentlich/README.md).
 
 **Screenshots und die ausführliche GitHub-Doku (Englisch zuerst, dann Deutsch)** stehen in [`öffentlich/README.md`](öffentlich/README.md).

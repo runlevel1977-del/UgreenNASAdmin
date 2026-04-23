@@ -31,6 +31,368 @@ import nas_utils
 from ugreen_app._paramiko import _paramiko
 
 class MixinStorageAclSnap:
+    def _storage_log(self, text: str):
+        if hasattr(self, "storage_output"):
+            self.storage_output.insert(tk.END, text.rstrip() + "\n")
+            self.storage_output.see(tk.END)
+
+    def _storage_selected_disk(self) -> str:
+        combo = getattr(self, "combo_storage_disk_device", None)
+        if combo is None:
+            return ""
+        val = (combo.get() or "").strip()
+        if not val:
+            return ""
+        return (getattr(self, "_storage_disk_label_map", {}) or {}).get(val, "")
+
+    def _storage_disk_meta(self, dev: str) -> dict:
+        return (getattr(self, "_storage_disk_meta_map", {}) or {}).get(dev, {})
+
+    def _storage_base_disk_name(self, raw: str) -> str:
+        n = (raw or "").strip().split("/")[-1]
+        if not n:
+            return ""
+        m = re.match(r"^(nvme\d+n\d+)p\d+$", n)
+        if m:
+            return m.group(1)
+        m = re.match(r"^(mmcblk\d+)p\d+$", n)
+        if m:
+            return m.group(1)
+        m = re.match(r"^((?:sd|vd|xvd)[a-z]+)\d+$", n)
+        if m:
+            return m.group(1)
+        return n
+
+    def _storage_detect_raid_member_disks(self) -> set[str]:
+        out = self.run_ssh_cmd("cat /proc/mdstat 2>/dev/null", True)
+        members: set[str] = set()
+        for line in (out or "").splitlines():
+            for tok in re.findall(r"\b([A-Za-z0-9._/-]+)\[\d+\]", line):
+                base = self._storage_base_disk_name(tok)
+                if base:
+                    members.add(base)
+        return members
+
+    def _storage_detect_system_disks(self) -> set[str]:
+        cmd = (
+            "ROOTSRC=$(findmnt -n -o SOURCE / 2>/dev/null || awk '$2==\"/\"{print $1;exit}' /proc/mounts); "
+            "echo ROOTSRC:$ROOTSRC; "
+            "BN=$(basename \"$ROOTSRC\" 2>/dev/null); "
+            "if [ -n \"$BN\" ] && [ -d \"/sys/block/$BN/slaves\" ]; then "
+            "for s in /sys/block/$BN/slaves/*; do [ -e \"$s\" ] || continue; echo SLAVE:$(basename \"$s\"); done; "
+            "else PK=$(lsblk -no PKNAME \"$ROOTSRC\" 2>/dev/null | head -1); "
+            "if [ -n \"$PK\" ]; then echo PK:$PK; elif [ -n \"$BN\" ]; then echo PK:$BN; fi; fi"
+        )
+        out = self.run_ssh_cmd(cmd, True)
+        sys_disks: set[str] = set()
+        for line in (out or "").splitlines():
+            s = (line or "").strip()
+            if s.startswith("SLAVE:"):
+                base = self._storage_base_disk_name(s.split(":", 1)[1])
+                if base:
+                    sys_disks.add(base)
+            elif s.startswith("PK:"):
+                base = self._storage_base_disk_name(s.split(":", 1)[1])
+                if base:
+                    sys_disks.add(base)
+            elif s.startswith("ROOTSRC:"):
+                base = self._storage_base_disk_name(s.split(":", 1)[1])
+                if base:
+                    sys_disks.add(base)
+        return sys_disks
+
+    def _storage_confirm_sensitive_disk_action(self, dev: str, action_title: str) -> bool:
+        meta = self._storage_disk_meta(dev)
+        is_raid = bool(meta.get("is_raid_member"))
+        is_sys = bool(meta.get("is_system_disk"))
+        if not is_raid and not is_sys:
+            return True
+        tags = []
+        if is_raid:
+            tags.append("RAID member")
+        if is_sys:
+            tags.append("System disk")
+        tag_txt = ", ".join(tags)
+        if not messagebox.askyesno(
+            action_title,
+            f"Ausgewählte Disk ist markiert als: {tag_txt}\n\n{dev}\n\nFortfahren?",
+        ):
+            return False
+        if not messagebox.askyesno(
+            action_title,
+            f"Letzte Bestätigung für sensible Disk ({tag_txt}).\n\nWirklich fortfahren?",
+        ):
+            return False
+        return True
+
+    def storage_disk_scan_devices(self):
+        if not hasattr(self, "combo_storage_disk_device"):
+            return
+        out = self.run_ssh_cmd("lsblk -dn -P -o NAME,SIZE,TYPE,MODEL,TRAN 2>/dev/null", True)
+        raid_members = self._storage_detect_raid_member_disks()
+        system_disks = self._storage_detect_system_disks()
+        labels = []
+        label_map = {}
+        meta_map = {}
+        for line in (out or "").splitlines():
+            d = {}
+            for k, v in re.findall(r'([A-Z]+)="([^"]*)"', line):
+                d[k] = v
+            if d.get("TYPE") != "disk":
+                continue
+            name = d.get("NAME", "").strip()
+            if not name:
+                continue
+            path = f"/dev/{name}"
+            size = d.get("SIZE", "?")
+            model = (d.get("MODEL", "") or "-").strip()
+            tran = (d.get("TRAN", "") or "-").strip()
+            is_raid = name in raid_members
+            is_sys = name in system_disks
+            flags = []
+            if is_raid:
+                flags.append("RAID")
+            if is_sys:
+                flags.append("SYSTEM")
+            ftxt = f" ({', '.join(flags)})" if flags else ""
+            label = f"{path}  [{size}, {model}, {tran}]{ftxt}"
+            labels.append(label)
+            label_map[label] = path
+            meta_map[path] = {
+                "is_raid_member": is_raid,
+                "is_system_disk": is_sys,
+            }
+        self._storage_disk_label_map = label_map
+        self._storage_disk_meta_map = meta_map
+        self.combo_storage_disk_device["values"] = labels
+        if labels:
+            self.combo_storage_disk_device.set(labels[0])
+            n_raid = sum(1 for m in meta_map.values() if m.get("is_raid_member"))
+            n_sys = sum(1 for m in meta_map.values() if m.get("is_system_disk"))
+            self._storage_log(f"🔎 Disks gefunden: {len(labels)} (RAID: {n_raid}, SYSTEM: {n_sys})")
+        else:
+            self._storage_log("⚠️ Keine Disks gefunden (lsblk).")
+
+    def _storage_disk_size_bytes(self, dev: str) -> int:
+        out = self.run_ssh_cmd(f"blockdev --getsize64 {shlex.quote(dev)} 2>/dev/null", True)
+        for line in (out or "").splitlines():
+            s = (line or "").strip()
+            if s.isdigit():
+                try:
+                    return int(s)
+                except Exception:
+                    pass
+        return 0
+
+    def storage_disk_image_to_pc(self):
+        if not self._danger_gate():
+            return
+        dev = self._storage_selected_disk()
+        if not dev:
+            messagebox.showwarning("Disk Image", "Bitte zuerst ein Laufwerk auswählen.")
+            return
+        ts = time.strftime("%Y%m%d_%H%M%S")
+        fn = filedialog.asksaveasfilename(
+            title="Disk-Image auf PC speichern",
+            defaultextension=".img",
+            initialfile=f"nas_{dev.replace('/dev/','')}_{ts}.img",
+            filetypes=[("Disk image", "*.img"), ("All files", "*.*")],
+        )
+        if not fn:
+            return
+        if not self._storage_confirm_sensitive_disk_action(dev, "Disk Image"):
+            return
+        if not messagebox.askyesno("Disk Image", f"Image lesen von {dev} und lokal speichern?\n\n{fn}\n\nKann sehr groß werden."):
+            return
+        size_b = self._storage_disk_size_bytes(dev)
+        self._storage_log(f"🚀 Image-Export startet: {dev} -> {fn}")
+
+        def worker():
+            pk = _paramiko()
+            ssh = pk.SSHClient()
+            ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
+            try:
+                ssh.connect(self.entry_ip.get().strip(), **self._ssh_connect_kwargs(timeout=40, banner_timeout=60, auth_timeout=60))
+                cmd = f"dd if={shlex.quote(dev)} bs=4M status=none"
+                stdin, stdout, stderr = ssh.exec_command(cmd)
+                try:
+                    stdin.close()
+                except Exception:
+                    pass
+                written = 0
+                last_tick = time.time()
+                with open(fn, "wb") as f:
+                    while True:
+                        chunk = stdout.channel.recv(1024 * 1024)
+                        if not chunk:
+                            if stdout.channel.exit_status_ready():
+                                break
+                            continue
+                        f.write(chunk)
+                        written += len(chunk)
+                        now = time.time()
+                        if now - last_tick > 1.0:
+                            if size_b > 0:
+                                pct = min(100.0, written * 100.0 / size_b)
+                                self.root.after(0, lambda p=pct: self.set_status(f"Image export {p:.1f}%"))
+                            else:
+                                self.root.after(0, lambda b=written: self.set_status(f"Image export {b // (1024*1024)} MB"))
+                            last_tick = now
+                rc = stdout.channel.recv_exit_status()
+                err = stderr.read().decode("utf-8", errors="replace").strip()
+                if rc != 0:
+                    self.root.after(0, lambda: self._storage_log(f"❌ Export fehlgeschlagen (rc={rc}): {err or 'unknown error'}"))
+                else:
+                    self.root.after(0, lambda: self._storage_log(f"✅ Export fertig: {fn}"))
+                    self.root.after(0, lambda: self.set_status("Disk-Image exportiert"))
+            except Exception as e:
+                self.root.after(0, lambda m=str(e): self._storage_log(f"❌ Export-Fehler: {m}"))
+            finally:
+                try:
+                    ssh.close()
+                except Exception:
+                    pass
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def storage_disk_image_to_nas(self):
+        if not self._danger_gate():
+            return
+        dev = self._storage_selected_disk()
+        if not dev:
+            messagebox.showwarning("Disk Image", "Bitte zuerst ein Laufwerk auswählen.")
+            return
+        target = ""
+        if hasattr(self, "entry_storage_image_remote"):
+            target = self.entry_storage_image_remote.get().strip()
+        if not target:
+            messagebox.showwarning("Disk Image", "Bitte Zielpfad auf NAS/Share eintragen.")
+            return
+        if not self._storage_confirm_sensitive_disk_action(dev, "Disk Image"):
+            return
+        if not messagebox.askyesno("Disk Image", f"Image von {dev} nach {target} schreiben?"):
+            return
+        self._storage_log(f"🚀 Image-Export auf NAS startet: {dev} -> {target}")
+
+        def worker():
+            qd = shlex.quote(dev)
+            qt = shlex.quote(target)
+            cmd = f"mkdir -p $(dirname {qt}) 2>/dev/null; dd if={qd} of={qt} bs=4M status=progress conv=fsync 2>&1"
+            out = self.run_ssh_cmd(cmd, True, update_status=False)
+            self.root.after(0, lambda: self._storage_log(out or "(keine Ausgabe)"))
+            self.root.after(0, lambda: self.set_status("Disk-Image auf NAS abgeschlossen"))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def storage_disk_restore_from_pc(self):
+        if not self._danger_gate():
+            return
+        dev = self._storage_selected_disk()
+        if not dev:
+            messagebox.showwarning("Restore", "Bitte zuerst ein Ziel-Laufwerk auswählen.")
+            return
+        src = filedialog.askopenfilename(
+            title="Image vom PC für Restore wählen",
+            filetypes=[("Disk image", "*.img"), ("All files", "*.*")],
+        )
+        if not src:
+            return
+        if not self._storage_confirm_sensitive_disk_action(dev, "Restore"):
+            return
+        if not messagebox.askyesno("RESTORE WARNUNG", f"Dieses Ziel wird komplett überschrieben:\n{dev}\n\nQuelle:\n{src}\n\nFortfahren?"):
+            return
+        if not messagebox.askyesno("Letzte Bestätigung", f"Wirklich RESTORE auf {dev} starten?"):
+            return
+        total = 0
+        try:
+            total = os.path.getsize(src)
+        except OSError:
+            total = 0
+        self._storage_log(f"🚨 Restore startet: {src} -> {dev}")
+
+        def worker():
+            pk = _paramiko()
+            ssh = pk.SSHClient()
+            ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
+            try:
+                ssh.connect(self.entry_ip.get().strip(), **self._ssh_connect_kwargs(timeout=40, banner_timeout=60, auth_timeout=60))
+                cmd = f"dd of={shlex.quote(dev)} bs=4M conv=fsync status=none"
+                stdin, stdout, stderr = ssh.exec_command(cmd)
+                sent = 0
+                last_tick = time.time()
+                with open(src, "rb") as f:
+                    while True:
+                        chunk = f.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        stdin.write(chunk)
+                        sent += len(chunk)
+                        now = time.time()
+                        if now - last_tick > 1.0:
+                            if total > 0:
+                                pct = min(100.0, sent * 100.0 / total)
+                                self.root.after(0, lambda p=pct: self.set_status(f"Restore {p:.1f}%"))
+                            else:
+                                self.root.after(0, lambda b=sent: self.set_status(f"Restore {b // (1024*1024)} MB"))
+                            last_tick = now
+                stdin.channel.shutdown_write()
+                rc = stdout.channel.recv_exit_status()
+                err = stderr.read().decode("utf-8", errors="replace").strip()
+                if rc != 0:
+                    self.root.after(0, lambda: self._storage_log(f"❌ Restore fehlgeschlagen (rc={rc}): {err or 'unknown error'}"))
+                else:
+                    self.root.after(0, lambda: self._storage_log(f"✅ Restore fertig auf {dev}"))
+                    self.root.after(0, lambda: self.set_status("Disk-Restore abgeschlossen"))
+            except Exception as e:
+                self.root.after(0, lambda m=str(e): self._storage_log(f"❌ Restore-Fehler: {m}"))
+            finally:
+                try:
+                    ssh.close()
+                except Exception:
+                    pass
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def storage_disk_restore_from_nas(self):
+        if not self._danger_gate():
+            return
+        dev = self._storage_selected_disk()
+        if not dev:
+            messagebox.showwarning("Restore", "Bitte zuerst ein Ziel-Laufwerk auswählen.")
+            return
+        src = ""
+        if hasattr(self, "entry_storage_image_remote"):
+            src = self.entry_storage_image_remote.get().strip()
+        if not src:
+            messagebox.showwarning("Restore", "Bitte Image-Pfad auf NAS/Share eintragen.")
+            return
+        if not self._storage_confirm_sensitive_disk_action(dev, "Restore"):
+            return
+        if not messagebox.askyesno("RESTORE WARNUNG", f"Dieses Ziel wird komplett überschrieben:\n{dev}\n\nQuelle auf NAS:\n{src}\n\nFortfahren?"):
+            return
+        if not messagebox.askyesno("Letzte Bestätigung", f"Wirklich RESTORE auf {dev} starten?"):
+            return
+        self._storage_log(f"🚨 Restore startet (NAS): {src} -> {dev}")
+
+        def worker():
+            qs = shlex.quote(src)
+            qd = shlex.quote(dev)
+            cmd = (
+                f"if [ \"${{qs##*.}}\" = \"gz\" ]; then "
+                f"gzip -dc {qs} | dd of={qd} bs=4M conv=fsync status=progress; "
+                f"else dd if={qs} of={qd} bs=4M conv=fsync status=progress; fi 2>&1"
+            )
+            # Shell erhält qs nicht als Variable, daher direkt mit Pfadprüfung bauen:
+            if src.lower().endswith(".gz"):
+                cmd = f"gzip -dc {qs} | dd of={qd} bs=4M conv=fsync status=progress 2>&1"
+            else:
+                cmd = f"dd if={qs} of={qd} bs=4M conv=fsync status=progress 2>&1"
+            out = self.run_ssh_cmd(cmd, True, update_status=False)
+            self.root.after(0, lambda: self._storage_log(out or "(keine Ausgabe)"))
+            self.root.after(0, lambda: self.set_status("Disk-Restore (NAS) abgeschlossen"))
+
+        threading.Thread(target=worker, daemon=True).start()
+
     def storage_refresh_volumes(self):
         if not hasattr(self, "storage_output"):
             return

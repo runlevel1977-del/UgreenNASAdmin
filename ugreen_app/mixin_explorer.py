@@ -23,6 +23,7 @@ import string
 import socket
 import errno
 import ctypes
+import webbrowser
 import urllib.request
 import urllib.parse
 
@@ -304,7 +305,703 @@ class MixinExplorer:
         self.log_output.insert(tk.END, f"> {msg}\n")
         self.log_output.see(tk.END)
 
-    def open_docker_creator(self):
+    def _docker_catalog_default_run_command(self, image_name: str) -> str:
+        img = (image_name or "").strip()
+        if not img:
+            return "docker run -d --name app ubuntu:latest"
+        if ":" not in img and "@" not in img:
+            img = f"{img}:latest"
+        base = img.split("/")[-1].split(":")[0].split("@")[0]
+        cname = re.sub(r"[^a-zA-Z0-9_.-]+", "_", base).strip("._-").lower() or "app"
+        return f"docker run -d --name {cname} {img}"
+
+    def _docker_catalog_default_compose_yaml(self, image_name: str) -> str:
+        img = (image_name or "").strip()
+        if not img:
+            img = "ubuntu:latest"
+        if ":" not in img and "@" not in img:
+            img = f"{img}:latest"
+        base = img.split("/")[-1].split(":")[0].split("@")[0]
+        svc = re.sub(r"[^a-zA-Z0-9_]+", "_", base).strip("_").lower() or "app"
+        img_l = img.lower()
+        def _mk(
+            name: str,
+            *,
+            ports: list[str] | None = None,
+            volumes: list[str] | None = None,
+            env: list[str] | None = None,
+            command: str | None = None,
+            extra: list[str] | None = None,
+        ) -> str:
+            lines = [
+                "services:",
+                f"  {name}:",
+                f"    image: {img}",
+                f"    container_name: {name}",
+                "    restart: unless-stopped",
+            ]
+            if ports:
+                lines.append("    ports:")
+                for p in ports:
+                    lines.append(f'      - "{p}"')
+            if env:
+                lines.append("    environment:")
+                for e in env:
+                    lines.append(f"      - {e}")
+            if command:
+                lines.append(f"    command: {command}")
+            if volumes:
+                lines.append("    volumes:")
+                for v in volumes:
+                    lines.append(f"      - {v}")
+            for ln in (extra or []):
+                lines.append(ln)
+            return "\n".join(lines) + "\n"
+
+        presets = [
+            (
+                ("postgres",),
+                _mk(
+                    "postgres",
+                    ports=["5432:5432"],
+                    env=["POSTGRES_DB=appdb", "POSTGRES_USER=appuser", "POSTGRES_PASSWORD=change_me"],
+                    volumes=["/volume1/docker/postgres:/var/lib/postgresql/data"],
+                ),
+            ),
+            (
+                ("mariadb",),
+                _mk(
+                    "mariadb",
+                    ports=["3306:3306"],
+                    env=["MARIADB_DATABASE=appdb", "MARIADB_USER=appuser", "MARIADB_PASSWORD=change_me", "MARIADB_ROOT_PASSWORD=change_me_root"],
+                    volumes=["/volume1/docker/mariadb:/var/lib/mysql"],
+                ),
+            ),
+            (
+                ("mysql",),
+                _mk(
+                    "mysql",
+                    ports=["3306:3306"],
+                    env=["MYSQL_DATABASE=appdb", "MYSQL_USER=appuser", "MYSQL_PASSWORD=change_me", "MYSQL_ROOT_PASSWORD=change_me_root"],
+                    volumes=["/volume1/docker/mysql:/var/lib/mysql"],
+                ),
+            ),
+            (
+                ("redis",),
+                _mk(
+                    "redis",
+                    ports=["6379:6379"],
+                    command="redis-server --appendonly yes",
+                    volumes=["/volume1/docker/redis:/data"],
+                ),
+            ),
+            (
+                ("mongo",),
+                _mk(
+                    "mongo",
+                    ports=["27017:27017"],
+                    env=["MONGO_INITDB_ROOT_USERNAME=admin", "MONGO_INITDB_ROOT_PASSWORD=change_me"],
+                    volumes=["/volume1/docker/mongo:/data/db"],
+                ),
+            ),
+            (
+                ("nginx",),
+                _mk(
+                    "nginx",
+                    ports=["8080:80"],
+                    volumes=[
+                        "/volume1/docker/nginx/html:/usr/share/nginx/html",
+                        "/volume1/docker/nginx/conf.d:/etc/nginx/conf.d",
+                    ],
+                ),
+            ),
+            (
+                ("traefik",),
+                _mk(
+                    "traefik",
+                    ports=["80:80", "443:443", "8080:8080"],
+                    command='--api.insecure=true --providers.docker=true --entrypoints.web.address=:80 --entrypoints.websecure.address=:443',
+                    volumes=[
+                        "/var/run/docker.sock:/var/run/docker.sock",
+                        "/volume1/docker/traefik:/etc/traefik",
+                    ],
+                ),
+            ),
+            (
+                ("portainer",),
+                _mk(
+                    "portainer",
+                    ports=["9000:9000", "9443:9443"],
+                    volumes=["/var/run/docker.sock:/var/run/docker.sock", "/volume1/docker/portainer:/data"],
+                ),
+            ),
+            (
+                ("watchtower",),
+                _mk(
+                    "watchtower",
+                    command="--cleanup --schedule 0 0 4 * * *",
+                    volumes=["/var/run/docker.sock:/var/run/docker.sock"],
+                ),
+            ),
+            (
+                ("nextcloud",),
+                _mk(
+                    "nextcloud",
+                    ports=["8080:80"],
+                    volumes=["/volume1/docker/nextcloud:/var/www/html"],
+                ),
+            ),
+            (
+                ("jellyfin",),
+                _mk(
+                    "jellyfin",
+                    ports=["8096:8096"],
+                    volumes=[
+                        "/volume1/docker/jellyfin/config:/config",
+                        "/volume1/docker/jellyfin/cache:/cache",
+                        "/volume1:/media",
+                    ],
+                ),
+            ),
+            (
+                ("plex",),
+                _mk(
+                    "plex",
+                    ports=["32400:32400"],
+                    env=["TZ=Europe/Berlin"],
+                    volumes=["/volume1/docker/plex/config:/config", "/volume1:/data"],
+                ),
+            ),
+            (
+                ("emby",),
+                _mk(
+                    "emby",
+                    ports=["8096:8096"],
+                    volumes=["/volume1/docker/emby/config:/config", "/volume1:/mnt/share"],
+                ),
+            ),
+            (
+                ("vaultwarden", "bitwarden"),
+                _mk(
+                    "vaultwarden",
+                    ports=["8080:80"],
+                    env=["SIGNUPS_ALLOWED=false"],
+                    volumes=["/volume1/docker/vaultwarden:/data"],
+                ),
+            ),
+            (
+                ("homepage", "gethomepage"),
+                _mk(
+                    "homepage",
+                    ports=["3000:3000"],
+                    volumes=["/volume1/docker/homepage:/app/config"],
+                ),
+            ),
+            (
+                ("uptime-kuma", "uptimekuma"),
+                _mk(
+                    "uptime_kuma",
+                    ports=["3001:3001"],
+                    volumes=["/volume1/docker/uptime-kuma:/app/data"],
+                ),
+            ),
+            (
+                ("adguardhome", "adguard"),
+                _mk(
+                    "adguardhome",
+                    ports=["3000:3000", "53:53", "53:53/udp", "67:67/udp", "68:68/udp", "80:80", "443:443"],
+                    volumes=[
+                        "/volume1/docker/adguard/work:/opt/adguardhome/work",
+                        "/volume1/docker/adguard/conf:/opt/adguardhome/conf",
+                    ],
+                ),
+            ),
+            (
+                ("pihole",),
+                _mk(
+                    "pihole",
+                    ports=["53:53/tcp", "53:53/udp", "8081:80"],
+                    env=["TZ=Europe/Berlin", "WEBPASSWORD=change_me"],
+                    volumes=["/volume1/docker/pihole/etc-pihole:/etc/pihole", "/volume1/docker/pihole/etc-dnsmasq.d:/etc/dnsmasq.d"],
+                ),
+            ),
+            (
+                ("grafana",),
+                _mk(
+                    "grafana",
+                    ports=["3000:3000"],
+                    volumes=["/volume1/docker/grafana:/var/lib/grafana"],
+                ),
+            ),
+            (
+                ("influxdb",),
+                _mk(
+                    "influxdb",
+                    ports=["8086:8086"],
+                    volumes=["/volume1/docker/influxdb:/var/lib/influxdb2"],
+                ),
+            ),
+            (
+                ("prometheus",),
+                _mk(
+                    "prometheus",
+                    ports=["9090:9090"],
+                    volumes=["/volume1/docker/prometheus:/prometheus", "/volume1/docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml"],
+                ),
+            ),
+            (
+                ("node-exporter", "nodeexporter"),
+                _mk(
+                    "node_exporter",
+                    ports=["9100:9100"],
+                    command='--path.rootfs=/host',
+                    volumes=["/:/host:ro,rslave"],
+                ),
+            ),
+            (
+                ("wireguard",),
+                _mk(
+                    "wireguard",
+                    ports=["51820:51820/udp"],
+                    env=["TZ=Europe/Berlin"],
+                    volumes=["/volume1/docker/wireguard:/config", "/lib/modules:/lib/modules"],
+                    extra=["    cap_add:", "      - NET_ADMIN", "      - SYS_MODULE"],
+                ),
+            ),
+            (
+                ("openvpn", "openvpn-as"),
+                _mk(
+                    "openvpn",
+                    ports=["943:943", "9443:9443", "1194:1194/udp"],
+                    volumes=["/volume1/docker/openvpn:/openvpn"],
+                ),
+            ),
+            (
+                ("qbittorrent",),
+                _mk(
+                    "qbittorrent",
+                    ports=["8080:8080", "6881:6881", "6881:6881/udp"],
+                    env=["TZ=Europe/Berlin", "WEBUI_PORT=8080"],
+                    volumes=["/volume1/docker/qbittorrent/config:/config", "/volume1/downloads:/downloads"],
+                ),
+            ),
+            (
+                ("transmission",),
+                _mk(
+                    "transmission",
+                    ports=["9091:9091", "51413:51413", "51413:51413/udp"],
+                    env=["TZ=Europe/Berlin"],
+                    volumes=["/volume1/docker/transmission/config:/config", "/volume1/downloads:/downloads"],
+                ),
+            ),
+            (
+                ("sonarr",),
+                _mk(
+                    "sonarr",
+                    ports=["8989:8989"],
+                    env=["TZ=Europe/Berlin"],
+                    volumes=["/volume1/docker/sonarr/config:/config", "/volume1:/data"],
+                ),
+            ),
+            (
+                ("radarr",),
+                _mk(
+                    "radarr",
+                    ports=["7878:7878"],
+                    env=["TZ=Europe/Berlin"],
+                    volumes=["/volume1/docker/radarr/config:/config", "/volume1:/data"],
+                ),
+            ),
+            (
+                ("prowlarr",),
+                _mk(
+                    "prowlarr",
+                    ports=["9696:9696"],
+                    env=["TZ=Europe/Berlin"],
+                    volumes=["/volume1/docker/prowlarr/config:/config"],
+                ),
+            ),
+            (
+                ("bazarr",),
+                _mk(
+                    "bazarr",
+                    ports=["6767:6767"],
+                    env=["TZ=Europe/Berlin"],
+                    volumes=["/volume1/docker/bazarr/config:/config", "/volume1:/data"],
+                ),
+            ),
+            (
+                ("jellyseerr",),
+                _mk(
+                    "jellyseerr",
+                    ports=["5055:5055"],
+                    env=["TZ=Europe/Berlin"],
+                    volumes=["/volume1/docker/jellyseerr/config:/app/config"],
+                ),
+            ),
+            (
+                ("minio",),
+                _mk(
+                    "minio",
+                    ports=["9000:9000", "9001:9001"],
+                    env=["MINIO_ROOT_USER=minioadmin", "MINIO_ROOT_PASSWORD=change_me_minio"],
+                    command="server /data --console-address :9001",
+                    volumes=["/volume1/docker/minio:/data"],
+                ),
+            ),
+            (
+                ("gitea",),
+                _mk(
+                    "gitea",
+                    ports=["3000:3000", "222:22"],
+                    volumes=["/volume1/docker/gitea:/data"],
+                ),
+            ),
+            (
+                ("registry", "docker registry"),
+                _mk(
+                    "registry",
+                    ports=["5000:5000"],
+                    volumes=["/volume1/docker/registry:/var/lib/registry"],
+                ),
+            ),
+            (
+                ("code-server", "coder"),
+                _mk(
+                    "code_server",
+                    ports=["8443:8443"],
+                    env=["TZ=Europe/Berlin", "PASSWORD=change_me"],
+                    volumes=["/volume1/docker/code-server:/config"],
+                ),
+            ),
+            (
+                ("homeassistant", "home-assistant"),
+                _mk(
+                    "homeassistant",
+                    ports=["8123:8123"],
+                    env=["TZ=Europe/Berlin"],
+                    volumes=["/volume1/docker/homeassistant:/config"],
+                ),
+            ),
+        ]
+
+        for needles, payload in presets:
+            if any(n in img_l for n in needles):
+                return payload
+
+        return _mk(
+            svc,
+            ports=["8080:80"],
+            volumes=[f"/volume1/docker/{svc}:/data"],
+        )
+
+    def open_docker_catalog(self):
+        cw = tk.Toplevel(self.root)
+        cw.title(self.t("docker.catalog_title"))
+        cw.geometry("980x620")
+        cw.minsize(760, 420)
+        cw.configure(bg=self.color_surface_alt)
+        cw.transient(self.root)
+
+        head = tk.Frame(cw, bg=self.color_surface_alt, padx=12, pady=10)
+        head.pack(fill=tk.X)
+        tk.Label(
+            head,
+            text=self.t("docker.catalog_hint"),
+            bg=self.color_surface_alt,
+            fg=self.color_text,
+            font=("Segoe UI", 9),
+            anchor="w",
+            justify=tk.LEFT,
+        ).pack(fill=tk.X)
+
+        search_row = tk.Frame(cw, bg=self.color_surface_alt, padx=12, pady=4)
+        search_row.pack(fill=tk.X)
+        tk.Label(
+            search_row,
+            text=self.t("docker.catalog_search"),
+            bg=self.color_surface_alt,
+            fg=self.color_text_muted,
+            font=("Segoe UI", 9, "bold"),
+        ).pack(side=tk.LEFT)
+        ent = tk.Entry(
+            search_row,
+            font=self.font_mono,
+            relief="flat",
+            highlightbackground=self.color_border,
+            highlightthickness=1,
+            bg=self.color_input_bg,
+            fg=self.color_input_fg,
+            insertbackground=self.color_input_fg,
+        )
+        ent.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(8, 8), ipady=4)
+        ent.insert(0, "")
+
+        table_wrap = tk.Frame(cw, bg=self.color_surface_alt, padx=12, pady=6)
+        table_wrap.pack(fill=tk.BOTH, expand=True)
+        tree = ttk.Treeview(
+            table_wrap,
+            columns=("stars", "pulls", "kind", "desc"),
+            show="tree headings",
+            selectmode="browse",
+        )
+        tree.heading("#0", text="Image")
+        tree.heading("stars", text=self.t("docker.catalog_col_stars"))
+        tree.heading("pulls", text=self.t("docker.catalog_col_pulls"))
+        tree.heading("kind", text=self.t("docker.catalog_col_kind"))
+        tree.heading("desc", text=self.t("docker.catalog_col_desc"))
+        tree.column("#0", width=260, anchor=tk.W)
+        tree.column("stars", width=80, anchor=tk.E)
+        tree.column("pulls", width=120, anchor=tk.E)
+        tree.column("kind", width=100, anchor=tk.CENTER)
+        tree.column("desc", width=420, anchor=tk.W)
+        tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        ysb = ttk.Scrollbar(table_wrap, orient="vertical", command=tree.yview)
+        ysb.pack(side=tk.RIGHT, fill=tk.Y)
+        tree.configure(yscrollcommand=ysb.set)
+
+        status = tk.Label(
+            cw,
+            text="",
+            bg=self.color_surface_alt,
+            fg=self.color_text_muted,
+            font=("Segoe UI", 8),
+            anchor="w",
+            padx=12,
+            pady=2,
+        )
+        status.pack(fill=tk.X)
+
+        btns = tk.Frame(cw, bg=self.color_surface_alt, padx=12, pady=10)
+        btns.pack(fill=tk.X)
+        catalog_rows: list[tuple[str, int, int, str, str]] = []
+        sort_desc = {"stars": True, "pulls": True}
+
+        def _fmt_count(v):
+            try:
+                n = int(v)
+            except Exception:
+                return "0"
+            if n >= 1_000_000_000:
+                return f"{n/1_000_000_000:.1f}B"
+            if n >= 1_000_000:
+                return f"{n/1_000_000:.1f}M"
+            if n >= 1_000:
+                return f"{n/1_000:.1f}k"
+            return str(n)
+
+        def _render_rows(rows: list[tuple[str, int, int, str, str]]):
+            for iid in tree.get_children():
+                tree.delete(iid)
+            for name, stars, pulls, kind, desc in rows:
+                tree.insert(
+                    "",
+                    tk.END,
+                    text=name,
+                    values=(_fmt_count(stars), _fmt_count(pulls), kind, desc),
+                )
+
+        def _sort_by(metric: str):
+            if not catalog_rows:
+                return
+            idx = 1 if metric == "stars" else 2
+            desc = sort_desc.get(metric, True)
+            ordered = sorted(catalog_rows, key=lambda r: int(r[idx] or 0), reverse=desc)
+            _render_rows(ordered)
+            sort_desc[metric] = not desc
+            status.config(text=self.t("docker.catalog_sorted", metric=metric, order=("desc" if desc else "asc"), n=len(ordered)))
+
+        def _run_search():
+            q = ent.get().strip()
+            for iid in tree.get_children():
+                tree.delete(iid)
+            status.config(text=self.t("docker.catalog_loading" if q else "docker.catalog_loading_browse"))
+
+            def worker():
+                try:
+                    rows = []
+                    seen = set()
+                    if q:
+                        url = (
+                            "https://hub.docker.com/v2/search/repositories/"
+                            f"?query={urllib.parse.quote_plus(q)}&page_size=100"
+                        )
+                        req = urllib.request.Request(
+                            url,
+                            headers={"User-Agent": "UgreenNASAdmin/1.0"},
+                            method="GET",
+                        )
+                        with urllib.request.urlopen(req, timeout=18) as resp:
+                            raw = resp.read().decode("utf-8", errors="replace")
+                        data = json.loads(raw)
+                        for item in data.get("results", []):
+                            name = (item.get("repo_name") or item.get("name") or "").strip()
+                            if not name or name in seen:
+                                continue
+                            seen.add(name)
+                            desc = (item.get("short_description") or "").strip().replace("\n", " ")
+                            stars = int(item.get("star_count") or 0)
+                            pulls = int(item.get("pull_count") or 0)
+                            kind = (
+                                self.t("docker.catalog_kind_official")
+                                if item.get("is_official")
+                                else self.t("docker.catalog_kind_community")
+                            )
+                            rows.append((name, stars, pulls, kind, desc))
+                    else:
+                        # Browse-Modus ohne Suchbegriff: viele bekannte Images aus Docker Hub library
+                        for page in (1, 2):
+                            url = (
+                                "https://hub.docker.com/v2/repositories/library/"
+                                f"?page_size=100&page={page}"
+                            )
+                            req = urllib.request.Request(
+                                url,
+                                headers={"User-Agent": "UgreenNASAdmin/1.0"},
+                                method="GET",
+                            )
+                            with urllib.request.urlopen(req, timeout=18) as resp:
+                                raw = resp.read().decode("utf-8", errors="replace")
+                            data = json.loads(raw)
+                            for item in data.get("results", []):
+                                short = (item.get("name") or "").strip()
+                                if not short:
+                                    continue
+                                name = f"library/{short}"
+                                if name in seen:
+                                    continue
+                                seen.add(name)
+                                desc = (item.get("description") or "").strip().replace("\n", " ")
+                                stars = int(item.get("star_count") or 0)
+                                pulls = int(item.get("pull_count") or 0)
+                                rows.append((name, stars, pulls, self.t("docker.catalog_kind_official"), desc))
+                except Exception as e:
+                    rows = None
+                    err = str(e)
+
+                def apply():
+                    if rows is None:
+                        status.config(text=self.t("docker.catalog_fetch_error", err=err))
+                        return
+                    catalog_rows.clear()
+                    catalog_rows.extend(rows)
+                    _render_rows(catalog_rows)
+                    if not rows:
+                        status.config(text=self.t("docker.catalog_no_results"))
+                    else:
+                        status.config(text=self.t("docker.catalog_results", n=len(rows)))
+
+                self.root.after(0, apply)
+
+            threading.Thread(target=worker, daemon=True).start()
+
+        def _apply_selected():
+            sel = tree.selection()
+            if not sel:
+                messagebox.showinfo(self.t("docker.catalog_title"), self.t("docker.catalog_pick"))
+                return
+            image_name = (tree.item(sel[0], "text") or "").strip()
+            if not image_name:
+                return
+            cmd = self._docker_catalog_default_run_command(image_name)
+            cw.destroy()
+            self.open_docker_creator(initial_text=cmd)
+
+        def _apply_selected_compose():
+            sel = tree.selection()
+            if not sel:
+                messagebox.showinfo(self.t("docker.catalog_title"), self.t("docker.catalog_pick"))
+                return
+            image_name = (tree.item(sel[0], "text") or "").strip()
+            if not image_name:
+                return
+            yml = self._docker_catalog_default_compose_yaml(image_name)
+            cw.destroy()
+            self.open_docker_creator(initial_text=yml)
+
+        tk.Button(
+            search_row,
+            text=self.t("docker.catalog_search_btn"),
+            command=_run_search,
+            font=self.font_bold,
+            padx=10,
+            pady=4,
+            relief=tk.RAISED,
+            borderwidth=2,
+            cursor="hand2",
+        ).pack(side=tk.LEFT)
+        tk.Button(
+            search_row,
+            text=self.t("docker.catalog_sort_stars"),
+            command=lambda: _sort_by("stars"),
+            font=("Segoe UI", 9, "bold"),
+            padx=8,
+            pady=4,
+            relief=tk.RAISED,
+            borderwidth=2,
+            cursor="hand2",
+        ).pack(side=tk.LEFT, padx=(6, 4))
+        tk.Button(
+            search_row,
+            text=self.t("docker.catalog_sort_pulls"),
+            command=lambda: _sort_by("pulls"),
+            font=("Segoe UI", 9, "bold"),
+            padx=8,
+            pady=4,
+            relief=tk.RAISED,
+            borderwidth=2,
+            cursor="hand2",
+        ).pack(side=tk.LEFT)
+        ent.bind("<Return>", lambda _e: _run_search())
+
+        tk.Button(
+            btns,
+            text=self.t("docker.catalog_apply"),
+            command=_apply_selected,
+            font=self.font_bold,
+            padx=10,
+            pady=5,
+            relief=tk.RAISED,
+            borderwidth=2,
+            cursor="hand2",
+        ).pack(side=tk.LEFT, padx=(0, 8))
+        tk.Button(
+            btns,
+            text=self.t("docker.catalog_apply_compose"),
+            command=_apply_selected_compose,
+            font=self.font_bold,
+            padx=10,
+            pady=5,
+            relief=tk.RAISED,
+            borderwidth=2,
+            cursor="hand2",
+        ).pack(side=tk.LEFT, padx=(0, 8))
+        tk.Button(
+            btns,
+            text=self.t("docker.catalog_open_hub"),
+            command=lambda: webbrowser.open("https://hub.docker.com/search"),
+            font=self.font_bold,
+            padx=10,
+            pady=5,
+            relief=tk.RAISED,
+            borderwidth=2,
+            cursor="hand2",
+        ).pack(side=tk.LEFT, padx=(0, 8))
+        tk.Button(
+            btns,
+            text=self.t("docker.wizard.btn_close"),
+            command=cw.destroy,
+            font=self.font_bold,
+            padx=10,
+            pady=5,
+            relief=tk.RAISED,
+            borderwidth=2,
+            cursor="hand2",
+        ).pack(side=tk.RIGHT)
+
+        _run_search()
+
+    def open_docker_creator(self, initial_text: str = ""):
         if not self._danger_gate():
             return
         dw = tk.Toplevel(self.root)
@@ -346,6 +1043,8 @@ class MixinExplorer:
             wrap=tk.WORD,
         )
         txt.pack(fill=tk.BOTH, expand=True)
+        if initial_text:
+            txt.insert("1.0", initial_text)
 
         var_mkdir = tk.BooleanVar(value=True)
         btn_bar = tk.Frame(dw, bg=self.color_surface_alt, pady=12, padx=16)

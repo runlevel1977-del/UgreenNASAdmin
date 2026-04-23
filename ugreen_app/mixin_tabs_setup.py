@@ -287,6 +287,7 @@ class MixinTabsSetup:
         self._register_danger_rounded(self.create_modern_btn(row1, self.t("docker.restart"), lambda: self.docker_action("restart"), self.color_cron, "white")).pack(side=tk.LEFT, padx=5)
         self._register_danger_rounded(self.create_modern_btn(row2, self.t("docker.stop_all"), self.docker_stop_all, self.color_root)).pack(side=tk.LEFT, padx=5)
         self._register_danger_rounded(self.create_modern_btn(row2, self.t("docker.new"), self.open_docker_creator, "#3b82f6")).pack(side=tk.LEFT, padx=5)
+        self.create_modern_btn(row2, self.t("docker.catalog"), self.open_docker_catalog, self.color_header).pack(side=tk.LEFT, padx=5)
         
         # Untere Docker-Tools (Erweitert)
         tool_bot = tk.Frame(left, bg=self.color_surface_alt, pady=10, padx=10, highlightbackground=self.color_border, highlightthickness=1)
@@ -561,6 +562,38 @@ class MixinTabsSetup:
         self._register_danger_rounded(
             self.create_modern_btn(s2, self.t("storage.top20"), self.storage_top20_folders, self.color_cron)
         ).pack(side=tk.LEFT, padx=8)
+        s3 = tk.Frame(top, bg=self.color_surface_alt)
+        s3.pack(fill=tk.X, pady=(10, 0))
+        tk.Label(s3, text=self.t("storage.disk_device"), bg=self.color_surface_alt, fg=self.color_text_muted).pack(side=tk.LEFT, padx=(0, 8))
+        self.combo_storage_disk_device = ttk.Combobox(s3, state="readonly", width=42, font=self.font_base)
+        self.combo_storage_disk_device.pack(side=tk.LEFT, padx=(0, 8))
+        self.create_modern_btn(s3, self.t("storage.disk_scan"), self.storage_disk_scan_devices, self.color_btn_blue).pack(side=tk.LEFT, padx=(0, 8))
+        self.create_modern_btn(s3, self.t("storage.image_to_pc"), self.storage_disk_image_to_pc, self.color_user).pack(side=tk.LEFT, padx=(0, 8))
+        self._register_danger_rounded(
+            self.create_modern_btn(s3, self.t("storage.image_to_nas"), self.storage_disk_image_to_nas, self.color_cron)
+        ).pack(side=tk.LEFT, padx=(0, 8))
+        s4 = tk.Frame(top, bg=self.color_surface_alt)
+        s4.pack(fill=tk.X, pady=(10, 0))
+        tk.Label(s4, text=self.t("storage.image_remote_path"), bg=self.color_surface_alt, fg=self.color_text_muted).pack(side=tk.LEFT, padx=(0, 8))
+        self.entry_storage_image_remote = tk.Entry(
+            s4,
+            font=self.font_mono,
+            relief="flat",
+            highlightbackground=self.color_border,
+            highlightthickness=1,
+            bg=self.color_input_bg,
+            fg=self.color_input_fg,
+            insertbackground=self.color_input_fg,
+            width=58,
+        )
+        self.entry_storage_image_remote.insert(0, "/volume1/backup/disk_image.img")
+        self.entry_storage_image_remote.pack(side=tk.LEFT, ipady=5, fill=tk.X, expand=True, padx=(0, 8))
+        self._register_danger_rounded(
+            self.create_modern_btn(s4, self.t("storage.restore_from_pc"), self.storage_disk_restore_from_pc, self.color_root)
+        ).pack(side=tk.LEFT, padx=(0, 8))
+        self._register_danger_rounded(
+            self.create_modern_btn(s4, self.t("storage.restore_from_nas"), self.storage_disk_restore_from_nas, self.color_btn_purple)
+        ).pack(side=tk.LEFT)
         self.storage_output = scrolledtext.ScrolledText(
             wrap, height=22, bg=self.color_log_bg, fg=self.color_log_fg, insertbackground=self.color_log_fg,
             font=self.font_mono, relief="flat", highlightbackground=self.color_border, highlightthickness=1, padx=10, pady=10)
