@@ -745,7 +745,7 @@ class MixinExplorer:
             show="tree headings",
             selectmode="browse",
         )
-        tree.heading("#0", text="Image")
+        tree.heading("#0", text=self.t("docker.col_image"))
         tree.heading("stars", text=self.t("docker.catalog_col_stars"))
         tree.heading("pulls", text=self.t("docker.catalog_col_pulls"))
         tree.heading("kind", text=self.t("docker.catalog_col_kind"))

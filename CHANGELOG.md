@@ -1,96 +1,86 @@
 # Changelog — Ugreen NAS Admin
 
+## Unreleased
+
+_(noch nicht veröffentlicht)_
+
 ## 23.3.0 — 2026-04-23
 
 ### Deutsch (ausführlich)
 
-- **Webcam Recorder stark erweitert:**
-  - Neues Webcam-Panel mit Geräte-Scan, Live-Preview, Sofortaufnahme und täglicher Zeitplanung.
-  - Kamera-Controls direkt in der App: Auto/Manual Exposure, Exposure-Wert, Gain, 50/60Hz Netzfrequenz.
-  - Aufnahmedauer als Dropdown (Sekunden, Minuten, Stunden, Tage).
-  - Qualitätsprofile (`compatible`, `hq`, `space`) mit Encoder-Fallbacks.
-  - Pre-Flight-Check (Tools, Device, Schreibrechte, Speicher) und 1-Klick Selbsttest (3s Testaufnahme + Dateicheck).
-  - Optionale Motion Detection und Dateirotation (keep N Files).
-  - Statuszeile mit klarer Rückmeldung und letzter Ausgabedatei.
-- **Berechtigungen robuster:**
-  - Unterscheidung zwischen User-Write und Root-Write.
-  - Manuelle Aufnahmen laufen mit User-Rechten, geplante/root-basierte Flows nutzen bei Bedarf Root-Write.
-- **Storage:**
-  - Disk-Imaging/Restore-Workflows für ganze Datenträger (Image auf PC/NAS, Restore von PC/NAS) mit Sicherheitsabfragen.
-- **Docker:**
-  - Docker-Hub-Katalog als Deployment-Helfer, Übergabe in den Assistenten (`docker run` oder Compose-Preset).
-- **DE/EN i18n und UX:**
-  - Neue Texte und Statusmeldungen für Webcam-Features.
-  - NAS-Ordnerbrowser priorisiert sichere Datenpfade (`/volume*`) statt Systemverzeichnisse.
+- **Webcam Recorder (neu, produktionsreif):**
+  - Neuer **Webcam-Panel-Workflow** in der App mit Geräte-Scan (`/dev/video*`), Live-Preview, Sofortaufnahme und täglicher Zeitplanung (Cron auf dem NAS).
+  - **Kamera-Controls integriert:** Auto/Manual Exposure, Exposure-Wert, Gain und 50/60Hz Netzfrequenz über `v4l2-ctl`.
+  - **Dauer-Auswahl verbessert:** Aufnahmezeit per Dropdown für **Sekunden, Minuten, Stunden, Tage**.
+  - **Qualitätsprofile:** `compatible`, `hq`, `space` mit Encoder-Fallbacks (`libx264` / `libx265` / `mpeg4`) für unterschiedliche NAS-Umgebungen.
+  - **Pre-Flight-Check:** Prüfung auf `ffmpeg`, `v4l2-ctl`, Device-Lesbarkeit, Zielordner-Schreibrechte und freien Speicher vor Aufnahme/Planung.
+  - **1-Klick Selbsttest:** 3s Testaufnahme inkl. Datei-Validierung und klarer Statusausgabe (OK/Fail + Dateipfad).
+  - **Dateirotation:** optionales Limit „keep N files“ löscht alte `webcam_*.mp4` automatisch.
+  - **Motion Detection (optional):** Bewegungserkennung (Frame-Hash-Vergleich) mit Skip bei statischem Bild.
+  - **Status & Transparenz:** Sichtbarer Aufnahme-Status inkl. letzter Ausgabedatei im Webcam-Fenster.
+  - **Ordnerbrowser gehärtet:** Root zeigt nur sichere Datenpfade (`/volume*`), keine Systemordner.
+- **Berechtigungen robuster behandelt:**
+  - Preflight unterscheidet sauber zwischen **User-Write** und **Root-Write**.
+  - Sofortaufnahme verlangt User-Schreibrecht; geplante Jobs/Selbsttest können bei Bedarf Root-Write nutzen.
+- **Storage ergänzt (Disk Imaging/Restore):**
+  - Scan von Block-Devices mit Kennzeichnung sensibler Ziele (System/RAID-Kontext) und Workflows für Image nach PC/NAS sowie Restore von PC/NAS.
+- **Docker ergänzt (Catalog):**
+  - Docker-Hub-Katalog mit Suche/Browse und Übergabe in den Docker-Assistenten (`docker run` / compose YAML mit Presets).
+- **i18n/UX erweitert:**
+  - Neue DE/EN-Texte für Webcam-Status, Preflight, Selbsttest, Qualitäts-/Motion-/Rotationsoptionen und Ordnerauswahl.
 
 ### English (summary)
 
-- Added a production-ready **Webcam Recorder suite**: preview, immediate/scheduled recording, in-app camera controls, quality profiles, preflight checks, self-test, optional motion detection, and file rotation.
-- Improved permission handling by separating **user write** and **root write** logic for different recording flows.
-- Added **disk imaging/restore** workflows and **Docker Hub catalog** deployment helper.
-- Expanded DE/EN UX and status messaging for all new release features.
+- Added a full **Webcam Recorder suite**: device scan, live preview, immediate/scheduled recording, camera controls, quality profiles, preflight checks, self-test, rotation, optional motion detection, and clear status output with last file path.
+- Hardened permission handling by separating **user write** vs **root write** checks (manual recording vs scheduled/root-capable flows).
+- Added **disk imaging/restore** workflows with safer disk detection context.
+- Added **Docker Hub catalog** helper to prefill deployment wizard (`docker run` / compose presets).
+- Extended DE/EN i18n coverage for all new webcam and release-facing UI text.
 
-## 23.1.0 — 2026-04-10
+## 23.2.0 — 2026-04-20
 
 ### Deutsch (ausführlich)
 
-- **NAS ↔ NAS (SMB) entkoppelt von QNAP-Branding:** Feste QNAP-Beschriftungen wurden aus der UI entfernt. Der SMB-Teil ist jetzt neutral als „zweites NAS (SMB)“ geführt.
-- **Eigener Anzeigename für zweites NAS:** In **`⚙️ Settings -> Zweites NAS (SMB)`** gibt es ein neues Feld **Anzeigename** (z. B. „Synology“, „QNAP“, „Backup-NAS“). Dieser Name wird direkt als rechter Pane-Titel im Tab **NAS ↔ NAS** angezeigt.
-- **Toolbar im NAS↔NAS-Tab verbessert:** Buttons **„NAS scannen“** und **„Freigaben scannen“** stehen links nun übersichtlich **untereinander**.
-- **Mehrfachauswahl-Upload repariert:** Beim Rechtsklick auf bereits markierte Einträge bleibt die Mehrfachauswahl erhalten; Uploads betreffen wieder alle selektierten Elemente (NAS↔NAS und Explorer-Kontextmenüs).
-- **Sprachwechsel DE/EN stabilisiert:** Fix für einen Rebuild-Fehler beim Umschalten der Sprache (verwaiste Tk-Widget-Referenzen im NAS↔NAS-Bereich). Ergebnis: keine „halb leere“ Oberfläche mehr nach Language-Toggle.
-- **SMB-/Dokutexte aktualisiert:** Hinweise auf alte Pfade/Klartextdateien bereinigt; öffentliche Texte auf `app_settings.json` und neutralen SMB-Wortlaut vereinheitlicht.
+- **Mehrere SMB-Ziele (NAS ↔ NAS):**
+  - Settings unterstützen jetzt **Profil-Liste** für das zweite NAS (`second_nas_smb_peers`) inkl. aktivem Index.
+  - Profile können in den Settings per Dropdown gewählt, hinzugefügt und gelöscht werden.
+  - Der aktive Peer wird im NAS↔NAS-Tab übernommen; beim Wechsel werden SMB-Verbindungen sauber getrennt und die Peer-Ansicht geleert.
+  - Kompatibilität zu älteren Settings bleibt erhalten (`second_nas_smb` als aktives Profil).
+- **Settings-Privacy für sensible Felder:**
+  - Telegram- und E-Mail-Identitätsdaten (Token/Chat, SMTP User/Pass/From/To) werden beim Laden maskiert.
+  - Neue **Show/Hide**-Schalter im Settings-Tab; maskierte Werte bleiben speicherbar ohne Klartext-Re-Edit.
+  - Beim Wechsel in den Settings-Tab werden sensible Felder erneut aus Settings gezogen und maskiert angezeigt.
+- **Script-Benachrichtigungen (neu):**
+  - Neuer Block in den Settings: **Script wählen**, Kanal (**Telegram/E-Mail**), Trigger (**Erfolg/Fehler/beides**), Regeln verwalten.
+  - Regeln werden in `app_settings.json` unter `script_notifications.rules` gespeichert.
+  - Manuelle Host-Testläufe senden Benachrichtigungen regelbasiert.
+  - Fehler beim Versand werden sichtbar geloggt (Telegram/SMTP-Fehlermeldung statt „still“).
+- **Automatisch für Cron/Nachtläufe (ohne PC):**
+  - Neuer NAS-Runner: `ugreen_script_notify_runner.py` + `ugreen_script_notify_config.json` auf `/volume1/scripts/`.
+  - Cron-Einträge für Host/Docker-Skripte werden über den Runner gewrappt, damit Benachrichtigungen auch bei z. B. 03:00 Uhr funktionieren.
+  - Neuer Settings-Button **„Auf NAS sync“** zum expliziten Upload von Runner + Config.
+  - Robuster EXE-Fallback: wenn Runner-Datei lokal (PyInstaller-Temp) fehlt, wird eingebetteter Runner-Quelltext verwendet.
+- **Sichtbarkeit „welche Scripts melden“:**
+  - Script-Liste markiert aktive Regeln klar mit **`🔔`**-Präfix.
+  - Zusätzliche Übersichtszeile zeigt für das ausgewählte Script den aktiven Notify-Status (Kanal + Trigger).
+- **Media/Generator-Tools ergänzt:**
+  - `tools/generate_code_rain_video.py` erweitert (Qualität/Duration/FPS/Workers/Codec, inkl. AV1-Optionen).
+  - `tools/generate_window_sea_video.py` (30s Fenster-Meer-Animation).
+  - `tools/generate_light_rain_audio.py` (WAV/MP3-Ausgabe, sanfter Regen).
 
 ### English (summary)
 
-- **NAS ↔ NAS UI is vendor-neutral:** removed hardcoded QNAP labels; now shown as generic second NAS (SMB).
-- **Custom peer display name:** new Settings field to label the second NAS (e.g., Synology/QNAP) and show it in the NAS↔NAS pane header.
-- **Improved NAS↔NAS toolbar:** “Scan NAS” and “Scan shares” are stacked vertically on the left.
-- **Multi-select upload fix:** right-click no longer collapses multi-selection when clicking an already selected item.
-- **DE/EN language toggle fix:** resolved Tk rebuild crash that caused partially empty UI after switching language.
-- **SMB/help text cleanup:** wording and config references updated for current settings storage.
-
-## 22.7.0 — 2026-04-09
-
-### Deutsch (ausführlich)
-
-- **Zentrale Einstellungen (`⚙️ Settings`):** Verbindungsdaten (inkl. Profile/SSH-Key), Telegram, E-Mail und Standardpfade sind jetzt zentral gebündelt.
-- **Header aufgeräumt:** Verbindungsfelder aus dem Header entfernt; Hinweise und globale Aktionen bleiben kompakt rechts.
-- **System & Health vereinfacht:** Telegram-Zugangsdaten sowie SMTP-Verbindungsfelder entfernt; dort bleiben Kanal-/Prüfoptionen, Schwellen, Cooldown und Testaktionen.
-- **NAS-Zentral-Wächter / Tagesbericht:** Telegram- und SMTP-Credentials werden aus den zentralen Settings übernommen.
-- **Erststart-Hinweis:** Sidebar-Button **Settings** pulsiert dezent, bis eine Verbindung gespeichert wurde.
-- **Setup-Status:** Kleine Ampelzeile in Settings zeigt **Verbindung / Telegram / E-Mail** als `OK` oder `fehlt`.
-- **Public-Defaults:** Öffentliche App startet mit leeren Standardwerten für NAS-IP und Benutzername.
-
-### English (summary)
-
-- **Central settings tab** for connection profiles/SSH key, Telegram, email, and default paths.
-- **Cleaner header** and streamlined Health tab (credentials moved to Settings).
-- **NAS watch / daily report** now read Telegram/SMTP credentials from central settings.
-- **Gentle first-run attention pulse** on Settings button until a connection is saved.
-- **Small setup status badges** for connection, Telegram, and email readiness.
-- **Public defaults** start with empty NAS IP/user.
+- Multi-peer SMB profiles for NAS↔NAS, with active profile switching and UI sync.
+- Settings privacy masking + Show/Hide for Telegram/Email sensitive values.
+- New script notification rules in Settings (script + channel + trigger).
+- NAS-side runner for cron/night jobs (`/volume1/scripts/ugreen_script_notify_runner.py`) so alerts work even when the PC is off.
+- New “sync to NAS” button and robust packaged-app fallback for runner source.
+- Script list now visibly marks notification-enabled entries with `🔔`.
+- Added/extended media generation helper tools (code-rain video, sea-window video, light rain audio).
 
 ## 22.6.0 — 2026-04-07
 
-### Deutsch (ausführlich)
-
-- **SSH-Verbindungsprofile:** Mehrere gespeicherte Verbindungen (Combobox **Profil**, **＋ Neu**, **✕**); `nas_admin_connection.json` mit **`profiles`** / **`active_profile`** (Migration von alter flacher JSON-Struktur). Pro Profil optional **`docker_compose_path`**.
-- **Docker:** **Live-Log** (`docker logs -f`) mit **Stop** (eigener SSH-Thread); **Compose-Datei**-Feld mit **`config`**, **`ps`**, **`up -d`** (letzteres: **Volle Rechte** + Bestätigung); Aufruf per **`bash -lc`** mit Fallback **`docker compose`** → **`docker-compose`**. Standardpfad-Vorschlag **`/volume1/docker/docker-compose.yml`**. Auswahl anderer Container beendet den Live-Stream.
-- **Scripte:** Vorlagen-Buttons **rsync** / **restic** / **rclone** (Shell-Boilerplate an Cursorposition, DE/EN).
-- **Tk:** Kein **`pady=(0,8)`** mehr im **`tk.Frame`-Konstruktor** (Compose-Zeile, Docker-Wizard) — behebt **`bad screen distance "0 8"`** unter Windows.
-- **Update-Hinweis (weiterhin):** ca. **4,5 s** nach Start Abfrage **GitHub** (`runlevel1977-del/UgreenNASAdmin`); Cooldown **24 h**. PyInstaller: **`ugreen_app.mixin_update_check`**, **`ugreen_app.update_check`** in **`.spec`**.
-
-### English (summary)
-
-- **Connection profiles** (multi-NAS / saved SSH); JSON **`profiles`** + migration.
-- **Docker:** live log tail + stop; Compose path + **config** / **ps** / **up -d**; **docker compose** vs **docker-compose** fallback.
-- **Scripts:** backup snippet buttons **rsync**, **restic**, **rclone**.
-- **Fix:** Tk **Frame** padding (Windows startup error).
-
-### Build
-
-- **`tools/zip_oeffentlich_forum.py`:** ZIP-Dateinamen aus **`__version__`** in **`öffentlich/ugreen_app/nas_manager.py`** (aktuell **v22.7.0**).
+Kurz: SSH-**Profile**, Docker **Live-Log** + **Compose** (config/ps/up-d, Plugin/Legacy-Fallback), Script-**Vorlagen** rsync/restic/rclone, Tk-**Frame**-Padding-Fix, ZIP-Version aus `nas_manager.py`. Details: **`öffentlich/CHANGELOG.md`**.
 
 ## 22.5.0 — 2026-04-04
 

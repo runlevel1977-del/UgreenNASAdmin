@@ -26,6 +26,8 @@ import ctypes
 import urllib.request
 import urllib.parse
 import webbrowser
+import subprocess
+from urllib.parse import urlencode, quote
 
 import nas_ssh
 import nas_utils
@@ -207,6 +209,204 @@ class MixinThemeUI:
         except Exception:
             pass
 
+    def _open_feedback_email(self) -> None:
+        try:
+            addr = "ugna@posteo.de"
+            subj = self.t("info.email_mailto_subject")
+            body = self.t("info.email_mailto_body")
+            q = urlencode(
+                {"subject": subj, "body": body},
+                safe="",
+                quote_via=quote,
+            )
+            webbrowser.open(f"mailto:{addr}?{q}", new=2)
+        except Exception:
+            try:
+                webbrowser.open("mailto:ugna@posteo.de", new=2)
+            except Exception:
+                pass
+
+    def _app_document_roots(self) -> list[str]:
+        """Ordner, in denen README/CHANGELOG (Bundle, neben .exe, Projektroot) liegen können."""
+        import ugreen_app
+
+        raw: list[str] = []
+        if getattr(sys, "frozen", False):
+            # Zuerst PyInstaller-Entpack: dort liegen ggf. mitgelieferte README/CHANGELOG
+            meip = getattr(sys, "_MEIPASS", None)
+            if meip:
+                raw.append(os.path.normpath(meip))
+            exe_dir = os.path.normpath(os.path.dirname(sys.executable))
+            raw.append(exe_dir)
+            # Häufig: EXE in …/project/dist/ — Doku liegt in …/project/ (eine Ebene höher)
+            if os.path.basename(exe_dir).lower() in ("dist", "build"):
+                raw.append(os.path.normpath(os.path.join(exe_dir, os.pardir)))
+        else:
+            pkg = os.path.dirname(os.path.abspath(ugreen_app.__file__))
+            raw.append(os.path.normpath(os.path.join(pkg, os.pardir)))
+
+        out: list[str] = []
+        seen: set[str] = set()
+        for b in raw:
+            b = os.path.normpath(b)
+            if b and b not in seen:
+                seen.add(b)
+                out.append(b)
+        return out
+
+    def _open_local_doc(self, filename: str) -> None:
+        parent = self._info_toplevel if getattr(self, "_info_toplevel", None) else self.root
+        for root in self._app_document_roots():
+            p = os.path.join(root, filename)
+            if os.path.isfile(p):
+                try:
+                    if os.name == "nt":
+                        os.startfile(p)  # noqa: S606
+                    elif sys.platform == "darwin":
+                        subprocess.run(["open", p], check=False)
+                    else:
+                        subprocess.run(["xdg-open", p], check=False)
+                except Exception as ex:  # noqa: BLE001
+                    messagebox.showerror(self.t("info.title"), str(ex), parent=parent)
+                return
+        roots = self._app_document_roots()
+        hint = "\n".join(roots) if roots else "?"
+        messagebox.showerror(
+            self.t("info.title"),
+            self.t("info.doc_not_found", name=filename, path=hint),
+            parent=parent,
+        )
+
+    def _dismiss_info_window(self) -> None:
+        w = getattr(self, "_info_toplevel", None)
+        self._info_toplevel = None
+        if w is not None:
+            try:
+                w.destroy()
+            except Exception:
+                pass
+
+    def _show_app_info_window(self) -> None:
+        w = getattr(self, "_info_toplevel", None)
+        if w is not None:
+            try:
+                if w.winfo_exists():
+                    w.lift()
+                    w.focus_force()
+                    return
+            except tk.TclError:
+                pass
+        self._info_toplevel = None
+
+        win = tk.Toplevel(self.root)
+        self._info_toplevel = win
+        win.title(self.t("info.title"))
+        try:
+            win.transient(self.root)
+        except Exception:
+            pass
+        win.configure(bg=self.color_surface)
+        try:
+            win.minsize(480, 420)
+        except Exception:
+            pass
+
+        pad = tk.Frame(win, bg=self.color_surface, padx=20, pady=16)
+        pad.pack(fill=tk.BOTH, expand=True)
+
+        row_btns = tk.Frame(pad, bg=self.color_surface)
+        row_btns.pack(fill=tk.X, pady=(0, 10))
+        self.create_modern_btn(
+            row_btns,
+            self.t("info.readme"),
+            lambda: self._open_local_doc("README.md"),
+            self.color_btn_blue,
+            width=10,
+        ).pack(side=tk.LEFT, padx=(0, 8))
+        self.create_modern_btn(
+            row_btns,
+            self.t("info.changelog"),
+            lambda: self._open_local_doc("CHANGELOG.md"),
+            self.color_btn_blue,
+            width=10,
+        ).pack(side=tk.LEFT, padx=(0, 0))
+
+        _sup_fg, _sup_hov = self.color_info_fg, self.color_btn_blue
+        sup = tk.Label(
+            pad,
+            text=self.t("info.support"),
+            bg=self.color_surface,
+            fg=_sup_fg,
+            font=("Segoe UI", 10, "underline"),
+            cursor="hand2",
+        )
+        sup.pack(anchor=tk.W, pady=(0, 8))
+        sup.bind("<Button-1>", lambda e: self._open_paypal_support())
+        sup.bind("<Enter>", lambda e: sup.config(fg=_sup_hov))
+        sup.bind("<Leave>", lambda e: sup.config(fg=_sup_fg))
+
+        email_intro = tk.Label(
+            pad,
+            text=self.t("info.email_intro"),
+            bg=self.color_surface,
+            fg=self.color_text,
+            font=("Segoe UI", 10),
+            justify=tk.LEFT,
+            wraplength=520,
+        )
+        email_intro.pack(anchor=tk.W, pady=(8, 4))
+
+        _em_fg, _em_hov = self.color_info_fg, self.color_btn_blue
+        em = tk.Label(
+            pad,
+            text="ugna@posteo.de",
+            bg=self.color_surface,
+            fg=_em_fg,
+            font=("Segoe UI", 10, "underline"),
+            cursor="hand2",
+        )
+        em.pack(anchor=tk.W, pady=(0, 8))
+        em.bind("<Button-1>", lambda e: self._open_feedback_email())
+        em.bind("<Enter>", lambda e: em.config(fg=_em_hov))
+        em.bind("<Leave>", lambda e: em.config(fg=_em_fg))
+
+        about_fr = tk.Frame(pad, bg=self.color_surface)
+        about_fr.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        about = scrolledtext.ScrolledText(
+            about_fr,
+            wrap=tk.WORD,
+            width=50,
+            height=10,
+            font=("Segoe UI", 10),
+            bg=self.color_surface,
+            fg=self.color_text,
+            relief="flat",
+            borderwidth=0,
+            highlightthickness=0,
+        )
+        about.pack(fill=tk.BOTH, expand=True)
+        about.insert("1.0", self.t("info.about"))
+        about.config(state=tk.DISABLED)
+
+        self.create_modern_btn(
+            pad,
+            self.t("info.close"),
+            self._dismiss_info_window,
+            self.color_btn_purple,
+            width=12,
+        ).pack(anchor=tk.E, pady=(4, 0))
+
+        def _on_info_destroy(e) -> None:
+            if getattr(e, "widget", None) is not win:
+                return
+            self._info_toplevel = None
+
+        win.bind("<Destroy>", _on_info_destroy)
+        try:
+            win.protocol("WM_DELETE_WINDOW", self._dismiss_info_window)
+        except Exception:
+            pass
+
     def setup_ui(self):
         self._reset_danger_widget_registry()
         self.root.title(self.t("app.title", ver=self._app_version))
@@ -237,6 +437,14 @@ class MixinThemeUI:
         self.btn_danger_power.pack(side=tk.LEFT, padx=(0, 4))
         self.btn_theme_toggle = self.create_modern_btn(header_right, toggle_text, self.toggle_theme, self.color_btn_purple, width=9)
         self.btn_theme_toggle.pack(side=tk.LEFT, padx=(0, 4))
+        self.btn_header_info = self.create_modern_btn(
+            header_right,
+            self.t("header.info"),
+            self._show_app_info_window,
+            self.color_btn_blue,
+            width=6,
+        )
+        self.btn_header_info.pack(side=tk.LEFT, padx=(0, 4))
         self._paypal_label = tk.Label(
             header_right,
             text=self.t("header.coffee"),
@@ -337,7 +545,7 @@ class MixinThemeUI:
         self.scheduler_drawer.pack_propagate(False)
         
         # Schönerer Seiten-Toggle Button
-        self.btn_scheduler_toggle = tk.Button(self.app_body, text="P\nL\nA\nN", command=self.toggle_scheduler, 
+        self.btn_scheduler_toggle = tk.Button(self.app_body, text=self.t("sched.plan_toggle"), command=self.toggle_scheduler, 
                                               bg=self.color_cron, fg="white", font=('Segoe UI', 9, 'bold'), 
                                               relief="flat", cursor="hand2", width=2, borderwidth=0)
         self.btn_scheduler_toggle.place(relx=1.0, rely=0.5, anchor=tk.E)
@@ -365,7 +573,7 @@ class MixinThemeUI:
             tk.Label(title_row, image=self._photo_sidebar_icon, bg=self.color_surface_alt).pack(side=tk.LEFT, padx=(0, 10))
         tk.Label(title_row, text="UGREEN NAS", bg=self.color_surface_alt, fg=self.color_text, font=("Segoe UI", 15, "bold")).pack(side=tk.LEFT)
         tk.Label(sb, text=self.t("sidebar.subtitle"), bg=self.color_surface_alt, fg=self.color_text_muted, font=("Segoe UI", 9)).pack(anchor=tk.W, padx=18, pady=(0, 10))
-        tk.Label(sb, text="Navigation", bg=self.color_surface_alt, fg=self.color_text_muted, font=("Segoe UI", 8, "bold")).pack(anchor=tk.W, padx=18, pady=(0, 6))
+        tk.Label(sb, text=self.t("sidebar.navigation"), bg=self.color_surface_alt, fg=self.color_text_muted, font=("Segoe UI", 8, "bold")).pack(anchor=tk.W, padx=18, pady=(0, 6))
 
         self.nav_buttons = {}
         nav_items = [
@@ -395,7 +603,7 @@ class MixinThemeUI:
             self.nav_buttons[key] = btn
 
         tk.Frame(sb, bg=self.color_border, height=1).pack(fill=tk.X, padx=14, pady=12)
-        tk.Label(sb, text="Werkzeuge", bg=self.color_surface_alt, fg=self.color_text_muted, font=("Segoe UI", 8, "bold")).pack(anchor=tk.W, padx=18, pady=(0, 6))
+        tk.Label(sb, text=self.t("sidebar.tools"), bg=self.color_surface_alt, fg=self.color_text_muted, font=("Segoe UI", 8, "bold")).pack(anchor=tk.W, padx=18, pady=(0, 6))
         self.create_modern_btn(sb, self.t("sidebar.refresh_all"), self.refresh_all_panels, self.color_btn_blue).pack(fill=tk.X, padx=12, pady=(0, 6))
         self._register_danger_rounded(
             self.create_modern_btn(sb, self.t("sidebar.health_snapshot"), self.save_health_snapshot, self.color_header)
@@ -697,10 +905,52 @@ class MixinThemeUI:
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def toggle_ui_language(self):
-        from ugreen_app.i18n import cron_mappings_for_lang
+    def _ui_lang_choices(self):
+        from ugreen_app.i18n import language_label, supported_languages
 
-        self.ui_lang = "en" if self.ui_lang == "de" else "de"
+        return [(c, f"{language_label(c)} ({c.upper()})") for c in supported_languages()]
+
+    def settings_apply_ui_language(self):
+        from ugreen_app.i18n import cron_mappings_for_lang, normalize_lang, supported_languages
+
+        wn = getattr(self, "combo_settings_ui_lang", None)
+        if wn is None:
+            return
+        opts = list(getattr(self, "_settings_lang_options", []) or [])
+        code = ""
+        try:
+            idx = int(wn.current())
+        except Exception:
+            idx = -1
+        if 0 <= idx < len(opts):
+            code = str(opts[idx][0] or "").strip().lower()
+        if not code:
+            txt = str(getattr(self, "var_settings_ui_lang", tk.StringVar()).get() or "").strip()
+            for c, label in opts:
+                if txt == label:
+                    code = str(c or "").strip().lower()
+                    break
+        if not code:
+            code = str(getattr(self, "ui_lang", "de") or "de").lower()
+        code = normalize_lang(code, default="de")
+        langs = tuple(supported_languages())
+        if code not in langs:
+            code = "de"
+        self.ui_lang = code
+        self.cron_mappings = cron_mappings_for_lang(self.ui_lang)
+        self._persist_ui_lang()
+        self.rebuild_ui()
+
+    def toggle_ui_language(self):
+        from ugreen_app.i18n import cron_mappings_for_lang, normalize_lang, supported_languages
+
+        langs = list(supported_languages())
+        curr = normalize_lang(getattr(self, "ui_lang", "de"), default="de")
+        try:
+            i = langs.index(curr)
+        except ValueError:
+            i = 0
+        self.ui_lang = langs[(i + 1) % len(langs)]
         self.cron_mappings = cron_mappings_for_lang(self.ui_lang)
         self._persist_ui_lang()
         self.rebuild_ui()

@@ -1,352 +1,364 @@
 # Ugreen NAS Admin
 
-The app is available in **English** and **German**; switch language in the status bar. · Die App ist auf **Englisch** und **Deutsch** verfügbar; die Sprache wechselst du in der Statusleiste.
+Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: scripts, file operations, Docker, system health, storage, permissions, snapshots, optional Telegram/Email notifications, and more. The UI is available in many languages; switch in **Settings** (or the status bar, depending on build).
 
-## Download (always latest)
-
-- **GitHub latest release page:** https://github.com/runlevel1977-del/UgreenNASAdmin/releases/latest
-- **SourceForge direct latest download:** https://sourceforge.net/projects/ugreennasadmin/files/latest/download
-
-> Important: GitHub **Code -> Download ZIP** is only source code (no EXE).  
-> For the app EXE, always download from **Releases/Assets** or SourceForge.
-
-## English
-
-**Ugreen NAS Admin** is a desktop **control center** for a **Ugreen NAS** over **SSH**: scripts, file explorer (upload/download), Docker, system health, storage, ACL, snapshots, optional Telegram / email alerts. **MIT licensed.**
-
-### What's new in v23.3.0
-
-- **Webcam Recorder suite:** live preview, immediate and scheduled recording, quality profiles, preflight checks, self-test, file rotation, optional motion detection.
-- **Webcam controls in-app:** auto/manual exposure, exposure value, gain and 50/60Hz power-line settings (`v4l2-ctl` integration).
-- **Smarter reliability:** explicit user/root write checks, clear recording status with last output filename, robust dependency checks (`ffmpeg`, `v4l2-ctl`).
-- **Disk imaging & restore:** select disks, image to PC or NAS, and restore from PC/NAS image files (with safety prompts).
-- **Docker Catalog:** browse/search Docker Hub images and prefill deployment wizard as `docker run` command or compose YAML presets.
-- **UI & docs refresh:** updated DE/EN strings, safer NAS folder browser (data volumes first), and updated release docs/assets for `v23.3.0`.
-
-### Demo video
-
-**Walkthrough on YouTube:** [https://youtu.be/RDaEZhuEbCc](https://youtu.be/RDaEZhuEbCc)
-
-This folder **`öffentlich/`** is the **canonical public release tree** for GitHub (separate `.git`). The parent project **`NAS_Admin_Project`** stays private and does not track this folder. Set the remote with **`setup_public_remote.ps1`** or `git remote add origin …` here. **Release links & workflow:** see **`RELEASE_LINKS.md`**.
-
-### Screenshots
-
-Images live under **`images/`** (`1.png` … `6.png`, health tab). **Do not** show real passwords or private IPs in screenshots.
-
-<p align="center">
-  <img src="images/1.png" alt="Ugreen NAS Admin — main view" width="820" />
-</p>
-<p align="center"><sub>Overview (v22.2+)</sub></p>
-
-<p align="center">
-  <img src="images/2.png" alt="Ugreen NAS Admin — view 2" width="400" />
-  &nbsp;&nbsp;
-  <img src="images/3.png" alt="Ugreen NAS Admin — view 3" width="400" />
-</p>
-<p align="center"><sub>More areas</sub></p>
-
-<p align="center">
-  <img src="images/4.png" alt="Ugreen NAS Admin — view 4" width="400" />
-  &nbsp;&nbsp;
-  <img src="images/5.png" alt="Ugreen NAS Admin — view 5" width="400" />
-</p>
-<p align="center">
-  <img src="images/6.png" alt="Ugreen NAS Admin — view 6" width="820" />
-</p>
-<p align="center"><sub>e.g. Docker, Explorer, sidebar with live monitor</sub></p>
-
-<p align="center">
-  <img src="images/health_system_1.png" alt="System & Health — overview" width="400" />
-  &nbsp;&nbsp;
-  <img src="images/health_system_2.png" alt="System & Health — guard" width="400" />
-</p>
-<p align="center">
-  <img src="images/health_system_3.png" alt="System & Health — daily report" width="820" />
-</p>
-<p align="center"><sub>System &amp; Health tab (Telegram, NAS central watch, daily report)</sub></p>
-
-### Important
-
-**The `öffentlich/` folder is the canonical source for all public releases (builds and distribution).**
-
-- **Do not delete it.** On updates: mirror changed files from the main project into this folder (see below), then run or build.
-- It contains everything required to **run** the app (`python ugreen_nas_admin.py`) and to **build the EXE** (`python builder.py` / PyInstaller).
-
-### Connection to the NAS (header bar)
-
-At the top of the window you enter the **SSH connection** used by every tab that runs remote commands:
-
-| Field / option | Meaning |
-|----------------|---------|
-| **Profile** (v22.6+) | Dropdown to pick a **saved connection**; **＋ New** / **✕** add or remove profiles (at least one remains). |
-| **NAS IP** | Hostname or IP of the NAS (same as in PuTTY/Terminal). |
-| **SSH port** | SSH port on the NAS — **default 22**. If your NAS uses another port (e.g. 2222), set it here. Saved with **“Save connection”** into `nas_admin_connection.json`. |
-| **User** | Linux SSH account on the NAS. |
-| **Password** | Password for that user — used for login and often for **`sudo -S`** (privileged commands). **Plain text note:** see *SSH password in the OS vault* below. |
-| **Use SSH key** (checkbox) | When enabled, authentication uses your **private key file** (server must accept key auth). |
-| **Key path** | Full path to the private key on **your Windows PC** (e.g. `C:\Users\…\.ssh\id_ed25519`). |
-| **Key passphrase** | Optional passphrase if the key is encrypted. |
-
-**💾 Save connection** stores IP, port, user, password, SSH-key settings, UI language, and **connection profiles** (v22.6+) in **`nas_admin_connection.json`** next to the EXE — including optional **Docker Compose file path** per profile (password in plain text unless you use the vault). You can switch profiles from the header without saving; saving persists them for the next start.
-
-**Right side of the header:** **⚠ Full access**, **theme**, **save connection**, **🔐 PW vault**, **Coffee** — aligned to the **bottom** of the full header block (including the hint row below the fields).
-
-**Live monitor** (aggregate **CPU** + **RAM**) is at the **bottom of the left sidebar**, above the status bar (**DE/EN**). **Language** and connection status stay in the **status bar**.
-
-### Restricted mode & “Full access” (v22.2+)
-
-- **By default**, many **risky** actions are **disabled** / grayed out (delete, uploads, Docker changes, planner cron jobs, ACL writes, snapshot create/delete, NAS reboot/shutdown, etc.).
-- **⚠ Full access** in the header: after you confirm the warning, those features **unlock**. **🔒 Restrict** can turn safe mode back on.
-- Details: **`CHANGELOG.md`** section **22.2.0**.
-
-### Contents (overview)
-
-| Item | Purpose |
-|------|---------|
-| `ugreen_nas_admin.py` | Entry point |
-| `ugreen_app/` | App logic (mixins, i18n, UI, …) |
-| `nas_ssh.py`, `nas_utils.py` | SSH helpers (imported from project root layout) |
-| `UgreenNASAdmin.spec` | PyInstaller specification |
-| `builder.py`, `create_icon.py`, `RUN_BUILDER.bat` | Build tooling |
-| `nas_icon.ico`, `nas_icon_app.png` | Icons (if missing, run `create_icon.py`) |
-| `CHANGELOG.md` | Release notes |
-| `requirements.txt` | Python dependencies |
-
-### Run (development)
-
-```text
-cd öffentlich
-python -m pip install -r requirements.txt
-python ugreen_nas_admin.py
-```
-
-### Build (EXE)
-
-```text
-cd öffentlich
-python builder.py
-```
-
-The executable is written to `öffentlich/dist/UgreenNASAdmin.exe` (i.e. `dist/` relative to this folder).
-
-### Sync with the main project
-
-If you develop in the parent folder `NAS_Admin_Project`, **before a public release** copy changed files **into `öffentlich/`** (or use a script/CI) so this tree stays up to date.
-
-**For anyone rebuilding the EXE from source:** include **`UgreenNASAdmin.spec`** (and any other build files you changed in the main tree). Without the `.spec`, PyInstaller lacks the fixed spec (icons, `hiddenimports`, one-file options) — the build may fail or the EXE may not start correctly. Recipients who only get the finished **`UgreenNASAdmin.exe`** do **not** need the `.spec` (only sources + build tools if they rebuild).
-
-### Local files (do not ship)
-
-Connection data and tokens are created next to the EXE at runtime, or in this folder as `nas_admin_connection.json` / `telegram_notify.json` — these must **not** go into a public repository (see `.gitignore` here).
-
-### SSH password in the OS vault (optional, v22.1+)
-
-Without extra packages, **“Save connection”** still stores the password **in plain text** in `nas_admin_connection.json` (next to the EXE or the working folder).
-
-**With `keyring`**, the SSH password can be stored in **Windows Credential Manager** (handled by the OS; the app does not create a separate secrets file).
-
-1. **Python environment** (the same one you use to run the app or build the EXE):
-
-   ```text
-   python -m pip install keyring
-   ```
-
-   The current directory does not matter; what matters is the **same** `python` you use for `python ugreen_nas_admin.py` or `python builder.py`.
-
-2. Run the app from source, or **rebuild the EXE** (`python builder.py` / `RUN_BUILDER.bat`) after installing `keyring`, using that same Python so PyInstaller bundles it.
-
-3. In the app: fill **NAS IP**, **user**, **password**.
-
-4. Click **🔐 PW vault** — you should get a confirmation when stored.
-
-5. **Optional:** **Clear the password field**, then **💾 Save connection** — the JSON no longer holds the password in plain text. On the **next start**, the password is read from the vault (only if **IP and user** still match).
-
-**Without `keyring`:** the button shows a hint; the app still works with the password only in the JSON.
-
-**Note:** the first `pip install` may sit on “Collecting …” for several minutes — usually network/PyPI, not a hang.
-
-> **Screenshots:** In a **public** GitHub repo, images are always downloadable. Do not show real passwords or private IPs.
-
-### Setting up notifications (Telegram & email)
-
-**A) Quick monitoring from the PC (Telegram guard in “System & Health”)**  
-1. Create a bot with [@BotFather](https://t.me/BotFather) and copy the **bot token**.  
-2. Find your **chat ID** (e.g. message the bot and inspect `getUpdates`, or use a trusted helper — avoid shady bots).  
-3. In the app: enable **“Full access”**, open the **Telegram** section, enter token and chat ID, **Save** — this creates `telegram_notify.json` next to the EXE.  
-4. Set **interval** and **thresholds** (disk warn/critical, temperature, …), optionally enable **“Guard enabled”**, save again. The guard runs **while the app is open** and sends Telegram alerts when something looks wrong.
-
-**B) Independent of the PC: NAS central watch + optional email (cron on the NAS)**  
-1. Maintain the same **Telegram** fields in the app (or choose **email** channel only).  
-2. In **NAS central watch**, pick channel **Telegram**, **Email**, or **Both**.  
-3. **Email:** SMTP host, port, credentials if required, **From** / **To**, TLS: **STARTTLS** (e.g. port 587) or **SMTPS** (e.g. port 465 + **SMTPS** checkbox).  
-4. **“Install on NAS”** — script and config are written via SSH to **`/volume1/scripts/`**.  
-5. Add a **cron** job on the NAS (example in the dialog), e.g. every 5 minutes running `python3` with `ugreen_watch.py`.  
-6. **“Test”** in the app: runs SMTP test (`--smtp-test`) and a `--once` pass.  
-7. **DNS on the NAS:** if the SMTP hostname does not resolve, fix NAS DNS (router) or use the **SMTP server IP**.
-
-**Daily report (informational, not an alarm):** section below the central watch — **“Install on NAS”**, set **daily** cron (e.g. morning). Uses the same channel/SMTP settings. **Report language** follows **UI language (DE/EN) at install time**.
-
-### App feature list (overview)
-
-| Area | Features |
-|------|----------|
-| **General** | SSH (IP, port, user, password, optional **SSH key**), **save connection**, **connection profiles** (v22.6+), optional **🔐 PW vault** (`keyring`), **DE/EN**, **light/dark** theme, **live monitor** (CPU/RAM), status bar, **restricted mode** / **full access** |
-| **Scripts** | `/volume1/scripts/` listing, **read/save** (root or user), **chmod 755**, **cron** (`/etc/cron.d/…`, stable jobs, **STABLE_TASKS**), **backup templates** (rsync / restic / rclone snippets), shortcuts |
-| **Explorer** | NAS tree + **This PC**, **upload/download**, **copy** NAS↔PC, recursive folders, progress, search, folder sizes, context menu (delete with gate) |
-| **Docker** | Container list, **start/stop/restart/remove** (with prompts), **stats / logs / inspect**, **live log tail** + stop, **Compose file** + **config** / **ps** / **up -d** (compose plugin or legacy), fix host mount perms, **“New container/stack” wizard** (Compose/`docker run`, variables, `mkdir` on NAS), **Docker Hub catalog prefill helper** |
-| **System & Health** | **Refresh**, RAID, SMART, storage, report, **save health snapshot**, **NAS reboot/shutdown** (safety prompts), **Telegram guard** (while app runs), **NAS central watch** + **daily report** (install on NAS) |
-| **Storage** | Overview, **Samba testparm**, **NFS exports**, **disk imaging/restore** (device scan, image to PC/NAS, restore from image) |
-| **ACL** | Path, view/set ACL (with gate) |
-| **Snapshots** | Btrfs / ZFS / Snapper — depending on NAS |
-| **Schedules** | Cron editor and host jobs (with gate) |
-| **Webcam** | Device scan (`/dev/video*`), live preview, immediate recording, daily scheduled recording, quality profiles, camera controls, preflight + self-test, optional motion detection, automatic file rotation |
+This document’s **step-by-step user guide** is provided in **English** and **German** only. The **same guide** (plus download links and screenshots) lives in [`öffentlich/README.md`](öffentlich/README.md) for the public tree; regenerate that file with `python tools/build_oeffentlich_readme.py` after you edit this user guide. Release notes: [`CHANGELOG.md`](CHANGELOG.md).
 
 ---
 
-## Deutsch
+## User guide (English) — step by step
 
-**Screenshots** und die **englische Kurzbeschreibung** stehen oben im Abschnitt **English** (README ist für GitHub-Besucher zuerst auf Englisch).
+The **sidebar** matches the main areas (top to bottom). Use it to switch **tabs** in the main panel. A few features live **outside** a tab: the **header** (connection, “Full access”, dark/light, Info, support link), the **planner** strip on the right, and the **bottom status bar** (language, status, connection).
 
-**Demo-Video (YouTube):** [https://youtu.be/RDaEZhuEbCc](https://youtu.be/RDaEZhuEbCc)
+**Safety:** Many actions need **“Full access”** (or similar) in the header; without it, destructive/SSH features stay locked. Re‑enable restrictions when you are done with maintenance.
 
-### Wichtig
+### 1) Scripts
 
-**Dieser Ordner `öffentlich/` ist die feste Quelle für alle öffentlichen Versionen (Release-Builds und Verteilung).**
+**Purpose:** Manage shell scripts on the NAS (usually under `/volume1/scripts/`), run tests, and schedule jobs.
 
-- **Nicht löschen.** Bei Updates: Inhalt aus dem Hauptprojekt hierher spiegeln (siehe unten), dann bauen oder starten.
-- Enthält alle Dateien, die zum **Starten** (`python ugreen_nas_admin.py`) und zum **Bauen der EXE** (`python builder.py` / PyInstaller) nötig sind.
+- **Left:** List of script files. Select one to load it into the editor. Scripts with an active **notification rule** (see Settings) may show a **bell** icon in the list.
+- **Right:** **Filename** and **template** buttons (e.g. rsync/restic/rclone) to pre-fill the editor, **log** area, and **Save** to write the file to the NAS.
+- **Bottom buttons (left column):**  
+  - **Backup / export scripts** to your PC.  
+  - **Refresh** the list.  
+  - **Test on host** — runs the script in a normal shell context.  
+  - **Test in Docker** — runs the script in a Docker-oriented test path (as implemented by the app).  
+  - **New / clear** to start a fresh buffer.  
+  - **Delete** a remote script.  
+  - **Schedules** — open the NAS **cron** list/editor (advanced).  
+  - **Open PowerShell** (local helper on Windows) when useful for your workflow.
+- **System log** (bottom of the app): shows what the app is doing; use it for troubleshooting.
 
-### Verbindung zur NAS (Kopfzeile der App)
+**Planner (the orange vertical strip on the right edge of the main area):**  
+Opens a **drawer** for **Cron scheduling**.
 
-Oben im Fenster trägst du die **SSH-Verbindung zum NAS** ein (gilt für alle Tabs, die Befehle per SSH ausführen):
+1. In **Scripts**, select a script in the list (the drawer shows the chosen target).  
+2. Set **Minute / Hour / Day / Month / Weekday** (values follow your UI language’s cron labels).  
+3. Read the **human-readable** summary.  
+4. **Add host job** = standard cron on the NAS for that script, or **Add Docker job** = cron entry tailored to the app’s Docker script workflow.  
+5. **Full access** may be required to install cron lines.
 
-| Feld / Option | Bedeutung |
-|---------------|-----------|
-| **Profil** (ab v22.6) | Auswahl eines **gespeicherten Profils**; **＋ Neu** / **✕** zum Anlegen oder Löschen (mindestens ein Profil bleibt). |
-| **NAS IP** | Hostname oder IPv4/IPv6 des NAS (wie du auch in PuTTY/Terminal eintragen würdest). |
-| **SSH Port** | SSH-Port des NAS — **Standard ist 22**. Wenn dein NAS einen anderen Port nutzt (z. B. 2222), hier eintragen. Wird mit **„Verbindung speichern“** in `nas_admin_connection.json` abgelegt. |
-| **User** | Linux-SSH-Benutzer auf dem NAS (z. B. `papa` / `root`, je nach deinem Setup). |
-| **Passwort** | Passwort für diesen SSH-User — wird für Login und oft für **`sudo -S`** (Befehle mit Adminrechten) verwendet. **Hinweis Klartext:** siehe Abschnitt *SSH-Passwort im Windows-Tresor* weiter unten. |
-| **SSH-Key** (Checkbox) | Wenn aktiv, nutzt die App **Schlüsseldatei + optional Passphrase** (je nach Server auch mit User/Passwort kombinierbar). |
-| **Pfad** (unter der Checkbox) | Vollständiger Pfad zur **privaten** Schlüsseldatei auf **deinem PC** (z. B. `C:\Users\…\.ssh\id_ed25519`). Feld hat eine **feste Breite**; längere Pfade kannst du im Feld scrollen. |
-| **Passphrase** | Optional: Passphrase des Schlüssels, falls der Key verschlüsselt ist. |
+**Why this matters:** Scheduled scripts can run at night; combine with **script notifications** in Settings so you get **Telegram/Email** on success or failure even when the PC is off (NAS-side runner; see Settings → sync runner).
 
-**💾 Verbindung speichern** legt IP, Port, User, Passwort, SSH-Key-Optionen, UI-Sprache und **Verbindungsprofile** (ab v22.6) in **`nas_admin_connection.json`** ab — pro Profil u. a. optional den **Pfad zur Docker-Compose-Datei** (Passwort im Klartext, sofern du nicht den Tresor nutzt). Profilwechsel oben funktioniert auch **ohne** Speichern; Speichern hält die Daten für den nächsten Start fest.
+### 2) Explorer
 
-**Rechts in der Kopfzeile:** **⚠ Volle Rechte**, **Thema**, **Verbindung speichern**, **🔐 PW Tresor**, **Coffee** — am **unteren Rand** des Kopfbereichs ausgerichtet (inkl. Hinweiszeile darunter).
+**Purpose:** Browse the NAS and your **local PC**, upload/download files, and copy paths.
 
-**Live-Monitor** (CPU gesamt + RAM) sitzt **unten in der linken Sidebar** über der Statuszeile (**DE/EN**). **Sprache** und Verbindungsstatus bleiben in der **Statusleiste** unten.
+- **Two panes:** NAS and **“This PC”** (or similar). Navigate folders, use **search** where available, and open the **context menu** for upload, delete, permissions helpers, and **load into script editor** for quick editing.
+- **UGREEN** panel: quick context for the active NAS (branding/labels as in the app).
+- **Transfers** may show progress, unpack steps, and ETA on large jobs.
 
-### Eingeschränkter Modus & „Volle Rechte“ (ab v22.2)
+**Typical flow:** pick a folder on the NAS, upload from PC (or the reverse), or open a file’s path to reuse in a script or Docker path field.
 
-- **Standard:** Viele **gefährliche** Aktionen (Löschen, Uploads, Docker-Eingriffe, Cron im Planer, ACL-Schreiben, Snapshots anlegen/löschen, NAS-Neustart/-shutdown, u. a.) sind **deaktiviert** bzw. ausgegraut.
-- **⚠ Volle Rechte** im Header: nach Bestätigung der Warnung werden diese Funktionen **freigeschaltet**. **🔒 Einschränken** kann den sicheren Modus wieder aktivieren.
-- Details: **`CHANGELOG.md`** unter Version **22.2.0**.
+### 3) NAS ↔ NAS
 
-### Inhalt (Kurz)
+**Purpose:** Use the **Ugreen** side over **SSH** (this app) and a **second** NAS (or file server) over **SMB** in one view — copy between sides.
 
-| Bestandteil | Zweck |
-|-------------|--------|
-| `ugreen_nas_admin.py` | Einstieg |
-| `ugreen_app/` | App-Logik (Mixins, i18n, UI, …) |
-| `nas_ssh.py`, `nas_utils.py` | SSH/Hilfen (Import aus Projektroot) |
-| `UgreenNASAdmin.spec` | PyInstaller-Spezifikation |
-| `builder.py`, `create_icon.py`, `RUN_BUILDER.bat` | Build |
-| `nas_icon.ico`, `nas_icon_app.png` | Icons (falls vorhanden; sonst `create_icon.py` ausführen) |
-| `CHANGELOG.md` | Versionshinweise |
-| `requirements.txt` | Python-Abhängigkeiten |
+- **Settings** must define at least one **second NAS** profile: host/label, **SMB** user/password (Windows maps the share). You can keep **multiple peer profiles** and select the **active** one in Settings.
+- **Connect / browse** the peer, then use the same patterns as the Explorer: copy paths, start transfers, and **disconnect** when you leave the tab (the app tries to unmount **Windows** drive mappings when you switch away from this tab).
 
-### Start (Entwicklung)
+**Tip:** Fix SMB credentials, DNS, and “guest vs user” on the other device before expecting stable transfers.
 
-```text
-cd öffentlich
-python -m pip install -r requirements.txt
-python ugreen_nas_admin.py
-```
+### 4) Docker
 
-### Build (EXE)
+**Purpose:** List containers, start/stop/restart, read logs, inspect, clean up, and work with **Compose** paths; optional **catalog** to pull images and launch a **wizard** for `docker run` or compose.
 
-```text
-cd öffentlich
-python builder.py
-```
+- **Create / new container** — opens a guided flow (name, image, ports, volumes, and more depending on your build).
+- **List / refresh** the container list; select a row to load **logs** in the right-hand panel.
+- **Start / stop / restart / stop all** — operational controls (require **Full access** where marked).
+- **Stats / inspect** — diagnostics for the selected container.
+- **Delete** a container, **fix permissions (777/777 path helpers)** as offered — use with care.
+- **Docker Catalog** — search **Docker Hub**, pick an image, and pre-fill a deployment template.
+- **Compose file path** + **config / ps / up -d** — run `docker compose` (or the composed equivalent) for the file on the NAS. Fill the path in Settings defaults if you always use the same file.
 
-Die EXE liegt danach unter `öffentlich/dist/UgreenNASAdmin.exe` (bzw. `dist/` relativ zu diesem Ordner).
+- **Log panel:** read static logs, or **live tail** (stream) and **stop** live tail when you are done.
 
-### Abgleich mit dem Hauptprojekt
+### 5) System Health
 
-Wenn du im übergeordneten Ordner `NAS_Admin_Project` entwickelst, musst du **vor einem öffentlichen Release** die geänderten Dateien **nach `öffentlich/` kopieren** (oder Skript/CI nutzen), damit dieser Ordner aktuell bleibt.
+**Purpose:** See host load, storage, RAIDs, and optional **Telegram / Email** notifications for threshold alerts. Also hosts **reboot / shutdown** (guarded) and a **Save report** snapshot of what the panel collected.
 
-**Wichtig für andere, die die EXE selbst bauen:** Dazu gehört auch **`UgreenNASAdmin.spec`** (und bei Änderungen am Build die gleichen Dateien im Hauptordner). Ohne die `.spec` fehlt PyInstaller die feste Spezifikation (Icons, `hiddenimports`, Onefile-Optionen) — dann schlägt der Build fehl oder die EXE startet nicht richtig. Wer nur die fertige **`UgreenNASAdmin.exe`** bekommt, braucht **keine** `.spec` (nur Python-Quellen + Build-Tools zum Nachbauen).
+- **Refresh / RAID / SMART / storage** buttons — re-query the NAS. Results stream into the **log** area.  
+- **Save report** — exports a text snapshot to your PC (path chosen by the app’s dialog as implemented).  
+- **Reboot / shutdown** — only when **Full access** is enabled; use only if you know the NAS is not busy with critical I/O.
 
-### Lokale Dateien (nicht mitliefern)
+#### 5a) NAS ↔ Telegram: thresholds (panel in System Health)
 
-Verbindungsdaten und Tokens liegen bei Lauf der App neben der EXE bzw. hier im Ordner als `nas_admin_connection.json` / `telegram_notify.json` — diese gehören **nicht** ins öffentliche Repository (siehe `.gitignore` hier).
+This block sends **alerts** when free space, temperature, or related checks cross **warning/critical** levels (exact metrics depend on what the connected NAS exposes).
 
-### SSH-Passwort im Windows-Tresor (optional, ab v22.1)
+- **Enable watch** / interval between checks, **disk warn/crit %**, **max temperature**, **cooldown** (to avoid message spam).  
+- **Test Telegram** and **Run checks** — verify the bot and the remote script path.  
+- Status labels may show where the app expects the helper script (under `/volume1/scripts/` or as configured) — follow on-screen text after you **Save** in Settings (Telegram/Email must be working first).
 
-Ohne Zusatzpaket bleibt alles wie bisher: **„Verbindung speichern“** schreibt u. a. das Passwort **im Klartext** in `nas_admin_connection.json` (neben der EXE bzw. im Startordner).
+**Always configure Telegram/Email in Settings first (bot token, chat id, etc.), then return here to tune thresholds and test.**
 
-**Mit `keyring`** kann das SSH-Passwort stattdessen in der **Windows-Anmeldeinformationsverwaltung** liegen (verschlüsselt vom System verwaltet, keine extra Datei von der App).
+#### 5b) NAS “central watch” / deploy helpers (in System Health, below Telegram)
 
-1. **Python-Umgebung** (dieselbe, mit der du die App startest oder die EXE baust):
+**Purpose:** Deploy and maintain a **NAS-side watcher** (systemd/cron) that reuses the same **Telegram/Email** credentials. Options often include which **containers** must be running, **ignore** lists, **auto-restart** lists, and whether **Docker** state is part of the check.
 
-   ```text
-   python -m pip install keyring
-   ```
+- Use **“Install on NAS” / “Test on NAS”** style buttons (exact labels in your language) to upload scripts, run a test, and set **cron**/**systemd** as the wizard describes.  
+- The built-in help text in the app explains **ports** and **Posteo/STARTTLS** examples for **SMTP** in some versions — read that panel for email specifics.
 
-   In **PowerShell** zum Projektordner: `cd "…\öffentlich"` bzw. `cd "…\NAS_Admin_Project"` — der Ordner ist für `pip` egal, wichtig ist **dieselbe** `python`-Installation wie bei `python ugreen_nas_admin.py` oder `python builder.py`.
+#### 5c) Daily report (if shown)
 
-2. App starten bzw. **nach dem Install neu bauen** (`python builder.py` / `RUN_BUILDER.bat`), damit die EXE `keyring` mit einpackt (gleiche Python-Installation wie bei Schritt 1).
+Some builds add a **daily report** block that can email/cross-post health summaries. Configure **SMTP/ Telegram** in Settings; follow the in-app description for schedule and “run once” tests.
 
-3. In der App: **NAS-IP**, **User**, **Passwort** eintragen.
+**Bottom of tab:** a large **scrolling** health log view; keep it in mind when pasting to support (copy relevant lines).
 
-4. **🔐 PW Tresor** klicken — Bestätigung, dass gespeichert wurde.
+#### Telegram — detailed: create a bot and connect the app
 
-5. **Optional:** Passwortfeld **leeren**, dann **💾 Verbindung speichern** — die JSON enthält dann kein Klartext-Passwort mehr. Beim **nächsten Start** wird das Passwort aus dem Tresor geladen (nur wenn **IP und User** wie zuvor passen).
+You need: a **Telegram** account, one **bot token**, and your **chat id** (or group id) the bot is allowed to message.
 
-**Ohne `keyring`:** Der Button zeigt einen Hinweis; die App funktioniert normal weiter mit Passwort nur in der JSON.
+1. **Install Telegram** (phone or desktop) and sign in.  
+2. **Open a chat** with **@BotFather** (official bot from Telegram; verify the blue check / official link).  
+3. Send **`/start`**, then **`/newbot`**.  
+4. **Bot name** — a display title users see (can contain spaces, e.g. `My NAS Watcher`).  
+5. **Username** — must end with `bot` and be globally unique (e.g. `ugreen_myhome_bot`).  
+6. **BotFather** answers with a **token** (long string, looks like `123456789:AAHq…`). **Save it in a password manager** — anyone with the token can control your bot.  
+7. **Start your bot** — tap the **link** from BotFather (`t.me/Yourbot…`) and press **Start**. Private chats: this step is **required** before the API returns messages.  
+8. **Get your `chat_id`:**  
+   - Send any message to your new bot.  
+   - In a **browser**, open:  
+     `https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates`  
+     (replace `<YOUR_TOKEN>` with the full token, no spaces).  
+   - In the **JSON** response, find `"chat":{"id": …}` — the number is the **chat id** (for groups, ids are often **negative**; for private chats, a positive id). **Groups:** add the bot to the group, send a **mention** or `/start`, then `getUpdates` again to read the group’s id.  
+9. In **Ugreen NAS Admin → Settings**, paste **bot token** and **chat id** into the **Telegram** fields. Use **Show/Hide** if your build masks secrets. **Save to disk** and **Apply to current UI** as the buttons say.  
+10. In **System Health**, use **Test Telegram** / run checks. You should get a test message. If not: re-check **token**, **chat id**, whether you pressed **Start** in the private chat, and whether **DNS/firewall** blocks `api.telegram.org` on the PC or the NAS (for server-side tools).
 
-**Hinweis:** Erster `pip install` kann auf „Collecting …“ einige Minuten stehen — das ist meist Netzwerk/PyPI, kein Fehler.
+**Script notifications and NAS-side runners** in Settings re-use the **same** bot credentials. After changing token/chat id, **re-save** and use **“Sync / install runner on NAS”** (wording in your app) if you rely on **cron** jobs without a PC.
 
-> **Hinweis zu Screenshots:** In einem **öffentlichen** GitHub-Repository sind Bilder immer herunterladbar. Keine echten Passwörter oder private IPs sichtbar machen.
+### 6) Storage (Speicher / Storage)
 
-### Benachrichtigungen einrichten (Telegram & E-Mail)
+**Purpose:** Volumes, shares, and **space** insights; also **raw disk image** work (imaging to PC, imaging to the NAS, **restore** from PC/NAS) with strong confirmations (dangerous for data).
 
-**A) Schnellüberwachung vom PC (Telegram-Wächter im Tab „System & Health“)**  
-1. Bei [@BotFather](https://t.me/BotFather) einen Bot anlegen und das **Bot-Token** kopieren.  
-2. **Chat-ID** ermitteln (z. B. Nachricht an den Bot schicken, dann `getUpdates` in der Bot-API prüfen, oder Hilfs-Bots nutzen — nur vertrauenswürdige Tools verwenden).  
-3. In der App: **„Volle Rechte“** aktivieren, im Bereich **Telegram** Token und Chat-ID eintragen, **Speichern** — es entsteht `telegram_notify.json` neben der EXE.  
-4. **Intervall** und **Schwellen** (Speicher warn/kritisch, Temperatur, …) setzen, optional **„Wächter aktiv“**, erneut speichern. Der Wächter läuft **solange die App offen ist** und sendet bei Auffälligkeiten Nachrichten nach Telegram.
+- **Refresh volumes / refresh shares** — lists `df` / SMB (as implemented).  
+- **Top path** (e.g. `/volume1`) + **Top 20** folders by size.  
+- **Disk device** list — **scan** devices, then **image to PC** or **image to NAS** for full-disk / partition backups.  
+- **Path for image** on the NAS, **restore** from **PC** or from **NVS path** (exact wording on buttons) — read every confirmation dialog.  
+- Output in the **scrolling** text area: copy to bug reports with care (may contain paths).
 
-**B) Unabhängig vom PC: NAS-Zentral-Wächter + optional E-Mail (läuft auf dem NAS per Cron)**  
-1. Gleiche **Telegram**-Daten wie oben in der App pflegen (oder nur E-Mail-Kanal wählen).  
-2. Im Bereich **NAS-Zentral-Wächter** Kanal **Telegram**, **E-Mail** oder **Beides** wählen.  
-3. **E-Mail:** SMTP-Host, Port, Benutzer/Passwort falls nötig, **Von** / **An**, TLS: **STARTTLS** (z. B. Port 587) oder **SMTPS** (z. B. Port 465, Häkchen **SMTPS**).  
-4. **„Auf NAS installieren“** — Skript und Konfiguration werden per SSH nach **`/volume1/scripts/`** geschrieben.  
-5. Auf dem NAS einen **Cron-Job** eintragen (Hinweis steht im Dialog), z. B. alle 5 Minuten `python3` mit `ugreen_watch.py`.  
-6. **„Test“** in der App: prüft u. a. SMTP (`--smtp-test`) und einen Lauf mit `--once`.  
-7. **DNS auf dem NAS:** Wenn der SMTP-Hostname nicht aufgelöst wird, am NAS DNS setzen (Router) oder **SMTP per IP** eintragen.
+**Warning:** **Restore** and **overwrite** operations can **destroy** data. Keep **Full access** and backups in mind.
 
-**Tagesbericht (Info, kein Alarm):** separater Bereich unter dem Zentral-Wächter — **„Auf NAS installieren“**, Cron **täglich** (z. B. morgens), nutzt dieselben Kanal-/SMTP-Einstellungen. **Berichtssprache** entspricht der **UI-Sprache (DE/EN) beim Installieren**.
+### 7) Users (ACL) / “Benutzer”
 
-### Funktionsliste der App (Kurzüberblick)
+**Purpose:** Inspect a **path** on the NAS (permissions/ownership) and run **limited chmod/chown** helpers, plus list system **users and groups** for reference.
 
-| Bereich | Funktionen |
-|--------|------------|
-| **Allgemein** | SSH-Verbindung (IP, Port, User, Passwort, optional **SSH-Key**), **Verbindung speichern**, **Verbindungsprofile** (ab v22.6), optional **🔐 PW Tresor** (`keyring`), **DE/EN**, **Hell/Dunkel**, **Live-Monitor** (CPU/RAM), Statuszeile, **eingeschränkter Modus** / **Volle Rechte** |
-| **Scripte** | Verzeichnis `/volume1/scripts/`, Dateien **lesen/speichern** (root oder Benutzer), **chmod 755**, **Cron** (`/etc/cron.d/…`, stabile Jobs, **STABLE_TASKS**), **Vorlagen** rsync/restic/rclone, Shortcuts |
-| **Explorer** | NAS-Baum + **Dieser PC**, **Upload/Download**, **Kopieren** NAS↔PC, Ordner rekursiv, Fortschritt, Suche, Ordnergrößen, Kontextmenü (Löschen mit Freigabe) |
-| **Docker** | Container-Liste, **Start/Stop/Restart/Entfernen** (mit Rückfragen), **Stats / Logs / Inspect**, **Live-Log** + Stop, **Compose-Datei** + **config** / **ps** / **up -d** (Plugin oder Legacy), Berechtigungen Host-Mounts, **Assistent „Neuer Container/Stack“** (Compose/`docker run`, Variablen, `mkdir` auf NAS), **Docker-Hub-Katalog als Prefill-Helfer** |
-| **System & Health** | **Refresh**, RAID, SMART, Speicher, Bericht, **Snapshot speichern**, **NAS neustarten/herunterfahren** (mit Sicherheitsdialogen), **Telegram-Wächter** (PC-Sitzung), **NAS-Zentral-Wächter** + **Tagesbericht** (Installation auf NAS) |
-| **Speicher** | Übersicht, **Samba testparm**, **NFS exports**, **Disk-Imaging/Restore** (Scan, Image auf PC/NAS, Restore aus Image) |
-| **Rechte (ACL)** | Pfad wählen, ACL anzeigen/setzen (mit Freigabe) |
-| **Snapshots** | Btrfs / ZFS / Snapper — je nach NAS angebunden |
-| **Zeitpläne** | Cron-Editor und Host-Jobs (mit Freigabe) |
-| **Webcam** | Gerätescan (`/dev/video*`), Livebild, Sofortaufnahme, tägliche Zeitplanung, Qualitätsprofile, Kamera-Controls, Preflight + Selbsttest, optionale Motion Detection, automatische Dateirotation |
+- Enter a **path** (default `/volume1`). **Show** metadata.  
+- **Apply chmod** (755, 777 recursive, or custom mode) and **chown** (`user:group`) — all **dangerous** on a live system.  
+- **List users / list groups** — read-only over SSH.
 
-## License
+**Best practice:** Test on a **non-production** subfolder. Avoid **777** except when you understand the security impact.
 
-This project is licensed under the MIT License. See the `LICENSE` file in this folder for details.
+### 8) Snapshots
 
-**Deutsch:** Dieses Projekt steht unter der MIT-Lizenz; Details in der Datei `LICENSE` in diesem Ordner.
+**Purpose:** **Detect** which snapshot backends (btrfs / ZFS / Snapper) the NAS uses, then **list / create / delete** snapshots as supported.
+
+- **Detect backend**, then the matching **list** action.  
+- **Base path** (e.g. a subvolume or dataset root). **Create** / **delete** per backend — **deleting** snapshots is irreversible; confirm prompts carefully.
+
+**Note:** Not all firmware exposes every backend; what you see in the list is what the NAS reports on SSH.
+
+### 9) Settings
+
+**Purpose:** Central configuration for the **app on your PC** (and optional files pushed to the **NAS**).
+
+- **Load / apply / save** — read JSON from disk, apply values to the current session, and persist to your **per-user** app data directory. Many builds store **sensitive** values only locally (never commit these files to git).  
+- **Connection profiles** — multiple **IP / port / user / password** sets; optional **SSH key** and **keyring** (OS vault) for passwords on Windows. **Save connection** may write **plain text** password next to the executable unless you use the **vault** option — read the in-app **security** hint.  
+- **UI language** — pick a language, then **apply**; the UI may rebuild.  
+- **Default paths** — scripts directory, default **Docker compose** path, **Explorer root** (as used in other tabs).  
+- **Telegram** — `bot token`, `chat id` (from the bot chapter above).  
+- **Email (SMTP)** — host, port, user, password, from/to, **STARTTLS** / **SMTPS**; used by script notifications, daily reports, and some NAS watch flows. The app’s inline hints (e.g. **Posteo** on port 587) help with providers. **Test** buttons, when present, send a trial email.  
+- **Script notification rules** — per **script** name, **Telegram or Email** channel, and **on success / on failure / both**; a **list** of rules; **add/delete**; **Sync runner to NAS** so **cron** jobs can notify without a PC.  
+- **Second NAS (SMB) peers** — multiple **profiles** (host, user, pass, label) for **NAS ↔ NAS**; mark one as **active** where the UI offers it.  
+- **Status / help text** in Settings may show **“needs attention”** (e.g. missing Telegram) — follow the label.
+
+**Where files go:** e.g. `app_settings.json`, `nas_admin_connection.json` next to the app or in your app data path — the exact place is build-dependent; the Info button’s README/CHANGELOG also explains paths when shipped.
+
+### Side tools (sidebar & status bar)
+
+- **Refresh all panels** — re-fetch scripts, Docker, health, and storage in one go (may be slow on large systems).  
+- **Health snapshot** — save a text snapshot (same as the quick action in some tabs).  
+- **Webcam** (if present) — opens a **recorder** window for a USB webcam or similar (preview, **FPS**, path on NAS, optional **scheduling** / **self-test**; depends on build). **Full access** may be required.  
+- **Live monitor** — a compact **stream** of NAS metrics; **Start/Stop** near the **sidebar** (wording: “Live Monitor” or translated).  
+- **Status line** — connection state; **not connected** in red if SSH is down.  
+- **Language** control at the very bottom to cycle or switch (depending on your build, Settings may be the main place).
+
+### Header bar
+
+- **Full access** — unlocks dangerous features until you **restrict** again.  
+- **Light / dark** theme.  
+- **Info** — README, CHANGELOG, about text, support link, and contact email.  
+- **Header connection fields** (if not moved to Settings in your build) — some releases keep **IP / user / connect** in the header; others centralize them under **Settings**.
+
+### Demo and documentation
+
+- **YouTube (demo, may vary by version):** https://youtu.be/RDaEZhuEbCc  
+- **Public / forum build docs:** [`öffentlich/README.md`](öffentlich/README.md)  
+- **Remove legacy web stack (German):** [`NAS_WEB_STACK_ENTFERNEN.md`](NAS_WEB_STACK_ENTFERNEN.md)  
+
+**Run from source (developer):** from repo root, install dependencies, e.g. `python -m pip install -r öffentlich/requirements.txt`, then `python ugreen_nas_admin.py`.
+
+---
+
+## Anleitung (Deutsch) — Schritt für Schritt
+
+**Navigation:** In der **linken Seitenleiste** stehen die **Hauptbereiche** in derselben Reihenfolge wie die Karteikarten: **Scripts → Explorer → NAS ↔ NAS → Docker → System Health → Speicher → Benutzer → Snapshots → Settings**. Darunter: **Hilfswerkzeuge** (z. B. alles neu laden) und (je nach Version) **Webcam** / **Live Monitor**.
+
+**Sicherheit:** Viele Aktionen erfordern oben **„Volle Rechte“**. Ohne Freigabe bleiben gefährliche Schritte deaktiviert. Nach Wartung wieder **einschränken**.
+
+### 1) Scripts
+
+**Ziel:** Skripte auf dem NAS (typisch `/volume1/scripts/`) bearbeiten, testen und per **Cron** planen.
+
+- **Links:** Dateiliste. Auswahl lädt in den **Editor**. Skripte mit **Benachrichtigungsregel** können mit **Glocke** markiert sein (siehe **Settings**).  
+- **Rechts:** **Dateiname**, **Vorlagen-Buttons** (z. B. rsync/restic/rclone), **Protokoll**, **Speichern** schreibt auf den NAS.  
+- **Knopfleiste links unten:** u. a. **Skripte sichern/Backup**, **Liste neu laden**, **Test auf dem Host**, **Test in Docker**, **Neu / leeren**, **Löschen**, **Schedules (Cron)**, ggf. **PowerShell** unter Windows.  
+- **System-Log** (unten): für Fehlersuche.
+
+**Planer (orangefarbener Streifen rechts am Hauptfenster):** Klappt den **Cron-Planer** auf.
+
+1. In **Scripts** ein Skript wählen.  
+2. **Minute, Stunde, Tag, Monat, Wochentag** setzen.  
+3. **Klartext-Zusammenfassung** lesen.  
+4. **Host-Job** = normaler **cron** auf dem NAS, **Docker-Job** = Eintrag für den Docker-Workflow der App.  
+5. Ggf. **volle Rechte** zum Schreiben der Cron-Tabellen.
+
+Kombinieren mit **Benachrichtigungen** in **Settings**, damit Nacht-Jobs per **Telegram/E-Mail** melden, wenn der PC aus ist (NAS-Runner muss **synchronisiert** sein).
+
+### 2) Explorer
+
+**Ziel:** NAS und **lokalen PC** durchsuchen, **hoch- und herunterladen**, Pfade kopieren, Kontextmenü nutzen.
+
+- Zwei **Bereiche** (NAS / Dieser PC), **Suche** wo verfügbar, **Kontextmenü** (u. a. in Editor laden, Löschen, Rechte, Upload). **UGREEN**-Panel: Kontext für den aktuellen Speicher.  
+- Große Kopiervorgänge zeigen ggf. **Fortschritt / ETA** an (je nach Ablage).
+
+**Typisch:** Zielordner wählen, Datei ziehen oder per Dialog **hochladen** / **herunterladen**.
+
+### 3) NAS ↔ NAS
+
+**Ziel:** Am **Ugreen** per **SSH** (diese App) arbeiten und **parallel** ein zweites System per **SMB** (Windows-Freigabe) ansprechen, um Daten hin- und herzuschieben.
+
+- In **Settings** mindestens ein **Zweit-NAS-Profil** hinterlegen (Host, Benutzer, Passwort, **Anzeigename**). **Mehrere Profile** wechseln, ein Profil **aktiv** wählen.  
+- Vom Tab aus **Peer verbinden / durchsuchen**; beim **Tab-Wechsel** versucht die App, **Windows-Laufwerksmappings** ordentlich zu trennen.
+
+**Tipp:** SMB-Zugang, **DNS-Name** vs. **IP** und Rechte am zweiten System zuerst prüfen.
+
+### 4) Docker
+
+**Ziel:** Container sehen, steuern, **Logs/Inspect**, **Compose**-Pfad bedienen, optional **Katalog** (Docker Hub) und **Assistenten** für `docker run` / Compose.
+
+- **Erstellen / Neu** startet den **Wizard** (Bild, Ports, Volumes, …).  
+- **Liste aktualisieren**, Zeile wählen → **Logs** rechts. **Start/Stop/Neustart/Alle stoppen** — Achtung, **löscht** bzw. stoppt wirklich. **Statistik / Inspektieren** für Diagnose. **Rechte**-Helfer (777 o. Ä.) **nur** mit Verständnis nutzen.  
+- **Docker-Katalog** — Image suchen, Vorlage füllen.  
+- **Compose-Datei** + **config / ps / up -d** — Pfad z. B. `/volume1/docker/docker-compose.yml` in **Settings** hinterlegen, wenn es immer derselbe ist.  
+- **Log:** **Live-Stream** an/aus, damit fließend Log nicht unnötig läuft.
+
+### 5) System Health
+
+**Ziel:** Last, **Speicher**, **RAID**, ggf. **SMART/Storage**-Infos; **Meldungen** per **Telegram/E-Mail** bei Grenzwerten; ggf. **Neustart / Herunterfahren** (nur mit **volle Rechte**). **Report speichern** = Text-Snapshot des Panels.
+
+- **Aktualisieren / RAID / SMART / Speicher** — Ruft Befehle per SSH; Ausgabe im **Bereich unten** im Tab. **Report** auf die PC-Platte sichern, wenn Ihr so einen Knopf habt.  
+- **Reboot/Shutdown** nur mit bewusster Wartung.
+
+#### 5a) Telegram-Überwachung (Grenzen im Tab System Health)
+
+**Häkchen**, **Intervall**, **Platten-warn/crit-%-Werte**, **max. Temperatur**, **Abklingzeit (Cooldown)**, damit nicht **zu viele** Nachrichten kommen. **Test** und **Checks ausführen** — Voraussetzung: **Token und Chat-ID** in **Settings** und Bot gestartet (s. unten *Telegram ausführlich*).  
+Hinweistexte im Tab zeigen oft den **erwarteten Skriptpfad** auf dem NAS (z. B. unter `/volume1/scripts/`).
+
+#### 5b) Zentraler NAS-Wächter (Deploy)
+
+**Ebenfalls in System Health:** Skripte auf dem NAS ablegen, **systemd/cron** einrichten, **Docker-Container-Überwachung** (Listen für „muss laufen“ / **Ignorieren** / **auto-restart**), Kanal **Telegram/E-Mail/Beides** — alles an dieselben **Zugangsdaten** aus **Settings** geknüpft. **Auf dem NAS testen** / **Installieren** führt durch die Ablage `…/scripts/` und ggf. **Cron-Test** / `--once`.
+
+#### 5c) Tagesbericht (falls sichtbar)
+
+E-Mail- oder **kombinierter** Ablauf mit denselben **SMTP**-Einstellungen.
+
+**Tipp für Support:** Wenn etwas hakt, **Log-Ausgabe** aus System Health, **Fehlermeldung** und ggf. **Screenshot** mitschicken.
+
+#### Telegram (ausführlich): Bot anlegen und in der App eintragen
+
+1. **Telegram** (Handy oder Desktop) installieren / anmelden.  
+2. Chat mit **@BotFather** öffnen (offizieller Verifizierungs-Hinweis beachten).  
+3. **`/start`**, danach **`/newbot`**.  
+4. **Name** (Anzeigename) und **Benutzername** (endet auf `bot`, muss weltweit frei sein).  
+5. **Token** notieren (geheim halten, wie ein Passwort).  
+6. Euren Bot über den **Link** ( `t.me/...` ) starten, **/start** oder „Start“ drücken — bei **Direktchat** nötig, damit `getUpdates` den Chat füllt.  
+7. **Chat-ID ermitteln:** Nach einer Nachricht an den Bot im **Browser** aufrufen:  
+   `https://api.telegram.org/bot<TOKEN>/getUpdates`  
+   In der **JSON**-Antwort steht bei `"chat":{"id":` die Nummer. **Gruppen-IDs** sind oft **negativ**; für Gruppen: Bot in die **Gruppe** holen, eine Nachricht senden, `getUpdates` erneut lesen.  
+8. In **Ugreen NAS Admin → Settings** **Bot-Token** und **Chat-ID** eintragen, **Anzeigen/Verbergen** nutzen, **Speichern** und **Auf die aktuelle UI anwenden**.  
+9. In **System Health** den **Telegram-Test** ausführen — es sollte eine **Testnachricht** ankommen.  
+   **Falls nein:** Token/Zeichenfehler, Chat-ID, privatem Chat **Start** fehlt, **Firewall** zu `api.telegram.org`, auf dem NAS: **Skript/Runner**-Pfad prüfen.
+
+**Skript-Benachrichtigungen** und **NAS-Runner** nutzen **dieselbe** Bot-Konfiguration. Nach Token-Wechsel **neu speichern** und **Runner synchronisieren**, wenn Cron Nachts laufen soll.
+
+### 6) Speicher
+
+**Ziel:** Volumes/Freigaben, **Platz-Top-Ordner**; dazu ggf. **Roh-Images** (Image auf **PC** / **NAS**), **Wiederherstellung** — **höchster Datenverlust** möglich, jede Rückfrage ernst nehmen.
+
+- **Aktualisieren**, ggf. **Shares**; **Oberster Pfad** (z. B. `/volume1`) + **Top 20**.  
+- **Laufwerke scannen**, **Image** erzeugen / zurückspielen — nur mit **Backups** und klarer Ziel-Platte.
+
+### 7) Benutzer (ACL)
+
+**Ziel:** Rechte/Owner eines **Ordners** prüfen, **chmod/chown** per Shell-Helfer, **User/Gruppen** listen.
+
+- **Pfad** setzen, **anzeigen**, dann vorsichtig **chmod 755/777** (rekursiv) oder **eigener Modus**, **chown** (`user:group`). Alles **irreversibel** für laufende Dienste möglich.
+
+### 8) Snapshots
+
+**Ziel:** **Backend** erkennen (btrfs / ZFS / Snapper), **Listen**, **erzeugen**, **löschen** — Löschungen sind **dauerhaft** für betroffene Snapshots.
+
+### 9) Settings (Einstellungen)
+
+- **Laden / Anwenden / Speichern** — Konfiguration aus **JSON**-Dateien; sensible Daten **nicht** in Git.  
+- **Profile** (NAS-Verbindung), **SSH-Key**, ggf. **Tresor (keyring)** statt Klartext-Passwort.  
+- **UI-Sprache** wählen und **anwenden**.  
+- **Pfade** (Skripte, **Compose**, Explorer-Root).  
+- **Telegram** (Token, Chat-ID) und **E-Mail (SMTP)** — siehe Kapitel oben.  
+- **Script-Benachrichtigungsregeln** (Skript, Kanal, Erfolg/Fehler/beides) + **Liste** + **Runner auf NAS** synchronisieren.  
+- **Zweit-NAS (SMB)**: mehrere **Peers**, eines **aktiv** für **NAS ↔ NAS**.  
+- Kleine **Status**-Hinweise, wenn z. B. Telegram leer — dem Link folgen.
+
+**Kopfzeile (Header):** ggf. **Verbinden**, **Volle Rechte**, **Hell/Dunkel**, **Info** (Readme, Changelog, Support, **E-Mail**-Kontakt).  
+
+**Hinweis** zur öffentlichen Doku, Screenshots und Forum-ZIP: [`öffentlich/README.md`](öffentlich/README.md)
+
+**Entwickler-Start:** `python -m pip install -r öffentlich/requirements.txt`, `python ugreen_nas_admin.py` im Projektroot.
+
+---
+
+## What’s still in this README (project meta)
+
+- **Run / packaging:** the English bullets at the top of older releases still apply in spirit: PyInstaller, forum zips, version from `ugreen_app/nas_manager.py`. For **exact** current commands, see **Release Checklist** below and [`öffentlich/README.md`](öffentlich/README.md).  
+- **Remove legacy web stack (German only):** [`NAS_WEB_STACK_ENTFERNEN.md`](NAS_WEB_STACK_ENTFERNEN.md)  
+- **YouTube (demo, may differ by build):** https://youtu.be/RDaEZhuEbCc
+
+**Screenshots and the long GitHub-oriented doc** for the public build are in [`öffentlich/README.md`](öffentlich/README.md).
+
+## GitHub — two repos (private / public) · zwei Repos (privat / öffentlich)
+
+| What / Was | Where / Wo | GitHub |
+|------------|-------------|--------|
+| **Private** — full workspace; **`öffentlich/`** not in this repo’s index | Project root `NAS_Admin_Project` | e.g. keep repo **private**; `git push` from here only |
+| **Public** — release sources for builds / distribution | Folder **`öffentlich/`** (own `.git`) | separate **public** repo; `git push` from `cd öffentlich` |
+
+- **English:** **`öffentlich/`** is listed in **`.gitignore`** here — public sources are **not** pushed with the private repo. After a fresh **clone** of the private repo, create `öffentlich/` locally: `git clone <public-repo-url> öffentlich` or copy files as before. **Push public:** `cd öffentlich` → `git push` (set remote with **`setup_public_remote.ps1`** or `git remote add origin …`).
+- **Deutsch:** Root: **`öffentlich/`** steht in **`.gitignore`** — öffentlicher Inhalt wird nicht mit dem privaten Repo mitgeschickt. Nach frischem **Clone** des privaten Repos `öffentlich/` lokal anlegen (`git clone <public-repo-url> öffentlich` oder kopieren). **Öffentlich pushen:** `cd öffentlich` → `git push`.
+
+Do **not** commit `nas_admin_connection.json` or `telegram_notify.json` (ignored via `.gitignore`).
+
+**Hinweis / Note:** If your GitHub repo still contains the **full** tree, either make it **private** and create a **new empty public** repo for **`öffentlich/`** only, or replace the public repo content intentionally.
+
+## Release Checklist (private repo)
+
+- Build EXE: `python builder.py` (or `RUN_BUILDER.bat`)
+- Optional portable copy: `python tools/build_portable.py`
+- Public forum zips (if `öffentlich/` exists locally): `python tools/zip_oeffentlich_forum.py`
+- Update docs: `README.md` + `CHANGELOG.md` (and `öffentlich/*` if relevant)
+- Verify tests: `python -m pytest tests/ -q`
+
+## License · Lizenz
+
+**English:** This project is licensed under the MIT License. See the `LICENSE` file for details.
+
+**Deutsch:** Dieses Projekt steht unter der MIT-Lizenz. Details siehe Datei `LICENSE`.

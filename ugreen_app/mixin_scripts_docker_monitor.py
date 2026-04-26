@@ -585,7 +585,7 @@ class MixinScriptsDockerMonitor:
         combo_res = ttk.Combobox(row_res, state="readonly", width=16, font=self.font_base, values=("640x480", "1280x720", "1920x1080"))
         combo_res.pack(side=tk.LEFT, padx=(8, 8))
         combo_res.set("1280x720")
-        tk.Label(row_res, text="FPS", bg=self.color_surface, fg=self.color_text_muted).pack(side=tk.LEFT, padx=(8, 4))
+        tk.Label(row_res, text=self.t("webcam.fps_label"), bg=self.color_surface, fg=self.color_text_muted).pack(side=tk.LEFT, padx=(8, 4))
         entry_fps = tk.Entry(row_res, width=5, font=self.font_mono, bg=self.color_input_bg, fg=self.color_input_fg, insertbackground=self.color_input_fg, relief="flat", highlightbackground=self.color_border, highlightthickness=1)
         entry_fps.insert(0, "25")
         entry_fps.pack(side=tk.LEFT, ipady=3)

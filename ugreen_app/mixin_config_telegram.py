@@ -234,13 +234,14 @@ class MixinConfigTelegram:
             pass
 
     def _load_ui_lang_from_disk(self):
+        from ugreen_app.i18n import normalize_lang
+
         try:
             p = self._connection_config_path()
             if os.path.isfile(p):
                 with open(p, encoding="utf-8") as f:
                     data = json.load(f)
-                if data.get("ui_lang") in ("de", "en"):
-                    return data["ui_lang"]
+                return normalize_lang(data.get("ui_lang"), default="de")
         except Exception:
             pass
         return "de"

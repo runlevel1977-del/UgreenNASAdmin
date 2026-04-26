@@ -178,7 +178,7 @@ class MixinTabsSetup:
         paned.add(left_pane, weight=1)
         paned.add(right_pane, weight=1)
 
-        tk.Label(left_pane, text="NAS", bg=self.color_surface_alt, fg=self.color_text_muted, font=self.font_bold, anchor="w", padx=8, pady=4).pack(fill=tk.X)
+        tk.Label(left_pane, text=self.t("explorer.nas_panel"), bg=self.color_surface_alt, fg=self.color_text_muted, font=self.font_bold, anchor="w", padx=8, pady=4).pack(fill=tk.X)
         tc = tk.Frame(left_pane, highlightbackground=self.color_border, highlightthickness=1)
         tc.pack(fill=tk.BOTH, expand=True)
         self.lbl_explorer_path = tk.Label(tc, text="/", bg=self.color_surface_alt, fg=self.color_text_muted, font=self.font_mono, anchor="w", padx=10, pady=8)
@@ -725,6 +725,44 @@ class MixinTabsSetup:
         self.create_modern_btn(top_btns, self.t("settings.load"), self.settings_load_to_ui, self.color_text_muted).pack(side=tk.LEFT, padx=(0, 8))
         self._register_danger_rounded(self.create_modern_btn(top_btns, self.t("settings.apply_to_current_ui"), self.settings_apply_to_current_ui, self.color_btn_blue)).pack(side=tk.LEFT, padx=(0, 8))
         self._register_danger_rounded(self.create_modern_btn(top_btns, self.t("settings.save"), self.settings_save_from_ui, self.color_user)).pack(side=tk.LEFT)
+
+        lang_row = tk.Frame(wrap, bg=self.tab_colors["scripts"])
+        lang_row.pack(fill=tk.X, pady=(0, 8))
+        tk.Label(
+            lang_row,
+            text=self.t("settings.ui_language"),
+            bg=self.tab_colors["scripts"],
+            fg=self.color_text_muted,
+            font=("Segoe UI", 9, "bold"),
+        ).pack(side=tk.LEFT, padx=(2, 8))
+        self.var_settings_ui_lang = tk.StringVar()
+        self.combo_settings_ui_lang = ttk.Combobox(
+            lang_row,
+            state="readonly",
+            width=24,
+            font=self.font_base,
+            textvariable=self.var_settings_ui_lang,
+        )
+        _lang_choices = self._ui_lang_choices() if hasattr(self, "_ui_lang_choices") else [("de", "Deutsch (DE)"), ("en", "English (EN)"), ("hr", "Hrvatski (HR)")]
+        self._settings_lang_options = list(_lang_choices)
+        self.combo_settings_ui_lang["values"] = [label for _code, label in _lang_choices]
+        _active_code = str(getattr(self, "ui_lang", "de") or "de").lower()
+        _active_label = next((label for code, label in _lang_choices if code == _active_code), _lang_choices[0][1])
+        self.var_settings_ui_lang.set(_active_label)
+        self.combo_settings_ui_lang.pack(side=tk.LEFT, padx=(0, 8))
+        tk.Button(
+            lang_row,
+            text=self.t("settings.ui_language_apply"),
+            command=self.settings_apply_ui_language,
+            bg=self.color_btn_purple,
+            fg="white",
+            activebackground=self.color_btn_purple,
+            activeforeground="white",
+            relief="flat",
+            padx=10,
+            pady=4,
+            cursor="hand2",
+        ).pack(side=tk.LEFT)
 
         # Kleine, unaufdringliche Status-Ampel (Setup-Check)
         status_row = tk.Frame(wrap, bg=self.tab_colors["scripts"])

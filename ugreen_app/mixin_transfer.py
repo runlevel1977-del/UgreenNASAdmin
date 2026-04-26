@@ -832,7 +832,7 @@ class MixinTransfer:
         info_row.pack(fill=tk.X)
         lbl_left = tk.Label(info_row, text="0% (0 B / ?)", bg=self.color_surface_alt, fg=self.color_text, font=self.font_base, anchor="w")
         lbl_left.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        lbl_right = tk.Label(info_row, text="0 B/s • ETA --:--", bg=self.color_surface_alt, fg=self.color_text, font=self.font_base, anchor="e")
+        lbl_right = tk.Label(info_row, text=self.t("msg.transfer_eta_placeholder"), bg=self.color_surface_alt, fg=self.color_text, font=self.font_base, anchor="e")
         lbl_right.pack(side=tk.RIGHT)
 
         btn_row = tk.Frame(body, bg=self.color_surface_alt)
@@ -1091,7 +1091,7 @@ class MixinTransfer:
 
                         self.root.after(
                             0,
-                            lambda: lbl_file.config(text="Entpacke auf dem NAS…"),
+                            lambda: lbl_file.config(text=self.t("msg.transfer_unpacking_nas")),
                         )
                         try:
                             self._ssh_unzip_bundle_on_nas(remote_zip, rd_base)
@@ -1412,7 +1412,7 @@ class MixinTransfer:
         info_row.pack(fill=tk.X)
         lbl_left = tk.Label(info_row, text="0%", bg=self.color_surface_alt, fg=self.color_text, font=self.font_base, anchor="w")
         lbl_left.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        lbl_right = tk.Label(info_row, text="0 B/s • ETA --:--", bg=self.color_surface_alt, fg=self.color_text, font=self.font_base, anchor="e")
+        lbl_right = tk.Label(info_row, text=self.t("msg.transfer_eta_placeholder"), bg=self.color_surface_alt, fg=self.color_text, font=self.font_base, anchor="e")
         lbl_right.pack(side=tk.RIGHT)
 
         btn_row = tk.Frame(body, bg=self.color_surface_alt)

@@ -7,17 +7,25 @@ ICON = os.path.join(PROJECT, "nas_icon.ico")
 PNG = os.path.join(PROJECT, "nas_icon_app.png")
 NAS_WATCH = os.path.join(PROJECT, "ugreen_app", "resources", "nas_central_watch.py")
 NAS_DAILY = os.path.join(PROJECT, "ugreen_app", "resources", "nas_daily_report.py")
+README = os.path.join(PROJECT, "README.md")
+CHANGELOG = os.path.join(PROJECT, "CHANGELOG.md")
+
+_DATAS = [
+    (ICON, "."),
+    (PNG, "."),
+    (NAS_WATCH, "ugreen_app/resources"),
+    (NAS_DAILY, "ugreen_app/resources"),
+]
+if os.path.isfile(README):
+    _DATAS.append((README, "."))
+if os.path.isfile(CHANGELOG):
+    _DATAS.append((CHANGELOG, "."))
 
 a = Analysis(
     [MAIN],
     pathex=[PROJECT],
     binaries=[],
-    datas=[
-        (ICON, "."),
-        (PNG, "."),
-        (NAS_WATCH, "ugreen_app/resources"),
-        (NAS_DAILY, "ugreen_app/resources"),
-    ],
+    datas=_DATAS,
     hiddenimports=[
         "ugreen_app",
         "ugreen_app._paramiko",
