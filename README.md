@@ -12,9 +12,11 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 | **SourceForge (mirror / direct file)** | https://sourceforge.net/projects/ugreennasadmin/files/latest/download |
 | **Raw source code** of the default branch (for developers) | **Code** → **Download ZIP** on the repo home page. |
 
-**Important:** the green **Code → Download ZIP** is a **zip of the `main` branch** (or the repo default). It is **not** the same as the **Release** assets, it contains **no** release-built EXE, and the `__version__` in `ugreen_app/nas_manager.py` in that zip only changes when that exact commit is **pushed** to GitHub. If you use **Releases** for distribution, **always** link end users to **Releases / Assets**, not the generic “Download ZIP” from the main page.
+**Not something we can “fix” in the repo:** GitHub’s green **Code → Download ZIP** is **always** a **snapshot of the default branch** (`main`). There is **no** repository setting to point that button to **Releases** or to ship the EXE there — that is how **github.com** works.
 
-**Deutsch (kurz):** Wer die **fertige Anwendung** will, muss unter **Releases** die **Anhänge (Assets)** laden – **nicht** den grünen **Code → Download ZIP**-Button. Der ZIP-Button ist nur der **Quellcode-Stand des Standard-Branches** (kann eine ältere Versionsnummer in der Datei zeigen, bis alles gepusht ist).
+**What that ZIP is / isn’t:** it is **source code** for developers. It is **not** the same as **Release** assets, and it **does not** contain a **release-built EXE** (build that yourself with `python builder.py` or download from **Releases**). The app version in `ugreen_app/nas_manager.py` (`__version__`) in that zip matches whatever is **pushed to `main`**; if in doubt, open that file in the unzipped tree. For end users, **always** link to **Releases / Assets** (or SourceForge), not the green button.
+
+**Deutsch (kurz):** Wer die **fertige EXE/Release-ZIPs** will: **Releases → Assets** (oder SourceForge) — **nicht** der grüne **Code → Download ZIP**. Dieser liefert **nur Quellcode** des Standard-Branches; eine **Umlenkung** dieses Buttons gibt es bei GitHub **nicht** (kein Repo-Fix). Die **Zahl** in `nas_manager.py` im ZIP-Snapshot entspricht dem letzten **Push** auf `main` (siehe Datei im entpackten Ordner, falls unsicher).
 
 **Links (immer aktuell):** [GitHub **Latest release**](https://github.com/runlevel1977-del/UgreenNASAdmin/releases/latest) · SourceForge „latest“ (oben) · [All releases](https://github.com/runlevel1977-del/UgreenNASAdmin/releases)
 
@@ -36,7 +38,7 @@ Images live under **`images/`** (`1.png` … `6.png`, health tab). **Do not** sh
 <p align="center">
   <img src="images/1.png" alt="Ugreen NAS Admin — main view" width="820" />
 </p>
-<p align="center"><sub>Overview (v22.2+)</sub></p>
+<p align="center"><sub>Main window (v23+ UI; screenshot may vary by build)</sub></p>
 
 <p align="center">
   <img src="images/2.png" alt="Ugreen NAS Admin — view 2" width="400" />
