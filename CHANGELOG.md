@@ -4,6 +4,26 @@
 
 _(noch nicht veröffentlicht)_
 
+## 23.4.0 — 2026-04-26
+
+### Deutsch (ausführlich)
+
+- **Mehrsprachige Oberfläche (i18n) ausgebaut:**
+  - Umfangreiche **Übersetzungstabellen** in `i18n.py` und deutlich mehr **UI-Sprachen** (u. a. neben DE/EN z. B. kroatisch und weitere Locales, je nach Stand der `TRANSLATIONS_*`-Blöcke).
+  - **`normalize_lang(...)`** — in der Verbindungskonfiguration und an anderen Stellen werden gespeicherte **Sprachcodes** normalisiert, statt sie strikt auf `de`/`en` zu begrenzen.
+- **Einstellungen (Setup-Tab):** **UI-Sprache** wählbar (Dropdown) mit **Anwenden**-Button, damit der Wechsel der Oberflächensprache sichtbar und erreichbar ist.
+- **Laufende i18n-Bereinigung:** vereinzelte fest codierte engl./deut. Texte auf **`self.t("…")` / `translate()`** umgestellt (u. a. Explorer-Panel „NAS“, Docker-Katalog **Image**-Spaltenkopf, Webcam-**FPS**-Label, Transfer **ETA-Platzhalter** und Meldung „Entpacke auf dem NAS…“).
+- **Weitere Mixin-Verbesserungen:** u. a. **Theme-UI**, **Storage/ACL/Snap** und **Tab-Setup** für konsistenteres Verhalten.
+- **Öffentliche Doku (README, GitHub):** deutlichere Erklärung, dass **Code → Download ZIP** stets **Quellcode** des **Standard-Branches** ist (kein Release-EXE-Bundle, keine Umlenkung des Buttons in Releases möglich); Screenshot-Beschriftung **v23+** statt veraltet wirkendem alten Versatz.
+
+### English (summary)
+
+- **Wider i18n coverage** (many locales and large translation table updates); **`normalize_lang()`** for stored UI language values (not limited to a strict de/en check).
+- **Settings tab:** **UI language** combobox and **apply** for switching the interface language in-app.
+- **More user-visible strings** moved to the translation system (Explorer NAS panel, Docker catalog **image** column, Webcam **FPS**, transfer ETA placeholder, “unpacking on NAS” text).
+- **Polish** in **theme UI**, **storage/ACL/snap**, and **tab setup** mixins.
+- **Public README** (generated for `öffentlich/`) clarifying GitHub **Code → Download ZIP** vs. **Releases/Assets**; updated screenshot line to **v23+**.
+
 ## 23.3.0 — 2026-04-23
 
 ### Deutsch (ausführlich)
