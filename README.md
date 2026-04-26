@@ -2,7 +2,72 @@
 
 Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: scripts, file operations, Docker, system health, storage, permissions, snapshots, optional Telegram/Email notifications, and more. The UI is available in many languages; switch in **Settings** (or the status bar, depending on build).
 
-This document’s **step-by-step user guide** is provided in **English** and **German** only. The **same guide** (plus download links and screenshots) lives in [`öffentlich/README.md`](öffentlich/README.md) for the public tree; regenerate that file with `python tools/build_oeffentlich_readme.py` after you edit this user guide. Release notes: [`CHANGELOG.md`](CHANGELOG.md).
+**This file** is the **public release** README (folder **`öffentlich/`**). The step-by-step user guide below matches the **private** project’s main `README.md` (English + German). Release notes: [`CHANGELOG.md`](CHANGELOG.md).
+
+## Download — which button on GitHub?
+
+| What you need | Where to go |
+|---------------|-------------|
+| **The packaged app (`.exe` / forum ZIPs uploaded to a release)** | **[Releases → Latest](https://github.com/runlevel1977-del/UgreenNASAdmin/releases/latest)** → under **Assets**, pick e.g. `UgreenNASAdmin_v*_…_mit_EXE.zip` (or the no-EXE pack). |
+| **SourceForge (mirror / direct file)** | https://sourceforge.net/projects/ugreennasadmin/files/latest/download |
+| **Raw source code** of the default branch (for developers) | **Code** → **Download ZIP** on the repo home page. |
+
+**Important:** the green **Code → Download ZIP** is a **zip of the `main` branch** (or the repo default). It is **not** the same as the **Release** assets, it contains **no** release-built EXE, and the `__version__` in `ugreen_app/nas_manager.py` in that zip only changes when that exact commit is **pushed** to GitHub. If you use **Releases** for distribution, **always** link end users to **Releases / Assets**, not the generic “Download ZIP” from the main page.
+
+**Deutsch (kurz):** Wer die **fertige Anwendung** will, muss unter **Releases** die **Anhänge (Assets)** laden – **nicht** den grünen **Code → Download ZIP**-Button. Der ZIP-Button ist nur der **Quellcode-Stand des Standard-Branches** (kann eine ältere Versionsnummer in der Datei zeigen, bis alles gepusht ist).
+
+**Links (immer aktuell):** [GitHub **Latest release**](https://github.com/runlevel1977-del/UgreenNASAdmin/releases/latest) · SourceForge „latest“ (oben) · [All releases](https://github.com/runlevel1977-del/UgreenNASAdmin/releases)
+
+### What's new in v23.3.0
+
+- **Webcam Recorder suite:** live preview, immediate and scheduled recording, quality profiles, preflight checks, self-test, file rotation, optional motion detection.
+- **Webcam controls in-app:** auto/manual exposure, exposure value, gain and 50/60Hz power-line settings (`v4l2-ctl` integration).
+- **Smarter reliability:** explicit user/root write checks, clear recording status with last output filename, robust dependency checks (`ffmpeg`, `v4l2-ctl`).
+- **Disk imaging & restore:** select disks, image to PC or NAS, and restore from PC/NAS image files (with safety prompts).
+- **Docker Catalog:** browse/search Docker Hub images and prefill deployment wizard as `docker run` command or compose YAML presets.
+- **UI & docs refresh:** updated language strings, safer NAS folder browser (data volumes first), and release docs for current versions.
+
+**Walkthrough on YouTube:** [https://youtu.be/RDaEZhuEbCc](https://youtu.be/RDaEZhuEbCc)
+
+### Screenshots
+
+Images live under **`images/`** (`1.png` … `6.png`, health tab). **Do not** show real passwords or private IPs in screenshots.
+
+<p align="center">
+  <img src="images/1.png" alt="Ugreen NAS Admin — main view" width="820" />
+</p>
+<p align="center"><sub>Overview (v22.2+)</sub></p>
+
+<p align="center">
+  <img src="images/2.png" alt="Ugreen NAS Admin — view 2" width="400" />
+  &nbsp;&nbsp;
+  <img src="images/3.png" alt="Ugreen NAS Admin — view 3" width="400" />
+</p>
+<p align="center"><sub>More areas</sub></p>
+
+<p align="center">
+  <img src="images/4.png" alt="Ugreen NAS Admin — view 4" width="400" />
+  &nbsp;&nbsp;
+  <img src="images/5.png" alt="Ugreen NAS Admin — view 5" width="400" />
+</p>
+<p align="center">
+  <img src="images/6.png" alt="Ugreen NAS Admin — view 6" width="820" />
+</p>
+<p align="center"><sub>e.g. Docker, Explorer, sidebar with live monitor</sub></p>
+
+<p align="center">
+  <img src="images/health_system_1.png" alt="System & Health — overview" width="400" />
+  &nbsp;&nbsp;
+  <img src="images/health_system_2.png" alt="System & Health — guard" width="400" />
+</p>
+<p align="center">
+  <img src="images/health_system_3.png" alt="System & Health — daily report" width="820" />
+</p>
+<p align="center"><sub>System &amp; Health tab (Telegram, NAS central watch, daily report)</sub></p>
+
+### About this public folder
+
+This folder **`öffentlich/`** is the **canonical public release tree** for GitHub (separate `.git` when published). The parent project **`NAS_Admin_Project`** (private) may not include this copy. Set the remote with **`setup_public_remote.ps1`** or `git remote add origin …` here. **Do not delete** it — it contains what you need to **run** the app and **build** the EXE.
 
 ---
 
@@ -189,13 +254,18 @@ You need: a **Telegram** account, one **bot token**, and your **chat id** (or gr
 - **Info** — README, CHANGELOG, about text, support link, and contact email.  
 - **Header connection fields** (if not moved to Settings in your build) — some releases keep **IP / user / connect** in the header; others centralize them under **Settings**.
 
-### Demo and documentation
+### Demo and more
 
 - **YouTube (demo, may vary by version):** https://youtu.be/RDaEZhuEbCc  
-- **Public / forum build docs:** [`öffentlich/README.md`](öffentlich/README.md)  
-- **Remove legacy web stack (German):** [`NAS_WEB_STACK_ENTFERNEN.md`](NAS_WEB_STACK_ENTFERNEN.md)  
+- **Changelog (this folder):** [`CHANGELOG.md`](CHANGELOG.md)  
 
-**Run from source (developer):** from repo root, install dependencies, e.g. `python -m pip install -r öffentlich/requirements.txt`, then `python ugreen_nas_admin.py`.
+**Run from source (in this `öffentlich` folder):**
+
+```text
+cd öffentlich
+python -m pip install -r requirements.txt
+python ugreen_nas_admin.py
+```
 
 ---
 
@@ -321,44 +391,118 @@ E-Mail- oder **kombinierter** Ablauf mit denselben **SMTP**-Einstellungen.
 
 **Kopfzeile (Header):** ggf. **Verbinden**, **Volle Rechte**, **Hell/Dunkel**, **Info** (Readme, Changelog, Support, **E-Mail**-Kontakt).  
 
-**Hinweis** zur öffentlichen Doku, Screenshots und Forum-ZIP: [`öffentlich/README.md`](öffentlich/README.md)
+**Versionshinweise:** [`CHANGELOG.md`](CHANGELOG.md) in diesem Ordner. Screenshots: siehe oben in diesem README.
 
-**Entwickler-Start:** `python -m pip install -r öffentlich/requirements.txt`, `python ugreen_nas_admin.py` im Projektroot.
+**Start aus den Quellen (dieser Ordner):**
+
+```text
+cd öffentlich
+python -m pip install -r requirements.txt
+python ugreen_nas_admin.py
+```
+
+---
+---
+
+## Reference: SSH connection (header or Settings)
+
+At the top of the window, or in **Settings**, you enter the **SSH** connection the app uses for remote commands (depends on your build):
+
+| Field / option | Meaning |
+|----------------|---------|
+| **Profile** (v22.6+) | Dropdown to pick a **saved connection**; **＋ New** / **✕** add or remove profiles (at least one remains). |
+| **NAS IP** | Hostname or IP of the NAS. |
+| **SSH port** | Default **22**; change if your NAS uses another port. Saved in `nas_admin_connection.json`. |
+| **User** | Linux SSH user on the NAS. |
+| **Password** | Used for login and often `sudo -S`. Plain text: see *SSH password in the OS vault* below. |
+| **Use SSH key** | When enabled, uses your private key file (and optional passphrase). |
+| **Key path** | Path to the private key on your **Windows** PC. |
+
+**Save connection** stores IP, port, user, password, key settings, **profiles**, and UI language next to the EXE, unless you use the **vault** for the password. **Header right (typical):** **Full access**, **theme**, **Save**, **PW vault**, **Info**, **Coffee** — exact labels depend on version. **Live monitor** and **Webcam** are in the **left sidebar** (lower area) in many builds. **Status bar (bottom):** language and **connection** state.
+
+### Restricted mode & "Full access" (v22.2+)
+
+By default, risky actions are **off** until you enable **Full access** and confirm. **Restrict** re-locks. See `CHANGELOG.md` (22.2.0).
+
+## Developer: files, run, build, sync
+
+| Item | Purpose |
+|------|---------|
+| `ugreen_nas_admin.py` | Entry point |
+| `ugreen_app/` | App logic (mixins, i18n, …) |
+| `nas_ssh.py`, `nas_utils.py` | SSH helpers |
+| `UgreenNASAdmin.spec` | PyInstaller spec (needed for a correct EXE rebuild) |
+| `builder.py`, `create_icon.py`, `RUN_BUILDER.bat` | Build tooling |
+| `CHANGELOG.md` | Release notes |
+| `requirements.txt` | Python dependencies |
+
+**Build (EXE):**
+
+```text
+cd öffentlich
+python builder.py
+```
+
+Output: `öffentlich/dist/UgreenNASAdmin.exe`.
+
+**Sync from the private project:** if you develop in the parent `NAS_Admin_Project` folder, copy changed files into `öffentlich/` before a public release. Include `UgreenNASAdmin.spec` when the build changed.
+
+### Local files (do not commit to git)
+
+`nas_admin_connection.json`, `telegram_notify.json`, and similar are created at runtime next to the EXE. **Do not** commit (see `.gitignore` in this folder).
+
+### SSH password in the OS vault (optional, v22.1+)
+
+Without `keyring`, **Save connection** may store the password in **plain text** in `nas_admin_connection.json`.
+
+**With `keyring`**, the password can live in **Windows Credential Manager**:
+
+1. `python -m pip install keyring` (same Python as for `python ugreen_nas_admin.py` / `python builder.py`).
+2. Rebuild the EXE if you need the package bundled: `python builder.py`.
+3. In the app: set **IP**, user, **password**; click **PW vault**; optionally **clear the password** field and **Save** so the JSON no longer holds the password.
+
+**Without `keyring`:** the app still works; the button shows a hint.
+
+> **Public repos:** do not use real passwords or private IPs in screenshots.
 
 ---
 
-## What’s still in this README (project meta)
+## Referenz: SSH-Verbindung (Kopfzeile oder Settings)
 
-- **Run / packaging:** the English bullets at the top of older releases still apply in spirit: PyInstaller, forum zips, version from `ugreen_app/nas_manager.py`. For **exact** current commands, see **Release Checklist** below and [`öffentlich/README.md`](öffentlich/README.md).  
-- **Remove legacy web stack (German only):** [`NAS_WEB_STACK_ENTFERNEN.md`](NAS_WEB_STACK_ENTFERNEN.md)  
-- **YouTube (demo, may differ by build):** https://youtu.be/RDaEZhuEbCc
+| Feld / Option | Bedeutung |
+|---------------|-----------|
+| **Profil** (ab v22.6) | Gespeicherte Verbindung wählen; **＋ Neu** / **✕** |
+| **NAS IP** | Hostname oder IP |
+| **SSH-Port** | Standard **22**; Landung in `nas_admin_connection.json` |
+| **User** / **Passwort** | Linux-Account; `sudo` wie in der Doku. **Klartext** ohne Tresor: siehe unten |
+| **SSH-Key** + Pfad + Passphrase | optional |
 
-**Screenshots and the long GitHub-oriented doc** for the public build are in [`öffentlich/README.md`](öffentlich/README.md).
+**Verbindung speichern** legt Profile, Sprache u. a. neben der EXE ab. Rechts: **Volle Rechte**, **Thema**, **Speichern**, **PW-Tresor**, **Info** … **Live-Monitor** / **Webcam** oft unten in der **linken Sidebar**. **Statusleiste:** Sprache, Verbindung.
 
-## GitHub — two repos (private / public) · zwei Repos (privat / öffentlich)
+### Eingeschränkter Modus (ab v22.2)
 
-| What / Was | Where / Wo | GitHub |
-|------------|-------------|--------|
-| **Private** — full workspace; **`öffentlich/`** not in this repo’s index | Project root `NAS_Admin_Project` | e.g. keep repo **private**; `git push` from here only |
-| **Public** — release sources for builds / distribution | Folder **`öffentlich/`** (own `.git`) | separate **public** repo; `git push` from `cd öffentlich` |
+Siehe `CHANGELOG.md` (22.2.0).
 
-- **English:** **`öffentlich/`** is listed in **`.gitignore`** here — public sources are **not** pushed with the private repo. After a fresh **clone** of the private repo, create `öffentlich/` locally: `git clone <public-repo-url> öffentlich` or copy files as before. **Push public:** `cd öffentlich` → `git push` (set remote with **`setup_public_remote.ps1`** or `git remote add origin …`).
-- **Deutsch:** Root: **`öffentlich/`** steht in **`.gitignore`** — öffentlicher Inhalt wird nicht mit dem privaten Repo mitgeschickt. Nach frischem **Clone** des privaten Repos `öffentlich/` lokal anlegen (`git clone <public-repo-url> öffentlich` oder kopieren). **Öffentlich pushen:** `cd öffentlich` → `git push`.
+## Entwickler: Dateien, Build, Abgleich
 
-Do **not** commit `nas_admin_connection.json` or `telegram_notify.json` (ignored via `.gitignore`).
+Wie Tabelle im englischen Block. **Build:** `cd öffentlich` → `python builder.py` → `dist/UgreenNASAdmin.exe`.
 
-**Hinweis / Note:** If your GitHub repo still contains the **full** tree, either make it **private** and create a **new empty public** repo for **`öffentlich/`** only, or replace the public repo content intentionally.
+**Abgleich** mit privatem Projekt: geänderte Dateien nach `öffentlich/` spiegeln. **`UgreenNASAdmin.spec`** mitnehmen, wenn am Build etwas geändert wurde.
 
-## Release Checklist (private repo)
+### Lokale Dateien (nicht ins Repo)
 
-- Build EXE: `python builder.py` (or `RUN_BUILDER.bat`)
-- Optional portable copy: `python tools/build_portable.py`
-- Public forum zips (if `öffentlich/` exists locally): `python tools/zip_oeffentlich_forum.py`
-- Update docs: `README.md` + `CHANGELOG.md` (and `öffentlich/*` if relevant)
-- Verify tests: `python -m pytest tests/ -q`
+Laufzeit-JSON neben der EXE — **nicht** committen.
 
-## License · Lizenz
+### SSH-Passwort im Windows-Tresor (optional, ab v22.1+)
 
-**English:** This project is licensed under the MIT License. See the `LICENSE` file for details.
+Kurz: `pip install keyring`, in der App **PW-Tresor** nutzen, ggf. Passwortfeld leeren und erneut speichern. Ohne `keyring` funktioniert die App dennoch mit Passwort in der JSON.
 
-**Deutsch:** Dieses Projekt steht unter der MIT-Lizenz. Details siehe Datei `LICENSE`.
+> **Screenshots:** keine echten Zugangsdaten zeigen.
+
+---
+
+## License
+
+This project is licensed under the MIT License. See the `LICENSE` file in this folder for details.
+
+**Deutsch:** Dieses Projekt steht unter der MIT-Lizenz; Details in der Datei `LICENSE` in diesem Ordner.
