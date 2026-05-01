@@ -43,7 +43,7 @@ from ugreen_app.mixin_editor_cron import MixinEditorCron
 from ugreen_app.mixin_update_check import MixinUpdateCheck
 from ugreen_app.i18n import cron_mappings_for_lang, translate
 
-__version__ = "23.4.0"
+__version__ = "23.5.0"
 
 class NASManager(
     MixinSafetyLock,
@@ -72,13 +72,14 @@ class NASManager(
             pass
 
         # Fenster-Setup (breiter = Header-Felder + Sidebar + Hauptbereich ohne Abschneiden)
-        self.base_width = 1500
+        self.base_width = 1680
         self.drawer_width = 640
-        self.height = 1020
+        self.height = 1100
         self.root.geometry(f"{self.base_width}x{self.height}")
-        self.root.minsize(1260, 900)
+        self.root.minsize(1340, 940)
         self.scheduler_expanded = False
         self.is_monitoring = False
+        self._dash_live_lock = threading.Lock()
         self.current_theme = "light"
         self.apply_theme_palette()
         self._setup_app_icons()

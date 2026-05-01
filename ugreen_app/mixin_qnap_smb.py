@@ -13,7 +13,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 _QNAP_PH = "qnap_smb_placeholder"
-_N2N_TAB_INDEX = 2
+_N2N_TAB_INDEX = 3
 
 
 class MixinQnapSmb:
@@ -118,16 +118,29 @@ class MixinQnapSmb:
         self._n2n_smb_connected = set()
         self._n2n_peer_meta: dict[str, dict] = {}
 
-        toolbar = tk.Frame(tab, bg=self.color_surface_alt, pady=12, padx=16, highlightbackground=self.color_border, highlightthickness=1)
-        toolbar.pack(fill=tk.X, padx=20, pady=(20, 10))
+        shell = tk.Frame(tab, bg=self.color_bg_left)
+        shell.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
 
-        btn_col = tk.Frame(toolbar, bg=self.color_surface_alt)
-        btn_col.pack(side=tk.LEFT, anchor=tk.N, padx=(0, 16))
+        toolbar = self._ui_rounded_card_pack(
+            shell,
+            fill=tk.X,
+            pady=(0, 8),
+            hug_inner_height=True,
+            inner_pad=5,
+            card_radius=11,
+        )
+        t_main = tk.Frame(toolbar, bg=self.color_surface)
+        t_main.pack(fill=tk.X, padx=12, pady=(6, 2))
+
+        btn_col = tk.Frame(t_main, bg=self.color_surface)
+        btn_col.pack(side=tk.LEFT, anchor=tk.N, padx=(0, 12))
+        _n2n_btn_kw = dict(padx=11, pady=6, radius=10)
         self.create_modern_btn(
             btn_col,
             self.t("nas2nas.scan_ugreen"),
             lambda: self._nas_explorer_scan_tree(self.tree_n2n_ugreen, self.lbl_n2n_ugreen_path),
             self.color_btn_blue,
+            **_n2n_btn_kw,
         ).pack(side=tk.TOP, fill=tk.X)
         if sys.platform == "win32":
             self.create_modern_btn(
@@ -135,14 +148,15 @@ class MixinQnapSmb:
                 self.t("qnap_smb.scan_btn"),
                 self._n2n_peer_scan_clicked,
                 self.color_btn_purple,
-            ).pack(side=tk.TOP, fill=tk.X, pady=(10, 0))
+                **_n2n_btn_kw,
+            ).pack(side=tk.TOP, fill=tk.X, pady=(5, 0))
 
-        info_col = tk.Frame(toolbar, bg=self.color_surface_alt)
+        info_col = tk.Frame(t_main, bg=self.color_surface)
         info_col.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         tk.Label(
             info_col,
             text=self.t("nas2nas.toolbar_ugreen"),
-            bg=self.color_surface_alt,
+            bg=self.color_surface,
             fg=self.color_text,
             font=self.font_bold,
             anchor="w",
@@ -150,18 +164,18 @@ class MixinQnapSmb:
         tk.Label(
             info_col,
             text=self.t("nas2nas.toolbar_peer"),
-            bg=self.color_surface_alt,
+            bg=self.color_surface,
             fg=self.color_text,
             font=self.font_bold,
             anchor="w",
-        ).pack(anchor="w", fill=tk.X, pady=(6, 0))
+        ).pack(anchor="w", fill=tk.X, pady=(2, 0))
         if sys.platform == "win32":
-            peer_sel_row = tk.Frame(info_col, bg=self.color_surface_alt)
-            peer_sel_row.pack(anchor="w", fill=tk.X, pady=(2, 0))
+            peer_sel_row = tk.Frame(info_col, bg=self.color_surface)
+            peer_sel_row.pack(anchor="w", fill=tk.X, pady=(1, 0))
             tk.Label(
                 peer_sel_row,
                 text=self.t("nas2nas.peer_select_short"),
-                bg=self.color_surface_alt,
+                bg=self.color_surface,
                 fg=self.color_text_muted,
                 font=("Segoe UI", 9),
             ).pack(side=tk.LEFT, padx=(0, 8))
@@ -173,38 +187,44 @@ class MixinQnapSmb:
         tk.Label(
             info_col,
             text=self.t("nas2nas.smb_credentials_hint"),
-            bg=self.color_surface_alt,
+            bg=self.color_surface,
             fg=self.color_text_muted,
             font=("Segoe UI", 9),
             wraplength=520,
             justify=tk.LEFT,
             anchor="w",
-        ).pack(anchor="w", fill=tk.X, pady=(4, 0))
+        ).pack(anchor="w", fill=tk.X, pady=(2, 0))
 
-        self._n2n_lbl_smb_status = tk.Label(toolbar, text="", bg=self.color_surface_alt, fg=self.color_text_muted, font=("Segoe UI", 8))
-        self._n2n_lbl_smb_status.pack(side=tk.BOTTOM, anchor="w", padx=4, pady=(8, 0))
+        self._n2n_lbl_smb_status = tk.Label(toolbar, text="", bg=self.color_surface, fg=self.color_text_muted, font=("Segoe UI", 8))
+        self._n2n_lbl_smb_status.pack(side=tk.BOTTOM, anchor="w", padx=12, pady=(3, 6))
 
-        paned = ttk.PanedWindow(tab, orient=tk.HORIZONTAL)
-        paned.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0, 20))
+        body_outer = self._ui_rounded_card_pack(shell, fill=tk.BOTH, expand=True)
+        body_pad = tk.Frame(body_outer, bg=self.color_surface)
+        body_pad.pack(fill=tk.BOTH, expand=True, padx=14, pady=14)
+
+        paned = ttk.PanedWindow(body_pad, orient=tk.HORIZONTAL)
+        paned.pack(fill=tk.BOTH, expand=True)
 
         left_pane = tk.Frame(paned, bg=self.color_surface)
         right_pane = tk.Frame(paned, bg=self.color_surface)
         paned.add(left_pane, weight=1)
         paned.add(right_pane, weight=1)
 
-        tk.Label(left_pane, text=self.t("nas2nas.pane_ugreen"), bg=self.color_surface_alt, fg=self.color_text_muted, font=self.font_bold, anchor="w", padx=8, pady=4).pack(fill=tk.X)
+        tk.Label(left_pane, text=self.t("nas2nas.pane_ugreen"), bg=self.color_surface, fg=self.color_text_muted, font=self.font_bold, anchor="w", padx=8, pady=4).pack(fill=tk.X)
         tc_ug = tk.Frame(left_pane, highlightbackground=self.color_border, highlightthickness=1)
         tc_ug.pack(fill=tk.BOTH, expand=True)
-        self.lbl_n2n_ugreen_path = tk.Label(tc_ug, text="/", bg=self.color_surface_alt, fg=self.color_text_muted, font=self.font_mono, anchor="w", padx=10, pady=8)
+        self.lbl_n2n_ugreen_path = tk.Label(tc_ug, text="/", bg=self.color_surface, fg=self.color_text_muted, font=self.font_mono, anchor="w", padx=10, pady=8)
         self.lbl_n2n_ugreen_path.pack(fill=tk.X)
         tw_ug = tk.Frame(tc_ug)
         tw_ug.pack(fill=tk.BOTH, expand=True)
-        self.tree_n2n_ugreen = ttk.Treeview(tw_ug, columns=("type", "size"), show="tree headings", selectmode="extended")
+        self.tree_n2n_ugreen = ttk.Treeview(tw_ug, columns=("type", "size", "mtime"), show="tree headings", selectmode="extended")
         self.tree_n2n_ugreen.heading("#0", text=self.t("explorer.col_name"))
         self.tree_n2n_ugreen.heading("type", text=self.t("explorer.col_type"))
         self.tree_n2n_ugreen.heading("size", text=self.t("explorer.col_size"))
-        self.tree_n2n_ugreen.column("type", width=100, anchor=tk.CENTER)
-        self.tree_n2n_ugreen.column("size", width=100, anchor=tk.E)
+        self.tree_n2n_ugreen.heading("mtime", text=self.t("explorer.col_mtime"))
+        self.tree_n2n_ugreen.column("type", width=88, anchor=tk.CENTER)
+        self.tree_n2n_ugreen.column("size", width=88, anchor=tk.E)
+        self.tree_n2n_ugreen.column("mtime", width=120, anchor=tk.CENTER)
         self.tree_n2n_ugreen.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         ysb_ug = ttk.Scrollbar(tw_ug, orient="vertical", command=self.tree_n2n_ugreen.yview)
         ysb_ug.pack(side=tk.RIGHT, fill=tk.Y)
@@ -212,12 +232,15 @@ class MixinQnapSmb:
         self.tree_n2n_ugreen.bind("<<TreeviewOpen>>", lambda e: self._nas_explorer_on_expand_tree(self.tree_n2n_ugreen, self.lbl_n2n_ugreen_path, e))
         self.tree_n2n_ugreen.bind("<<TreeviewSelect>>", lambda e: self._explorer_update_breadcrumb_for_tree(self.tree_n2n_ugreen, self.lbl_n2n_ugreen_path, e))
         self.tree_n2n_ugreen.bind("<Button-1>", lambda e: setattr(self, "_explorer_focus_tree", self.tree_n2n_ugreen))
+        self.tree_n2n_ugreen.bind("<Control-a>", lambda e: self._tree_select_all(self.tree_n2n_ugreen))
+        self.tree_n2n_ugreen.bind("<Control-A>", lambda e: self._tree_select_all(self.tree_n2n_ugreen))
+        self.tree_n2n_ugreen.bind("<Button-1>", lambda e: self._tree_toggle_multiselect_click(self.tree_n2n_ugreen, e), add="+")
         self.tree_n2n_ugreen.bind("<Button-3>", self._n2n_show_menu_ugreen)
 
         self.lbl_n2n_peer_pane_title = tk.Label(
             right_pane,
             text=self._second_nas_peer_display_name(),
-            bg=self.color_surface_alt,
+            bg=self.color_surface,
             fg=self.color_text_muted,
             font=self.font_bold,
             anchor="w",
@@ -227,7 +250,7 @@ class MixinQnapSmb:
         self.lbl_n2n_peer_pane_title.pack(fill=tk.X)
         tc_peer = tk.Frame(right_pane, highlightbackground=self.color_border, highlightthickness=1)
         tc_peer.pack(fill=tk.BOTH, expand=True)
-        self.lbl_n2n_peer_path = tk.Label(tc_peer, text=self.t("nas2nas.peer_path_placeholder"), bg=self.color_surface_alt, fg=self.color_text_muted, font=self.font_mono, anchor="w", padx=10, pady=8)
+        self.lbl_n2n_peer_path = tk.Label(tc_peer, text=self.t("nas2nas.peer_path_placeholder"), bg=self.color_surface, fg=self.color_text_muted, font=self.font_mono, anchor="w", padx=10, pady=8)
         self.lbl_n2n_peer_path.pack(fill=tk.X)
 
         peer_inner = tk.Frame(tc_peer)
@@ -239,20 +262,25 @@ class MixinQnapSmb:
 
         if sys.platform == "win32":
             self.tree_n2n_peer = ttk.Treeview(
-                peer_inner, columns=("typ", "size", "hinweis"), show="tree headings", selectmode="extended"
+                peer_inner, columns=("typ", "size", "mtime", "hinweis"), show="tree headings", selectmode="extended"
             )
             self.tree_n2n_peer.heading("#0", text=self.t("qnap_smb.col_name"))
             self.tree_n2n_peer.heading("typ", text=self.t("qnap_smb.col_type"))
             self.tree_n2n_peer.heading("size", text=self.t("explorer.col_size"))
+            self.tree_n2n_peer.heading("mtime", text=self.t("explorer.col_mtime"))
             self.tree_n2n_peer.heading("hinweis", text=self.t("qnap_smb.col_remark"))
-            self.tree_n2n_peer.column("typ", width=72, anchor=tk.CENTER)
-            self.tree_n2n_peer.column("size", width=92, anchor=tk.E)
-            self.tree_n2n_peer.column("hinweis", width=120, anchor=tk.W)
+            self.tree_n2n_peer.column("typ", width=64, anchor=tk.CENTER)
+            self.tree_n2n_peer.column("size", width=80, anchor=tk.E)
+            self.tree_n2n_peer.column("mtime", width=110, anchor=tk.CENTER)
+            self.tree_n2n_peer.column("hinweis", width=96, anchor=tk.W)
             self.tree_n2n_peer.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
             ysb_p = ttk.Scrollbar(peer_inner, orient="vertical", command=self.tree_n2n_peer.yview)
             ysb_p.pack(side=tk.RIGHT, fill=tk.Y)
             self.tree_n2n_peer.configure(yscrollcommand=ysb_p.set)
             self.tree_n2n_peer.bind("<<TreeviewOpen>>", self._n2n_peer_on_open)
+            self.tree_n2n_peer.bind("<Control-a>", lambda e: self._tree_select_all(self.tree_n2n_peer))
+            self.tree_n2n_peer.bind("<Control-A>", lambda e: self._tree_select_all(self.tree_n2n_peer))
+            self.tree_n2n_peer.bind("<Button-1>", lambda e: self._tree_toggle_multiselect_click(self.tree_n2n_peer, e), add="+")
             self.tree_n2n_peer.bind("<Button-3>", self._n2n_show_menu_peer)
 
             self.context_menu_n2n_peer = tk.Menu(self.root, tearoff=0, font=self.font_base, bg=self.color_surface, fg=self.color_text, activebackground=self.color_selected_bg, activeforeground=self.color_selected_fg, relief="flat", borderwidth=1)
@@ -338,7 +366,7 @@ class MixinQnapSmb:
         for sh in shares:
             name = sh.get("name") or ""
             remark = sh.get("remark") or ""
-            iid = tree.insert("", "end", text=name, values=(self.t("qnap_smb.type_share"), "—", remark))
+            iid = tree.insert("", "end", text=name, values=(self.t("qnap_smb.type_share"), "—", "—", remark))
             self._n2n_peer_meta[iid] = {
                 "kind": "share",
                 "server": host,
@@ -346,7 +374,7 @@ class MixinQnapSmb:
                 "user": user,
                 "password": pw,
             }
-            ph = tree.insert(iid, "end", text="…", values=("", "", ""), tags=(_QNAP_PH,))
+            ph = tree.insert(iid, "end", text="…", values=("", "", "", ""), tags=(_QNAP_PH,))
             self._n2n_peer_meta[ph] = {"kind": "placeholder"}
 
     def _n2n_peer_on_open(self, _event=None) -> None:
@@ -423,14 +451,15 @@ class MixinQnapSmb:
             pass
         for k in tree.get_children(parent_iid):
             tree.delete(k)
-        for name, is_dir, sz in entries:
+        for name, is_dir, sz, mtime_ts in entries:
             display = name + ("/" if is_dir else "")
             typ = self.t("qnap_smb.type_folder") if is_dir else self.t("qnap_smb.type_file")
             if is_dir:
                 size_txt = "—"
             else:
                 size_txt = self._fmt_bytes(sz) if sz is not None else "—"
-            child = tree.insert(parent_iid, "end", text=display, values=(typ, size_txt, ""))
+            mtxt = self._explorer_fmt_mtime_ts(mtime_ts)
+            child = tree.insert(parent_iid, "end", text=display, values=(typ, size_txt, mtxt, ""))
             if is_dir:
                 unc = unc_base.rstrip("\\") + "\\" + name
                 self._n2n_peer_meta[child] = {
@@ -441,7 +470,7 @@ class MixinQnapSmb:
                     "user": user_l,
                     "password": pw_l,
                 }
-                p = tree.insert(child, "end", text="…", values=("", "", ""), tags=(_QNAP_PH,))
+                p = tree.insert(child, "end", text="…", values=("", "", "", ""), tags=(_QNAP_PH,))
                 self._n2n_peer_meta[p] = {"kind": "placeholder"}
             else:
                 unc = unc_base.rstrip("\\") + "\\" + name
@@ -519,39 +548,51 @@ class MixinQnapSmb:
         sel = self.tree_n2n_peer.selection()
         if not sel:
             return
-        iid = sel[-1]
-        meta = self._n2n_peer_meta.get(iid) or {}
-        if meta.get("kind") not in ("file", "dir"):
+        targets: list[tuple[str, str, bool]] = []
+        for iid in sel:
+            meta = self._n2n_peer_meta.get(iid) or {}
+            kind = meta.get("kind")
+            unc = meta.get("unc")
+            if kind in ("file", "dir") and unc:
+                targets.append((iid, str(unc), kind == "dir"))
+        if not targets:
             messagebox.showinfo(self.t("tab.nas2nas"), self.t("nas2nas.delete_peer_need_file_or_dir"), parent=self.root)
             return
-        unc = meta.get("unc")
-        if not unc:
+        preview = "\n".join([u for _, u, _ in targets[:8]])
+        if len(targets) > 8:
+            preview += f"\n... +{len(targets) - 8}"
+        if not messagebox.askyesno(
+            self.t("msg.delete"),
+            self.t("msg.delete_confirm_multi", n=len(targets), preview=preview),
+            parent=self.root,
+        ):
             return
-        is_dir = meta.get("kind") == "dir"
-        label = unc
-        if not messagebox.askyesno(self.t("msg.delete"), self.t("nas2nas.delete_confirm_peer", path=label), parent=self.root):
-            return
-        lp = self._win_long_path_local(unc)
 
         def work() -> None:
+            deleted: list[str] = []
             err = ""
-            try:
-                if is_dir:
-                    shutil.rmtree(lp, ignore_errors=False)
-                else:
-                    os.remove(lp)
-            except Exception as e:
-                err = str(e)
-            self.root.after(0, lambda: self._n2n_after_peer_delete(iid, err))
+            for iid, unc, is_dir in targets:
+                lp = self._win_long_path_local(unc)
+                try:
+                    if is_dir:
+                        shutil.rmtree(lp, ignore_errors=False)
+                    else:
+                        os.remove(lp)
+                    deleted.append(iid)
+                except Exception as e:
+                    err = str(e)
+                    break
+            self.root.after(0, lambda: self._n2n_after_peer_delete_many(deleted, err))
 
         threading.Thread(target=work, daemon=True).start()
 
-    def _n2n_after_peer_delete(self, iid: str, err: str) -> None:
+    def _n2n_after_peer_delete_many(self, iids: list[str], err: str) -> None:
         if err:
             messagebox.showerror(self.t("tab.nas2nas"), err, parent=self.root)
-            return
-        self._n2n_peer_delete_branch(iid)
-        self.set_status(self.t("nas2nas.delete_done"))
+        for iid in iids:
+            self._n2n_peer_delete_branch(iid)
+        if iids and not err:
+            self.set_status(self.t("nas2nas.delete_done"))
 
     def _n2n_peer_delete_branch(self, iid: str) -> None:
         tree = self.tree_n2n_peer

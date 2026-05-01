@@ -7,6 +7,7 @@ ICON = os.path.join(PROJECT, "nas_icon.ico")
 PNG = os.path.join(PROJECT, "nas_icon_app.png")
 NAS_WATCH = os.path.join(PROJECT, "ugreen_app", "resources", "nas_central_watch.py")
 NAS_DAILY = os.path.join(PROJECT, "ugreen_app", "resources", "nas_daily_report.py")
+NAS_SB_RUNNER = os.path.join(PROJECT, "ugreen_app", "resources", "ugreen_scheduled_backup_runner.py")
 README = os.path.join(PROJECT, "README.md")
 CHANGELOG = os.path.join(PROJECT, "CHANGELOG.md")
 
@@ -16,6 +17,8 @@ _DATAS = [
     (NAS_WATCH, "ugreen_app/resources"),
     (NAS_DAILY, "ugreen_app/resources"),
 ]
+if os.path.isfile(NAS_SB_RUNNER):
+    _DATAS.append((NAS_SB_RUNNER, "ugreen_app/resources"))
 if os.path.isfile(README):
     _DATAS.append((README, "."))
 if os.path.isfile(CHANGELOG):
@@ -43,6 +46,8 @@ a = Analysis(
         "ugreen_app.mixin_transfer",
         "ugreen_app.rounded_ui",
         "ugreen_app.i18n",
+        "ugreen_app.i18n_backup_locales",
+        "ugreen_app.i18n_supplement_devices_telegram",
         "PIL.Image",
         "PIL.ImageDraw",
         "PIL.ImageTk",

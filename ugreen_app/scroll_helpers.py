@@ -20,6 +20,11 @@ except AttributeError:
     pass
 
 
+def should_ignore_smooth_mousewheel_target(w: tk.Misc | None) -> bool:
+    """True: Eingaben (Spinbox/Text/…) sollen ihr eigenes Mausrad behalten, nicht Canvas-Scroll."""
+    return w is not None and isinstance(w, _SMOOTH_SKIP_MOUSEWHEEL)
+
+
 def smooth_canvas_scrollregion_cb(root: tk.Misc, canvas: tk.Canvas):
     """scrollregion nur verzögert setzen — weniger Ruckeln bei vielen Configure-Events."""
     job_attr = "_ug_smooth_scrollregion_job"

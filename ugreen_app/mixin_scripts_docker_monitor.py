@@ -30,9 +30,201 @@ import io
 import nas_ssh
 import nas_utils
 from ugreen_app._paramiko import _paramiko
+from ugreen_app.dash_sparkline import DashSparkline
+from ugreen_app.rounded_ui import RoundedCard
 from PIL import Image, ImageTk
 
 class MixinScriptsDockerMonitor:
+    def _docker_state_snapshot(self, name: str):
+        qn = shlex.quote(name)
+        marker = "__UG_DOCKER_STATE__:"
+        cmd = (
+            "docker inspect --format "
+            "'{{.State.Running}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}|{{.Config.Image}}|{{.Image}}' "
+            f"{qn}; rc=$?; echo {marker}$rc"
+        )
+        out = self.run_ssh_cmd(cmd + " 2>&1", True, update_status=False) or ""
+        rc = 1
+        data = ""
+        for ln in str(out).splitlines():
+            s = ln.strip()
+            if s.startswith(marker):
+                try:
+                    rc = int(s.replace(marker, "", 1).strip())
+                except Exception:
+                    rc = 1
+            elif "|" in s and data == "":
+                data = s
+        if rc != 0 or not data:
+            return None
+        parts = data.split("|", 3)
+        if len(parts) < 4:
+            return None
+        running_s, health_s, image_ref, image_id = [p.strip() for p in parts]
+        return {
+            "running": running_s.lower() == "true",
+            "health": health_s.lower() if health_s else "none",
+            "image_ref": image_ref,
+            "image_id": image_id,
+        }
+
+    def _docker_wait_healthy(self, name: str, timeout_s: int = 45):
+        start = time.time()
+        last = None
+        while (time.time() - start) < max(3, timeout_s):
+            snap = self._docker_state_snapshot(name)
+            if snap is None:
+                return False, "unknown"
+            last = snap.get("health", "none")
+            if last in ("healthy", "none"):
+                return True, last
+            if last == "unhealthy":
+                return False, last
+            time.sleep(3.0)
+        return False, last or "unknown"
+
+    def _docker_selected_names(self):
+        sel = self.docker_tree.selection() if hasattr(self, "docker_tree") else ()
+        names = []
+        for iid in sel:
+            n = (self.docker_tree.item(iid, "text") or "").strip()
+            if n:
+                names.append(n)
+        return names
+
+    def _docker_exclude_get(self):
+        try:
+            cfg = self._load_app_settings()
+            section = dict(cfg.get("docker_update") or {})
+            raw = section.get("exclude_containers") or []
+            if not isinstance(raw, list):
+                return set()
+            return {str(x).strip() for x in raw if str(x).strip()}
+        except Exception:
+            return set()
+
+    def _docker_exclude_save(self, names):
+        try:
+            cfg = self._load_app_settings()
+            section = dict(cfg.get("docker_update") or {})
+            section["exclude_containers"] = sorted({str(x).strip() for x in names if str(x).strip()})
+            cfg["docker_update"] = section
+            with open(self._app_settings_path(), "w", encoding="utf-8") as f:
+                json.dump(cfg, f, indent=2)
+            return True
+        except Exception:
+            return False
+
+    def _docker_all_container_names(self):
+        out = self.run_ssh_cmd("docker ps -a --format '{{.Names}}'", True, update_status=False) or ""
+        return [x.strip() for x in str(out).splitlines() if x.strip()]
+
+    def open_docker_exclusion_dialog(self):
+        win = tk.Toplevel(self.root)
+        win.title(self.t("docker.exclude_title"))
+        win.geometry("620x520")
+        win.minsize(500, 420)
+        win.configure(bg=self.color_surface_alt)
+        win.transient(self.root)
+        win.grab_set()
+
+        top = tk.Frame(win, bg=self.color_surface_alt, padx=12, pady=10)
+        top.pack(fill=tk.X)
+        tk.Label(
+            top,
+            text=self.t("docker.exclude_hint"),
+            bg=self.color_surface_alt,
+            fg=self.color_text_muted,
+            justify=tk.LEFT,
+            anchor="w",
+            wraplength=580,
+        ).pack(fill=tk.X)
+
+        action_row = tk.Frame(win, bg=self.color_surface_alt, padx=12)
+        action_row.pack(fill=tk.X, pady=(0, 6))
+        tk.Label(action_row, text=self.t("docker.exclude_action"), bg=self.color_surface_alt, fg=self.color_text, font=self.font_bold).pack(side=tk.LEFT)
+        action_add = self.t("docker.exclude_action_add")
+        action_remove = self.t("docker.exclude_action_remove")
+        var_action = tk.StringVar(value=action_add)
+        action_combo = ttk.Combobox(
+            action_row,
+            textvariable=var_action,
+            values=[action_add, action_remove],
+            state="readonly",
+            width=10,
+            font=self.font_base,
+        )
+        action_combo.pack(side=tk.LEFT, padx=(8, 0))
+        action_combo.current(0)
+        tk.Label(
+            action_row,
+            text=self.t("docker.exclude_action_help"),
+            bg=self.color_surface_alt,
+            fg=self.color_text_muted,
+            font=("Segoe UI", 8),
+        ).pack(side=tk.LEFT, padx=(8, 0))
+
+        list_wrap = tk.Frame(win, bg=self.color_surface_alt, padx=12, pady=6)
+        list_wrap.pack(fill=tk.BOTH, expand=True)
+        lb = tk.Listbox(
+            list_wrap,
+            selectmode=tk.EXTENDED,
+            bg=self.color_surface,
+            fg=self.color_text,
+            selectbackground=self.color_selected_bg,
+            selectforeground=self.color_selected_fg,
+            font=self.font_mono,
+        )
+        lb.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        ysb = ttk.Scrollbar(list_wrap, orient="vertical", command=lb.yview)
+        ysb.pack(side=tk.RIGHT, fill=tk.Y)
+        lb.configure(yscrollcommand=ysb.set)
+
+        status = tk.Label(win, text="", bg=self.color_surface_alt, fg=self.color_text_muted, anchor="w", padx=12)
+        status.pack(fill=tk.X)
+
+        current_excluded = self._docker_exclude_get()
+        all_names = self._docker_all_container_names()
+        for name in all_names:
+            prefix = "[X] " if name in current_excluded else "[ ] "
+            lb.insert(tk.END, prefix + name)
+        status.config(text=self.t("docker.exclude_status", n=len(current_excluded)))
+
+        def _selected_names():
+            picked = []
+            for i in lb.curselection():
+                raw = lb.get(i)
+                picked.append(raw[4:].strip() if len(raw) > 4 else raw.strip())
+            return [x for x in picked if x]
+
+        def _apply_action():
+            chosen = _selected_names()
+            if not chosen:
+                messagebox.showinfo(self.t("msg.docker_admin"), self.t("docker.exclude_pick"), parent=win)
+                return
+            action_label = (var_action.get() or action_add).strip()
+            excluded_set = set(self._docker_exclude_get())
+            if action_label == action_remove:
+                excluded_set.difference_update(chosen)
+            else:
+                excluded_set.update(chosen)
+            if not self._docker_exclude_save(excluded_set):
+                messagebox.showerror(self.t("msg.docker_admin"), self.t("docker.exclude_save_failed"), parent=win)
+                return
+            for idx in range(lb.size()):
+                raw = lb.get(idx)
+                name = raw[4:].strip() if len(raw) > 4 else raw.strip()
+                prefix = "[X] " if name in excluded_set else "[ ] "
+                lb.delete(idx)
+                lb.insert(idx, prefix + name)
+            status.config(text=self.t("docker.exclude_status", n=len(excluded_set)))
+            self.set_status(self.t("docker.exclude_saved_short", n=len(excluded_set)))
+
+        btns = tk.Frame(win, bg=self.color_surface_alt, padx=12, pady=10)
+        btns.pack(fill=tk.X)
+        self.create_modern_btn(btns, self.t("docker.exclude_apply"), _apply_action, self.color_btn_blue, width=10).pack(side=tk.LEFT)
+        self.create_modern_btn(btns, self.t("docker.wizard.btn_close"), win.destroy, self.color_btn_secondary, width=8).pack(side=tk.RIGHT)
+
     def _get_ssh_port(self):
         try:
             raw = self.entry_port.get().strip() if hasattr(self, "entry_port") else "22"
@@ -90,6 +282,16 @@ class MixinScriptsDockerMonitor:
                 kwargs["passphrase"] = auth["ssh_key_passphrase"]
         return kwargs
 
+    def _ssh_transport_keepalive(self, ssh, *, interval_sec: int = 45) -> None:
+        """SSH/TCP aktiv halten — weniger neue Sitzungen (manche NAS melden jede Anmeldung per Telegram)."""
+        try:
+            t = ssh.get_transport()
+            if t is None:
+                return
+            t.set_keepalive(max(5, min(120, int(interval_sec))))
+        except Exception:
+            pass
+
     def schedule_update_human_text(self):
         """Cron-Klartext: Tastatur-Events entprellen (weniger UI-Last beim Tippen)."""
         jid = getattr(self, "_human_text_job", None)
@@ -140,20 +342,197 @@ class MixinScriptsDockerMonitor:
     def docker_action(self, action, confirm=False):
         if not self._danger_gate():
             return
-        sel = self.docker_tree.selection()
-        if sel:
-            name = (self.docker_tree.item(sel[0], "text") or "").strip()
-            if confirm or action == "rm -f":
-                if not messagebox.askyesno(self.t("msg.docker_admin"), self.t("msg.docker_rm", name=name)):
+        names = self._docker_selected_names()
+        if not names:
+            return
+        n = len(names)
+        preview = "\n".join(names[:8])
+        if n > 8:
+            preview += f"\n... +{n-8}"
+        if confirm or action == "rm -f":
+            if n == 1:
+                ok = messagebox.askyesno(self.t("msg.docker_admin"), self.t("msg.docker_rm", name=names[0]))
+            else:
+                ok = messagebox.askyesno(self.t("msg.docker_admin"), self.t("msg.docker_rm_multi", n=n, preview=preview))
+            if not ok:
+                return
+        elif action == "stop":
+            if n == 1:
+                ok = messagebox.askyesno(self.t("msg.docker_admin"), self.t("msg.docker_stop_confirm", name=names[0]))
+            else:
+                ok = messagebox.askyesno(self.t("msg.docker_admin"), self.t("msg.docker_stop_confirm_multi", n=n, preview=preview))
+            if not ok:
+                return
+        elif action == "restart":
+            if n == 1:
+                ok = messagebox.askyesno(self.t("msg.docker_admin"), self.t("msg.docker_restart_confirm", name=names[0]))
+            else:
+                ok = messagebox.askyesno(self.t("msg.docker_admin"), self.t("msg.docker_restart_confirm_multi", n=n, preview=preview))
+            if not ok:
+                return
+        cmd = f"docker {action} " + " ".join(shlex.quote(x) for x in names)
+        self.run_ssh_cmd(cmd, True)
+        self.root.after(1000, self.refresh_docker_list)
+
+    def docker_update_selected(self):
+        if not self._danger_gate():
+            return
+        selected_names = self._docker_selected_names()
+        if not selected_names:
+            messagebox.showinfo(self.t("msg.docker_admin"), self.t("docker.update_pick"))
+            return
+        excluded = self._docker_exclude_get()
+        names = [n for n in selected_names if n not in excluded]
+        skipped = [n for n in selected_names if n in excluded]
+        if not names:
+            messagebox.showinfo(self.t("msg.docker_admin"), self.t("docker.update_all_excluded"))
+            return
+        preview = "\n".join(names[:8])
+        if len(names) > 8:
+            preview += f"\n... +{len(names)-8}"
+        if not messagebox.askyesno(
+            self.t("msg.docker_admin"),
+            self.t("docker.update_confirm_multi", n=len(names), preview=preview),
+        ):
+            return
+
+        self.docker_log_view.delete("1.0", tk.END)
+        self.docker_log_view.insert("1.0", self.t("docker.update_log_start", n=len(names)))
+        if skipped:
+            self.docker_log_view.insert(
+                tk.END,
+                self.t("docker.update_skipped_excluded", n=len(skipped), names=", ".join(skipped[:8])) + "\n",
+            )
+        continue_on_error = bool(getattr(self, "var_docker_update_continue_on_error", tk.BooleanVar(value=False)).get())
+
+        def worker():
+            total = len(names)
+            total_start = time.time()
+            for idx, name in enumerate(names, start=1):
+                step_start = time.time()
+                qname = shlex.quote(name)
+                pre = self._docker_state_snapshot(name)
+                if pre is None:
+                    def apply_pre_fail(i=idx, n=total, nm=name):
+                        self.docker_log_view.insert(
+                            tk.END,
+                            self.t("docker.update_precheck_failed", i=i, n=n, name=nm) + "\n",
+                        )
+                        self.docker_log_view.see(tk.END)
+                    self.root.after(0, apply_pre_fail)
+                    if continue_on_error:
+                        continue
+                    self.root.after(0, lambda: messagebox.showerror(self.t("msg.docker_admin"), self.t("docker.update_done_with_error")))
                     return
-            elif action == "stop":
-                if not messagebox.askyesno(self.t("msg.docker_admin"), self.t("msg.docker_stop_confirm", name=name)):
-                    return
-            elif action == "restart":
-                if not messagebox.askyesno(self.t("msg.docker_admin"), self.t("msg.docker_restart_confirm", name=name)):
-                    return
-            self.run_ssh_cmd(f"docker {action} {shlex.quote(name)}", True)
-            self.root.after(1000, self.refresh_docker_list)
+                # Strikt seriell: genau ein Container pro watchtower-Lauf.
+                cmd_base = (
+                    "docker run --rm "
+                    "-v /var/run/docker.sock:/var/run/docker.sock "
+                    "containrrr/watchtower "
+                    "--run-once --cleanup --include-stopped "
+                    f"{qname}"
+                )
+                marker = "__UG_DOCKER_UPDATE_RC__:"
+                wrapped = f"{cmd_base}; rc=$?; echo {marker}$rc"
+                out = self.run_ssh_cmd(wrapped + " 2>&1", True, update_status=False) or ""
+                txt = str(out)
+                rc = 1
+                body_lines = []
+                for ln in txt.splitlines():
+                    s = ln.strip()
+                    if s.startswith(marker):
+                        try:
+                            rc = int(s.replace(marker, "", 1).strip())
+                        except Exception:
+                            rc = 1
+                    else:
+                        body_lines.append(ln)
+                txt_body = "\n".join(body_lines).strip()
+                failed = rc != 0
+
+                post = self._docker_state_snapshot(name)
+                verify_ok = True
+                verify_note = []
+                if post is None:
+                    verify_ok = False
+                    verify_note.append(self.t("docker.update_verify_no_post_state"))
+                else:
+                    # Running-Status: war vorher running, muss danach running bleiben.
+                    if pre.get("running") and not post.get("running"):
+                        verify_ok = False
+                        verify_note.append(self.t("docker.update_verify_not_running"))
+                    # Healthcheck: falls vorhanden, auf healthy warten.
+                    pre_h = pre.get("health", "none")
+                    if pre_h != "none":
+                        ok_h, h = self._docker_wait_healthy(name, timeout_s=45)
+                        if not ok_h:
+                            verify_ok = False
+                            verify_note.append(self.t("docker.update_verify_bad_health", health=h))
+                        else:
+                            verify_note.append(self.t("docker.update_verify_health_ok", health=h))
+                    # Image-ID-Änderung als Info (nicht hartes Kriterium).
+                    if pre.get("image_id") != post.get("image_id"):
+                        verify_note.append(self.t("docker.update_verify_image_changed"))
+                    else:
+                        verify_note.append(self.t("docker.update_verify_image_same"))
+
+                failed = failed or (not verify_ok)
+                elapsed = int(time.time() - step_start)
+
+                def apply_step(i=idx, n=total, nm=name, log=txt_body, code=rc, notes=verify_note, sec=elapsed):
+                    pre_line = self.t(
+                        "docker.update_pre_state_line",
+                        running=("yes" if pre.get("running") else "no"),
+                        health=pre.get("health", "none"),
+                        image=pre.get("image_ref", "?"),
+                    )
+                    notes_block = "\n".join(f"- {x}" for x in notes) if notes else "-"
+                    self.docker_log_view.insert(
+                        tk.END,
+                        f"\n--- [{i}/{n}] {nm} (rc={code}, {sec}s) ---\n{pre_line}\n{log}\n{notes_block}\n",
+                    )
+                    self.docker_log_view.see(tk.END)
+                    self.root.after(600, self.refresh_docker_list)
+
+                self.root.after(0, apply_step)
+
+                if failed:
+                    if continue_on_error:
+                        def apply_warn(i=idx, n=total, nm=name):
+                            self.docker_log_view.insert(
+                                tk.END,
+                                self.t("docker.update_continue_after_error", i=i, n=n, name=nm) + "\n",
+                            )
+                            self.docker_log_view.see(tk.END)
+
+                        self.root.after(0, apply_warn)
+                        continue
+                    else:
+                        def apply_fail(i=idx, n=total, nm=name):
+                            self.docker_log_view.insert(
+                                tk.END,
+                                self.t("docker.update_abort_on_error", i=i, n=n, name=nm) + "\n",
+                            )
+                            self.docker_log_view.insert(
+                                tk.END,
+                                self.t("docker.update_recovery_hint", name=nm, image=(pre.get("image_ref", "?") if pre else "?")) + "\n",
+                            )
+                            self.docker_log_view.see(tk.END)
+                            messagebox.showerror(self.t("msg.docker_admin"), self.t("docker.update_done_with_error"))
+
+                        self.root.after(0, apply_fail)
+                        return
+
+            def apply_done():
+                total_sec = int(time.time() - total_start)
+                self.docker_log_view.insert(tk.END, self.t("docker.update_total_done", sec=total_sec) + "\n")
+                self.docker_log_view.see(tk.END)
+                self.root.after(1200, self.refresh_docker_list)
+                messagebox.showinfo(self.t("msg.docker_admin"), self.t("docker.update_done"))
+
+            self.root.after(0, apply_done)
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def docker_stop_all(self):
         if not self._danger_gate():
@@ -312,6 +691,7 @@ class MixinScriptsDockerMonitor:
         stop_ev = getattr(self, "_docker_tail_stop_event", None)
         try:
             ssh.connect(self.entry_ip.get().strip(), **self._ssh_connect_kwargs(timeout=25, banner_timeout=45, auth_timeout=45))
+            self._ssh_transport_keepalive(ssh)
             cmd = f"docker logs -f --tail 200 {shlex.quote(container_name)}"
             stdin, stdout, _stderr = ssh.exec_command(cmd)
             try:
@@ -422,52 +802,787 @@ class MixinScriptsDockerMonitor:
         )
 
     def add_grid_field(self, parent, label, default, col, is_pwd=False, row=0, width=16, *, justify="center", padx=5):
-        f = tk.Frame(parent, bg=self.color_header)
+        bg = self.color_surface_alt
+        f = tk.Frame(parent, bg=bg)
         f.grid(row=row, column=col, padx=padx, sticky="w")
-        tk.Label(f, text=label, bg=self.color_header, fg=self.color_header_subtle, font=('Segoe UI', 8, 'bold')).pack(anchor=tk.W)
+        tk.Label(f, text=label, bg=bg, fg=self.color_header_subtle, font=('Segoe UI', 8, 'bold')).pack(anchor=tk.W)
         e = tk.Entry(f, show="*" if is_pwd else "", font=self.font_mono, justify=justify, width=width,
                      bg=self.color_input_bg, fg=self.color_input_fg, insertbackground=self.color_input_fg, relief="flat", highlightbackground=self.color_border, highlightthickness=1)
         e.insert(0, default)
         e.pack(pady=(2, 0), ipady=3)
         return e
 
+    @staticmethod
+    def _dash_fmt_rate(bps: float) -> str:
+        bps = max(0.0, float(bps))
+        for u, div in (("TB/s", 1099511627776), ("GB/s", 1073741824), ("MB/s", 1048576), ("KB/s", 1024)):
+            if bps >= div:
+                return f"{bps / div:.2f} {u}"
+        return f"{bps:.0f} B/s"
+
+    @staticmethod
+    def _dash_fmt_size_1kblocks(blocks_1024_byte: int) -> str:
+        """df -P-Spalten: Anzahl der 1024-Byte-Blöcke → lesbare IEC-Angabe."""
+        nbytes = max(0, int(blocks_1024_byte)) * 1024
+        if nbytes <= 0:
+            return "0 B"
+        for unit, dv in ("TiB", 2**40), ("GiB", 2**30), ("MiB", 2**20), ("KiB", 1024):
+            if nbytes >= dv:
+                q = nbytes / dv
+                if dv >= 2**30:
+                    s = f"{q:.2f}"
+                elif dv >= 2**20:
+                    s = f"{q:.1f}"
+                else:
+                    s = f"{int(q)}"
+                s = s.rstrip("0").rstrip(".")
+                return f"{s} {unit}"
+        return "0 B"
+
+    @staticmethod
+    def _dash_is_nas_dashboard_mount(mp: str) -> bool:
+        """Root, Pool-Volumes (/volumeN) plus USB-/Extern-Mounts (UGOS ``/mnt/@usb/…``, typische Hinweis-Pfade)."""
+        if mp == "/":
+            return True
+        if bool(re.match(r"^/volume\d+$", mp, flags=re.I)):
+            return True
+        return nas_utils.is_dashboard_usb_df_mount(mp)
+
+    @staticmethod
+    def _dash_mount_sort_key(mp: str) -> tuple[int, ...]:
+        if mp == "/":
+            return (-1,)
+        m = re.match(r"^/volume(\d+)$", mp, flags=re.I)
+        if m:
+            return (0, int(m.group(1)))
+        return (9,)+tuple(ord(c) for c in mp.casefold())
+
+    @staticmethod
+    def _dash_collect_volume_metrics(df_text: str) -> list[dict[str, int | float | str]]:
+        """Pro erkanntem Mount: Belegungsgrad + used/total aus df -P (1024-Byte-Blöcke)."""
+        found: dict[str, dict[str, int | float | str]] = {}
+        for raw in df_text.splitlines():
+            line = raw.strip()
+            if not line or line.startswith("Filesystem"):
+                continue
+            parts = line.split()
+            if len(parts) < 6:
+                continue
+            mp = posixpath.normpath((parts[-1] or "/").rstrip("/") or "/")
+            pct_s = str(parts[-2] or "").strip()
+            if not MixinScriptsDockerMonitor._dash_is_nas_dashboard_mount(mp):
+                continue
+            try:
+                total_1k = int(parts[-5])
+                used_1k = int(parts[-4])
+            except (ValueError, IndexError):
+                continue
+            if total_1k < 0 or used_1k < 0:
+                continue
+            if pct_s.endswith("%"):
+                try:
+                    p = float(pct_s[:-1].strip())
+                except ValueError:
+                    p = 100.0 * used_1k / max(1, total_1k)
+            elif pct_s in ("-", "—"):
+                p = 100.0 * used_1k / max(1, total_1k)
+            else:
+                try:
+                    p = float(pct_s)
+                except ValueError:
+                    p = 100.0 * used_1k / max(1, total_1k)
+            found[mp] = {
+                "path": mp,
+                "pct": p,
+                "used_1k": used_1k,
+                "total_1k": total_1k,
+            }
+        return sorted(found.values(), key=lambda r: MixinScriptsDockerMonitor._dash_mount_sort_key(str(r["path"])))
+
+    def _dash_disk_volume_caption(self, row: dict) -> str:
+        try:
+            su = self._dash_fmt_size_1kblocks(int(row["used_1k"]))
+            st = self._dash_fmt_size_1kblocks(int(row["total_1k"]))
+        except (KeyError, TypeError, ValueError):
+            return "—"
+        pc = row.get("pct")
+        try:
+            if pc is not None:
+                pct_i = int(round(float(pc)))
+                return self.t("dash.disk_size_line", used=su, total=st, pct=pct_i)
+        except (TypeError, ValueError):
+            pass
+        return self.t("dash.disk_size_line_npct", used=su, total=st)
+
+    @staticmethod
+    def _dash_physical_iface_counters(net_text: str) -> dict[str, tuple[int, int]]:
+        """Alle nicht-virtualen Interfaces mit Zählern (eth*, en*, bond*, auch bei 0 B Traffic)."""
+        out: dict[str, tuple[int, int]] = {}
+        badpfx = (
+            "docker",
+            "br-",
+            "veth",
+            "virbr",
+            "lxc",
+            "ovs-system",
+            "sit",
+            "tun",
+            "tap",
+            "wg",
+            "zt",
+            "tailscale",
+        )
+        for line in net_text.splitlines():
+            if ":" not in line:
+                continue
+            iface, rest = line.split(":", 1)
+            iface = iface.strip()
+            if (
+                not iface
+                or iface == "lo"
+                or "." in iface
+                or any(iface.lower().startswith(p) for p in badpfx)
+                or "@" in iface
+            ):
+                continue
+            toks = rest.split()
+            if len(toks) < 16:
+                continue
+            try:
+                rx_b = int(toks[0])
+                tx_b = int(toks[8])
+            except ValueError:
+                continue
+            out[iface] = (rx_b, tx_b)
+        return dict(sorted(out.items(), key=lambda kv: kv[0].lower()))
+
     def setup_dashboard_ui(self):
         try:
-            bg = self.dash_container.cget("bg")
+            tile_page = self.dash_container.cget("bg")
         except tk.TclError:
-            bg = self.color_surface_alt
+            tile_page = self.color_surface
         fg_muted = self.color_text_muted
         fg_val = self.color_text
-        self.dash_container.grid_columnconfigure(1, weight=1)
+        is_dark = getattr(self, "current_theme", "light") == "dark"
+        cpu_fill = "#dbeafe" if not is_dark else "#1e3a5f"
+        ram_fill = "#ede9fe" if not is_dark else "#312e81"
+        dash_grid = "#cbd5e1" if not is_dark else "#475569"
+        line_disk_a = "#0ea5e9" if not is_dark else "#38bdf8"
+        line_disk_b = "#0369a1" if not is_dark else "#7dd3fc"
+        line_net = "#059669" if not is_dark else "#34d399"
+        dock_led = "#16a34a" if not is_dark else "#4ade80"
+        setattr(self, "_dash_docker_led_fg", dock_led)
 
-        tk.Label(self.dash_container, text=self.t("dash.cpu"), bg=bg, fg=fg_muted, font=("Segoe UI", 8, "bold")).grid(
-            row=0, column=0, sticky="w", padx=(0, 6), pady=2
+        tile_bg = getattr(self, "color_surface_alt", self.color_surface)
+        if is_dark:
+            tile_bg = self.color_surface
+        tile_border = getattr(self, "color_header_border", getattr(self, "color_border", "#64748b"))
+        setattr(self, "_dash_tile_bg", tile_bg)
+        setattr(self, "_dash_spark_grid", dash_grid)
+        setattr(
+            self,
+            "_dash_disk_palette",
+            [line_disk_a, line_disk_b, "#0891b2", "#0f766e", "#155e75", "#164e63"],
         )
-        self.cpu_bar = ttk.Progressbar(self.dash_container, length=72, orient=tk.HORIZONTAL, mode="determinate")
-        self.cpu_bar.grid(row=0, column=1, sticky="ew", padx=4, pady=2)
-        self.cpu_label = tk.Label(self.dash_container, text="0%", bg=bg, fg=fg_val, width=4, font=self.font_mono)
-        self.cpu_label.grid(row=0, column=2, sticky="e", pady=2)
+        setattr(self, "_dash_net_palette", [line_net, "#10b981", "#14b8a6", "#047857", "#065f46"])
 
-        tk.Label(self.dash_container, text=self.t("dash.ram"), bg=bg, fg=fg_muted, font=("Segoe UI", 8, "bold")).grid(
-            row=1, column=0, sticky="w", padx=(0, 6), pady=2
+        for c in range(2):
+            self.dash_container.columnconfigure(c, weight=1, uniform="dash_tiles")
+        for r in range(3):
+            self.dash_container.rowconfigure(r, weight=1)
+        self.dash_container.rowconfigure(3, weight=0)
+        self.dash_container.rowconfigure(4, weight=0)
+
+        def make_tile_grid(r: int, c: int, *, hug_inner: bool = False) -> tk.Frame:
+            card = RoundedCard(
+                self,
+                self.dash_container,
+                page_bg=tile_page,
+                fill_bg=tile_bg,
+                radius=11,
+                shadow=False,
+                outline=tile_border,
+                outline_width=2,
+                hug_inner_height=hug_inner,
+            )
+            card.grid(row=r, column=c, sticky="nsew", padx=5, pady=5)
+            inn = tk.Frame(card.inner, bg=tile_bg, highlightthickness=0)
+            inn.pack(fill=tk.BOTH, expand=True, padx=8, pady=(6, 8))
+            return inn
+
+        def spark_common(parent_inner: tk.Frame, **kw) -> DashSparkline:
+            box = tk.Frame(parent_inner, bg=tile_bg, highlightthickness=0)
+            box.pack(fill=tk.X)
+            sp = DashSparkline(box, bg=tile_bg, grid_color=dash_grid, area_fill=False, **kw)
+            sp.pack(fill=tk.X)
+            sp.bind_width_to(box)
+            return sp
+
+        # —— CPU-Kachel ——
+        cpu_in = make_tile_grid(0, 0)
+        hdr = tk.Frame(cpu_in, bg=tile_bg)
+        hdr.pack(fill=tk.X)
+        tk.Label(hdr, text=self.t("dash.cpu"), bg=tile_bg, fg=fg_muted, font=("Segoe UI", 9, "bold")).pack(
+            side=tk.LEFT
         )
-        self.ram_bar = ttk.Progressbar(self.dash_container, length=72, orient=tk.HORIZONTAL, mode="determinate")
-        self.ram_bar.grid(row=1, column=1, sticky="ew", padx=4, pady=2)
-        self.ram_label = tk.Label(self.dash_container, text="0%", bg=bg, fg=fg_val, width=4, font=self.font_mono)
-        self.ram_label.grid(row=1, column=2, sticky="e", pady=2)
+        self.cpu_label = tk.Label(hdr, text="—%", bg=tile_bg, fg=fg_val, font=("Segoe UI", 16, "bold"))
+        self.cpu_label.pack(side=tk.RIGHT)
+        self.dash_cpu_spark = spark_common(
+            cpu_in,
+            width=220,
+            height=50,
+            line_color=self.color_btn_blue,
+            fill_color=cpu_fill,
+            line_width=2,
+            clamp_pct=True,
+        )
+        self.dash_load_lbl = tk.Label(
+            cpu_in,
+            text="—",
+            bg=tile_bg,
+            fg=fg_val,
+            font=("Segoe UI", 8),
+            anchor="w",
+        )
+        self.dash_load_lbl.pack(fill=tk.X, pady=(4, 0))
+
+        # —— RAM-Kachel ——
+        ram_in = make_tile_grid(0, 1)
+        hdr_r = tk.Frame(ram_in, bg=tile_bg)
+        hdr_r.pack(fill=tk.X)
+        tk.Label(hdr_r, text=self.t("dash.ram"), bg=tile_bg, fg=fg_muted, font=("Segoe UI", 9, "bold")).pack(
+            side=tk.LEFT
+        )
+        self.ram_label = tk.Label(hdr_r, text="—%", bg=tile_bg, fg=fg_val, font=("Segoe UI", 16, "bold"))
+        self.ram_label.pack(side=tk.RIGHT)
+        self.dash_ram_spark = spark_common(
+            ram_in,
+            width=220,
+            height=50,
+            line_color=self.color_btn_purple,
+            fill_color=ram_fill,
+            line_width=2,
+            clamp_pct=True,
+        )
+
+        # —— Speicher-Kachel: erkannte / + /volumeN (+ USB-Zeilen) ——
+        # hug_inner: sonst klemmt RoundedCard die Innenhöhe — untere Platten/USB-Zeilen werden abgeschnitten.
+        disk_in = make_tile_grid(1, 0, hug_inner=True)
+        tk.Label(
+            disk_in,
+            text=self.t("dash.disk_short"),
+            bg=tile_bg,
+            fg=fg_muted,
+            font=("Segoe UI", 9, "bold"),
+        ).pack(anchor="w")
+        self.dash_disk_body = tk.Frame(disk_in, bg=tile_bg)
+        self.dash_disk_body.pack(fill=tk.BOTH, expand=True, pady=(2, 0))
+        self._dash_disk_wrap_labels: list[tk.Label] = []
+        self.dash_disk_body.bind("<Configure>", self._dash_disk_sync_wrap_labels, add="+")
+        self._dash_disk_mount_key = None
+        self._dash_disk_sparks: dict[str, DashSparkline] = {}
+        self._dash_disk_detail_labels: dict[str, tk.Label] = {}
+
+        # —— Netzwerk-Kachel ——
+        net_in = make_tile_grid(1, 1)
+        tk.Label(
+            net_in,
+            text=self.t("dash.net_short"),
+            bg=tile_bg,
+            fg=fg_muted,
+            font=("Segoe UI", 9, "bold"),
+        ).pack(anchor="w")
+        self.dash_net_body = tk.Frame(net_in, bg=tile_bg)
+        self.dash_net_body.pack(fill=tk.BOTH, expand=True, pady=(2, 3))
+        self._dash_net_iface_key = None
+        self._dash_net_sparks: dict[str, DashSparkline] = {}
+        self.dash_net_lbl = tk.Label(
+            net_in,
+            text="—",
+            bg=tile_bg,
+            fg=fg_val,
+            font=self.font_mono,
+            anchor="w",
+            justify=tk.LEFT,
+        )
+        self.dash_net_lbl.pack(fill=tk.X)
+
+        # —— Docker-Kachel (volle Breite), flacher Kopf ——
+        dock_card = RoundedCard(
+            self,
+            self.dash_container,
+            page_bg=tile_page,
+            fill_bg=tile_bg,
+            radius=11,
+            shadow=False,
+            outline=tile_border,
+            outline_width=2,
+        )
+        dock_card.grid(row=2, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
+        dock_in = tk.Frame(dock_card.inner, bg=tile_bg, highlightthickness=0)
+        dock_in.pack(fill=tk.BOTH, expand=True, padx=8, pady=(4, 7))
+        dock_hdr = tk.Frame(dock_in, bg=tile_bg)
+        dock_hdr.pack(fill=tk.X, pady=(0, 1))
+        tk.Label(
+            dock_hdr,
+            text=self.t("dash.docker_tile_title"),
+            bg=tile_bg,
+            fg=fg_muted,
+            font=("Segoe UI", 8, "bold"),
+        ).pack(anchor="w")
+        wrap = tk.Frame(dock_in, bg=tile_bg)
+        wrap.pack(fill=tk.BOTH, expand=True, pady=(1, 0))
+        self.dash_docker_canvas = tk.Canvas(
+            wrap,
+            bg=tile_bg,
+            highlightthickness=0,
+            bd=0,
+            height=96,
+        )
+        dock_sb = tk.Scrollbar(wrap, orient=tk.VERTICAL, command=self.dash_docker_canvas.yview)
+        self.dash_docker_canvas.configure(yscrollcommand=dock_sb.set)
+        self.dash_docker_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        dock_sb.pack(side=tk.RIGHT, fill=tk.Y)
+        self.dash_docker_inner = tk.Frame(self.dash_docker_canvas, bg=tile_bg)
+        dock_win = self.dash_docker_canvas.create_window((0, 0), window=self.dash_docker_inner, anchor="nw")
+
+        def _dock_cfg_inner(_event=None):
+            self.dash_docker_canvas.update_idletasks()
+            bbox = self.dash_docker_canvas.bbox("all")
+            if bbox:
+                self.dash_docker_canvas.configure(scrollregion=bbox)
+
+        def _dock_cfg_canvas(event):
+            self.dash_docker_canvas.itemconfig(dock_win, width=max(1, event.width - 22))
+
+        self.dash_docker_inner.bind("<Configure>", lambda _e: _dock_cfg_inner())
+        self.dash_docker_canvas.bind("<Configure>", _dock_cfg_canvas)
+        # Mausrad: bind_all-Router in mixin_tabs_setup (über Kacheln-Lables hinaus, mit smooth_canvas_wheel_handlers)
+
+        script_card = RoundedCard(
+            self,
+            self.dash_container,
+            page_bg=tile_page,
+            fill_bg=tile_bg,
+            radius=11,
+            shadow=False,
+            outline=tile_border,
+            outline_width=2,
+        )
+        script_card.grid(row=3, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
+        script_in = tk.Frame(script_card.inner, bg=tile_bg, highlightthickness=0)
+        script_in.pack(fill=tk.BOTH, expand=True, padx=8, pady=(4, 7))
+        tk.Label(
+            script_in,
+            text=self.t("dash.script_jobs_title"),
+            bg=tile_bg,
+            fg=fg_muted,
+            font=("Segoe UI", 8, "bold"),
+        ).pack(anchor="w")
+        script_wrap = tk.Frame(script_in, bg=tile_bg)
+        script_wrap.pack(fill=tk.BOTH, expand=True, pady=(1, 0))
+        self.dash_script_jobs_canvas = tk.Canvas(
+            script_wrap,
+            bg=tile_bg,
+            highlightthickness=0,
+            bd=0,
+            height=104,
+        )
+        script_sb = tk.Scrollbar(script_wrap, orient=tk.VERTICAL, command=self.dash_script_jobs_canvas.yview)
+        self.dash_script_jobs_canvas.configure(yscrollcommand=script_sb.set)
+        self.dash_script_jobs_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        script_sb.pack(side=tk.RIGHT, fill=tk.Y)
+        self.dash_script_jobs_inner = tk.Frame(self.dash_script_jobs_canvas, bg=tile_bg)
+        script_jobs_win = self.dash_script_jobs_canvas.create_window((0, 0), window=self.dash_script_jobs_inner, anchor="nw")
+
+        def _script_jobs_cfg_inner(_event=None):
+            self.dash_script_jobs_canvas.update_idletasks()
+            bbox = self.dash_script_jobs_canvas.bbox("all")
+            if bbox:
+                self.dash_script_jobs_canvas.configure(scrollregion=bbox)
+
+        def _script_jobs_cfg_canvas(event):
+            self.dash_script_jobs_canvas.itemconfig(script_jobs_win, width=max(1, event.width - 22))
+
+        self.dash_script_jobs_inner.bind("<Configure>", lambda _e: _script_jobs_cfg_inner())
+        self.dash_script_jobs_canvas.bind("<Configure>", _script_jobs_cfg_canvas)
+
+        st_row = tk.Frame(self.dash_container, bg=tile_page)
+        st_row.grid(row=4, column=0, columnspan=2, sticky="ew", padx=6, pady=(0, 4))
+        self.dash_status_lbl = tk.Label(
+            st_row,
+            text=self.t("dash.ssh_needed"),
+            bg=tile_page,
+            fg=fg_muted,
+            font=("Segoe UI", 8),
+            anchor="w",
+        )
+        self.dash_status_lbl.pack(fill=tk.X)
+
+    def _dash_disk_sync_wrap_labels(self, _evt=None) -> None:
+        """Platten-Zeilen: lange Mount-Pfade umbrechen statt abzuschneiden (schmale Kachel-Spalte)."""
+        body = getattr(self, "dash_disk_body", None)
+        labels = getattr(self, "_dash_disk_wrap_labels", None)
+        if body is None or not labels:
+            return
+        try:
+            w = int(body.winfo_width())
+        except (tk.TclError, ValueError):
+            return
+        if w <= 1:
+            try:
+                self.after_idle(lambda: self._dash_disk_sync_wrap_labels())
+            except tk.TclError:
+                pass
+            return
+        wl = max(48, w - 4)
+        for lb in labels:
+            try:
+                lb.configure(wraplength=wl, justify=tk.LEFT)
+            except tk.TclError:
+                pass
+
+    def _ensure_dashboard_disk_rows(self, paths: tuple[str, ...]) -> None:
+        body = getattr(self, "dash_disk_body", None)
+        if body is None:
+            return
+        key = getattr(self, "_dash_disk_mount_key", None)
+        if key == paths:
+            return
+        self._dash_disk_mount_key = paths
+        for ch in body.winfo_children():
+            ch.destroy()
+        wl: list[tk.Label] = []
+        setattr(self, "_dash_disk_wrap_labels", wl)
+
+        sparks: dict[str, DashSparkline] = {}
+        details: dict[str, tk.Label] = {}
+        tb = getattr(self, "_dash_tile_bg", self.color_surface)
+        pal = getattr(self, "_dash_disk_palette", ["#0ea5e9"])
+        grd = getattr(self, "_dash_spark_grid", "#cbd5e1")
+        fg_muted = getattr(self, "color_text_muted", "#64748b")
+        fg_val = getattr(self, "color_text", "#0f172a")
+
+        if not paths:
+            none_lbl = tk.Label(
+                body,
+                text=self.t("dash.disk_none"),
+                bg=tb,
+                fg=fg_muted,
+                font=("Segoe UI", 8),
+                anchor="w",
+            )
+            none_lbl.pack(anchor="w", pady=2)
+            wl.append(none_lbl)
+            self._dash_disk_sparks = sparks
+            self._dash_disk_detail_labels = details
+            try:
+                self.after_idle(lambda: self._dash_disk_sync_wrap_labels())
+            except tk.TclError:
+                pass
+            self._dashboard_metrics_touch_scrollregion()
+            return
+
+        for i, mp in enumerate(paths):
+            row_title = mp
+            if nas_utils.is_dashboard_usb_df_mount(mp):
+                row_title = f'{mp}  ({self.t("dash.disk_usb_tag")})'
+            t_lbl = tk.Label(
+                body,
+                text=row_title,
+                bg=tb,
+                fg=fg_muted,
+                font=("Segoe UI", 8, "bold"),
+                anchor="w",
+            )
+            t_lbl.pack(anchor="w")
+            wl.append(t_lbl)
+            cap_l = tk.Label(
+                body,
+                text="—",
+                bg=tb,
+                fg=fg_val,
+                font=self.font_mono,
+                anchor="w",
+                justify=tk.LEFT,
+            )
+            cap_l.pack(anchor="w", pady=(0, 1))
+            wl.append(cap_l)
+            details[mp] = cap_l
+            bx = tk.Frame(body, bg=tb)
+            bx.pack(fill=tk.X)
+            ln = pal[i % len(pal)] if pal else "#0ea5e9"
+            sp = DashSparkline(
+                bx,
+                width=220,
+                height=30,
+                bg=tb,
+                line_color=ln,
+                fill_color=ln,
+                grid_color=grd,
+                area_fill=False,
+                line_width=2,
+                clamp_pct=True,
+            )
+            sp.pack(fill=tk.X)
+            sp.bind_width_to(bx)
+            sparks[mp] = sp
+        self._dash_disk_sparks = sparks
+        self._dash_disk_detail_labels = details
+        try:
+            self.after_idle(lambda: self._dash_disk_sync_wrap_labels())
+        except tk.TclError:
+            pass
+        self._dashboard_metrics_touch_scrollregion()
+
+    def _ensure_dashboard_net_rows(self, paths: tuple[str, ...]) -> None:
+        body = getattr(self, "dash_net_body", None)
+        if body is None:
+            return
+        key = getattr(self, "_dash_net_iface_key", None)
+        if key == paths:
+            return
+        self._dash_net_iface_key = paths
+        for ch in body.winfo_children():
+            ch.destroy()
+
+        sparks: dict[str, DashSparkline] = {}
+        tb = getattr(self, "_dash_tile_bg", self.color_surface)
+        pal = getattr(self, "_dash_net_palette", ["#059669"])
+        grd = getattr(self, "_dash_spark_grid", "#cbd5e1")
+        fg_muted = getattr(self, "color_text_muted", "#64748b")
+
+        if not paths:
+            self._dash_net_sparks = sparks
+            self._dashboard_metrics_touch_scrollregion()
+            return
+
+        for i, ifn in enumerate(paths):
+            tk.Label(
+                body,
+                text=ifn,
+                bg=tb,
+                fg=fg_muted,
+                font=("Segoe UI", 8),
+            ).pack(anchor="w")
+            bx = tk.Frame(body, bg=tb)
+            bx.pack(fill=tk.X, pady=(0, 1))
+            ln = pal[i % len(pal)] if pal else "#059669"
+            sp = DashSparkline(
+                bx,
+                width=220,
+                height=26,
+                bg=tb,
+                line_color=ln,
+                fill_color=ln,
+                grid_color=grd,
+                area_fill=False,
+                line_width=2,
+                clamp_pct=False,
+            )
+            sp.pack(fill=tk.X)
+            sp.bind_width_to(bx)
+            sparks[ifn] = sp
+        self._dash_net_sparks = sparks
+        self._dashboard_metrics_touch_scrollregion()
+
+    @staticmethod
+    def _dash_script_job_container_name(fn: str) -> str:
+        return f"job_{(fn or '').replace('.', '_')}"
+
+    def _dash_parse_papa_jobs(self, text: str) -> list[dict]:
+        """Liest # Job (Host|Docker): <name> bzw. # ScheduledBackup … + folgende cron-Zeile aus papa_jobs."""
+        jobs: list[dict] = []
+        lines = (text or "").replace("\r", "").splitlines()
+        i = 0
+        while i < len(lines):
+            raw = lines[i].strip()
+            if raw.startswith("# Job (Host):"):
+                kind = "host"
+                name = raw.split(":", 1)[1].strip()
+            elif raw.startswith("# Job (Docker):"):
+                kind = "docker"
+                name = raw.split(":", 1)[1].strip()
+            elif raw.startswith("# ScheduledBackup"):
+                kind = "backup"
+                name = ""
+                if "label=" in raw:
+                    name = raw.split("label=", 1)[1].strip()
+                name = name or self.t("dash.script_job_kind_backup_fallback")
+            else:
+                i += 1
+                continue
+            i += 1
+            while i < len(lines) and not lines[i].strip():
+                i += 1
+            if i >= len(lines):
+                break
+            sched_line = lines[i].strip()
+            if sched_line.startswith("#") or not sched_line:
+                i += 1
+                continue
+            parts = sched_line.split()
+            sched = ""
+            if parts and parts[0] == "@reboot":
+                sched = "@reboot"
+            elif len(parts) >= 7 and parts[5] == "root":
+                sched = " ".join(parts[0:5])
+            if name and sched:
+                jobs.append({"name": name, "kind": kind, "schedule": sched})
+            i += 1
+        return jobs
+
+    @staticmethod
+    def _dash_parse_notify_running_ps(text: str) -> set[str]:
+        out: set[str] = set()
+        for line in (text or "").replace("\r", "").splitlines():
+            if "--script-name" not in line:
+                continue
+            idx = line.find("--script-name")
+            rest = line[idx + len("--script-name") :].lstrip()
+            if not rest:
+                continue
+            if rest.startswith("'"):
+                q = rest.find("'", 1)
+                name = rest[1:q] if q > 0 else ""
+            elif rest.startswith('"'):
+                q = rest.find('"', 1)
+                name = rest[1:q] if q > 0 else ""
+            else:
+                name = rest.split(None, 1)[0]
+            name = (name or "").strip()
+            if name:
+                out.add(name)
+        return out
+
+    def _dash_cron_schedule_hint(self, sched: str) -> str:
+        s = (sched or "").strip()
+        if s == "@reboot":
+            return self.t("dash.script_sched_reboot")
+        p = s.split()
+        if len(p) != 5:
+            return ""
+        m, h, dom, mon, dow = p
+        try:
+            if m.startswith("*/") and m[2:].isdigit() and h == dom == mon == dow == "*":
+                return self.t("dash.script_sched_every_n_min", n=int(m[2:]))
+            if m == h == dom == mon == dow == "*":
+                try:
+                    return self.t("cron.human.every_minute").strip()
+                except Exception:
+                    return ""
+            if dom == mon == dow == "*" and "/" not in m and m.isdigit() and h.isdigit():
+                return self.t("dash.script_sched_daily_at", h=int(h), m=int(m))
+            if dom == mon == dow == "*" and "/" not in m and m.isdigit() and h == "*":
+                return self.t("dash.script_sched_hourly_at", m=int(m))
+        except (ValueError, TypeError):
+            return ""
+        return ""
+
+    def _dash_refresh_script_job_rows(self, jobs: list[dict], running: set[str], docker_names: list[str]) -> None:
+        inner = getattr(self, "dash_script_jobs_inner", None)
+        cv = getattr(self, "dash_script_jobs_canvas", None)
+        if inner is None or cv is None:
+            return
+        for w in inner.winfo_children():
+            w.destroy()
+        bg = getattr(self, "_dash_tile_bg", self.color_surface)
+        dnames = {str(x).strip() for x in (docker_names or []) if str(x).strip()}
+        if not jobs:
+            tk.Label(
+                inner,
+                text=self.t("dash.script_jobs_empty"),
+                bg=bg,
+                fg=self.color_text_muted,
+                font=("Segoe UI", 9),
+                anchor="w",
+                justify=tk.LEFT,
+            ).pack(anchor="w", pady=2)
+        else:
+            run_fg = getattr(self, "color_user", "#059669")
+            for j in jobs:
+                name = str(j.get("name") or "?").strip() or "?"
+                kind = j.get("kind") or "host"
+                sched = str(j.get("schedule") or "—").strip() or "—"
+                if kind == "docker":
+                    kind_l = self.t("dash.script_job_kind_docker")
+                elif kind == "backup":
+                    kind_l = self.t("dash.script_job_kind_backup")
+                else:
+                    kind_l = self.t("dash.script_job_kind_host")
+                hint = self._dash_cron_schedule_hint(sched)
+                is_run = name in running
+                if kind == "docker" and self._dash_script_job_container_name(name) in dnames:
+                    is_run = True
+                row = tk.Frame(inner, bg=bg)
+                row.pack(fill=tk.X, pady=1)
+                led = "●" if is_run else "○"
+                led_fg = run_fg if is_run else self.color_text_muted
+                tk.Label(row, text=led, bg=bg, fg=led_fg, font=("Segoe UI", 11)).pack(side=tk.LEFT, anchor="n", pady=0)
+                mid = tk.Frame(row, bg=bg)
+                mid.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(6, 0))
+                tk.Label(
+                    mid,
+                    text=f"{name}  •  {kind_l}  •  {sched}",
+                    bg=bg,
+                    fg=self.color_text,
+                    font=self.font_mono,
+                    anchor="w",
+                    justify=tk.LEFT,
+                ).pack(anchor="w")
+                sub_bits: list[str] = []
+                if hint:
+                    sub_bits.append(hint)
+                if is_run:
+                    sub_bits.append(self.t("dash.script_running_now"))
+                if sub_bits:
+                    tk.Label(
+                        mid,
+                        text="  •  ".join(sub_bits),
+                        bg=bg,
+                        fg=run_fg if is_run else self.color_text_muted,
+                        font=("Segoe UI", 8),
+                        anchor="w",
+                        justify=tk.LEFT,
+                    ).pack(anchor="w")
+        inner.update_idletasks()
+        bbox = cv.bbox("all")
+        if bbox:
+            cv.configure(scrollregion=bbox)
+        self._dashboard_metrics_touch_scrollregion()
+
+    def start_dashboard_live(self):
+        lk = getattr(self, "_dash_live_lock", None)
+        if lk is None:
+            lk = threading.Lock()
+            self._dash_live_lock = lk
+        with lk:
+            if self.is_monitoring:
+                return
+            try:
+                if not str(self.entry_ip.get() or "").strip():
+                    return
+            except Exception:
+                return
+            self.is_monitoring = True
+            threading.Thread(target=self.dashboard_monitor_loop, daemon=True).start()
+
+    def stop_dashboard_live(self):
+        self.is_monitoring = False
+
+    def sync_dashboard_live_for_tab_index(self, tab_index: int) -> None:
+        if tab_index == 0:
+            self.start_dashboard_live()
+        else:
+            self.stop_dashboard_live()
 
     def toggle_monitor(self):
-        if self.is_monitoring: 
-            self.is_monitoring = False
-            self.btn_monitor.set_text(self.t("sidebar.monitor_go"))
-            self.btn_monitor.set_theme(self.color_btn_blue, "white")
-        else:
-            self.is_monitoring = True
-            self.btn_monitor.set_text(self.t("sidebar.monitor_stop"))
-            self.btn_monitor.set_theme(self.color_root, "white")
-            threading.Thread(target=self.monitor_loop, daemon=True).start()
+        """Früher: manueller Start/Stop — Live-Daten nur noch automatisch auf dem Dashboard."""
 
-    def monitor_loop(self):
+    def dashboard_monitor_loop(self):
+        ssh = None
+        last_idle, last_total = 0, 0
+        last_iface_counters: dict[str, tuple[int, int]] = {}
         try:
             pk = _paramiko()
             ssh = pk.SSHClient()
@@ -476,18 +1591,74 @@ class MixinScriptsDockerMonitor:
                 self.entry_ip.get(),
                 **self._ssh_connect_kwargs(timeout=5, banner_timeout=20, auth_timeout=20),
             )
-            last_idle, last_total = 0, 0
-
+            self._ssh_transport_keepalive(ssh)
+            cron_path = shlex.quote(getattr(self, "stable_cron_path", "/etc/cron.d/papa_jobs"))
+            dash_cmd = (
+                "grep '^cpu ' /proc/stat | head -1\n"
+                "echo __UG_MEM__\n"
+                "free | grep Mem\n"
+                "echo __UG_DF__\n"
+                "df -P 2>/dev/null | tail -n +2\n"
+                # UGOS: USB oft nicht in der globalen df-Liste; gezielt nachmounten + findmnt-Nachzug
+                "[ -d /mnt/@usb ] && df -P /mnt/@usb 2>/dev/null | tail -n +2 || true\n"
+                "for _ug_x in /mnt/@usb/*; do [ -e \"$_ug_x\" ] || continue; df -P \"$_ug_x\" 2>/dev/null | tail -n +2 || true; done\n"
+                "PATH=/usr/bin:/bin:/usr/sbin:/sbin; "
+                "command -v findmnt >/dev/null 2>&1 && findmnt -rn -o TARGET 2>/dev/null | "
+                "while IFS= read -r _ug_m || [ -n \"$_ug_m\" ]; do "
+                "[ -z \"$_ug_m\" ] && continue; "
+                "case \"$_ug_m\" in /|/mnt/dm-*|/volume[0-9]) continue ;; esac; "
+                "printf %s \"$_ug_m\" | grep -Eqi '@usb|volumeusb|/media/|/run/media/|[/][Uu]sb|removabledisk|externaldisk' || continue; "
+                "df -P \"$_ug_m\" 2>/dev/null | tail -n +2 || true; "
+                "done\n"
+                "echo __UG_NET__\n"
+                "cat /proc/net/dev\n"
+                "echo __UG_DOCKER__\n"
+                "(docker ps --format '{{.Names}}' 2>/dev/null || true) | head -n 48\n"
+                "echo __UG_SCRIPT_PS__\n"
+                "ps -ww -o args= -C python3 2>/dev/null | grep -F -- 'ugreen_script_notify_runner.py --script-name' | head -n 40 || true\n"
+                "echo __UG_CRON__\n"
+                f"cat {cron_path} 2>/dev/null || true\n"
+                "echo __UG_LOAD__\n"
+                "cat /proc/loadavg\n"
+            )
             while self.is_monitoring:
-                _, stdout, _ = ssh.exec_command(
-                    "grep '^cpu ' /proc/stat | head -1; "
-                    "echo __UG_MEM__; free | grep Mem"
-                )
+                _, stdout, _ = ssh.exec_command(dash_cmd)
                 raw = stdout.read().decode(errors="replace")
-                chunks = raw.split("__UG_MEM__", 1)
-                cpu_lines = (chunks[0] or "").strip().splitlines()
-                mem_toks = (chunks[1] if len(chunks) > 1 else "").strip().split()
-                usage = None
+
+                chunks: list[str] | None = []
+                remainder = raw
+                for sep in (
+                    "__UG_MEM__",
+                    "__UG_DF__",
+                    "__UG_NET__",
+                    "__UG_DOCKER__",
+                    "__UG_SCRIPT_PS__",
+                    "__UG_CRON__",
+                    "__UG_LOAD__",
+                ):
+                    if sep not in remainder:
+                        chunks = None
+                        break
+                    head, remainder = remainder.split(sep, 1)
+                    chunks.append(head)
+                if chunks is not None:
+                    chunks.append(remainder)
+
+                if not chunks or len(chunks) < 8:
+                    time.sleep(1)
+                    continue
+
+                cpu_usage = ram_usage = None
+                cpu_block = chunks[0]
+                mem_block = chunks[1]
+                df_block = chunks[2]
+                net_txt = chunks[3]
+                docker_txt = chunks[4]
+                script_ps_txt = chunks[5]
+                cron_txt = chunks[6]
+                load_txt = chunks[7]
+
+                cpu_lines = cpu_block.strip().splitlines()
                 line0 = cpu_lines[0] if cpu_lines else ""
                 if line0:
                     sp = line0.split()
@@ -495,52 +1666,283 @@ class MixinScriptsDockerMonitor:
                         nums = list(map(int, sp[1:]))
                         idle, total = nums[3], sum(nums)
                         diff_idle, diff_total = idle - last_idle, total - last_total
-                        if diff_total > 0:
-                            usage = 100 * (1 - diff_idle / diff_total)
+                        if diff_total > 0 and last_total > 0:
+                            cpu_usage = 100 * (1 - diff_idle / diff_total)
                         last_idle, last_total = idle, total
-                ram_usage = None
+
+                mem_toks = mem_block.strip().split()
                 if len(mem_toks) >= 3:
-                    ram_usage = (int(mem_toks[2]) / int(mem_toks[1])) * 100
-                self.root.after(
-                    0,
-                    lambda u=usage, r=ram_usage: self.update_monitor_ui(u, r),
-                )
+                    try:
+                        ram_usage = (int(mem_toks[2]) / max(1, int(mem_toks[1]))) * 100
+                    except (ValueError, ZeroDivisionError):
+                        ram_usage = None
+
+                disk_lines_txt = df_block.strip()
+                load_txt = load_txt.strip()
+                disk_volumes = self._dash_collect_volume_metrics(disk_lines_txt)
+
+                phys = self._dash_physical_iface_counters(net_txt)
+                net_ifaces_out: dict[str, dict[str, float | None]] = {}
+                for ifn in phys:
+                    rx_k, tx_k = phys[ifn]
+                    pr = last_iface_counters.get(ifn)
+                    rx_r = tx_r = thru = None
+                    if pr is not None:
+                        rx_r = max(0.0, float(rx_k - pr[0]))
+                        tx_r = max(0.0, float(tx_k - pr[1]))
+                        thru = float(rx_r + tx_r)
+                    last_iface_counters[ifn] = (rx_k, tx_k)
+                    net_ifaces_out[ifn] = {
+                        "rx_bps": rx_r,
+                        "tx_bps": tx_r,
+                        "through_bps": thru,
+                    }
+
+                docker_names = [
+                    ln.strip()
+                    for ln in docker_txt.replace("\r", "").splitlines()
+                    if ln.strip()
+                ]
+
+                script_jobs = self._dash_parse_papa_jobs(cron_txt)
+                script_running = self._dash_parse_notify_running_ps(script_ps_txt)
+
+                load_human = ""
+                la = load_txt.split()
+                if len(la) >= 3:
+                    load_human = f"{la[0]}  {la[1]}  {la[2]}"
+
+                snapshot = {
+                    "cpu": cpu_usage,
+                    "ram": ram_usage,
+                    "load": load_human,
+                    "disk_volumes": [dict(v) for v in disk_volumes],
+                    "net_ifaces": net_ifaces_out,
+                    "docker_names": docker_names,
+                    "script_jobs": script_jobs,
+                    "script_running": sorted(script_running),
+                    "ok": True,
+                }
+                scopy = dict(snapshot)
+                self.root.after(0, lambda s=scopy: self._apply_dashboard_snapshot(s))
                 time.sleep(1)
-            ssh.close()
-        except Exception as e: 
+
+        except Exception:
             self.is_monitoring = False
-            self.root.after(0, lambda: self._reset_monitor_btn())
+            self.root.after(0, lambda: self._apply_dashboard_snapshot({"ok": False}))
+        finally:
+            if ssh is not None:
+                try:
+                    ssh.close()
+                except Exception:
+                    pass
 
     def _reset_monitor_btn(self):
-        self.btn_monitor.set_text(self.t("sidebar.monitor_go"))
-        self.btn_monitor.set_theme(self.color_btn_blue, "white")
-
-    def update_cpu_ui(self, val):
+        btn = getattr(self, "btn_monitor", None)
+        if btn is None:
+            return
         try:
-            self.cpu_bar["value"] = val
-            self.cpu_label.config(text=f"{int(val)}%")
+            btn.set_text(self.t("sidebar.monitor_go"))
+            btn.set_theme(self.color_btn_blue, "white")
+        except tk.TclError:
+            pass
+
+    def _dashboard_metrics_touch_scrollregion(self) -> None:
+        oc = getattr(self, "dashboard_metrics_canvas", None)
+        if oc is None:
+            return
+        try:
+            oc.update_idletasks()
+            bb = oc.bbox("all")
+            if bb:
+                oc.configure(scrollregion=bb)
+        except tk.TclError:
+            pass
+
+    def _dash_refresh_docker_rows(self, names: list[str]) -> None:
+        led = getattr(self, "_dash_docker_led_fg", "#16a34a")
+        inner = getattr(self, "dash_docker_inner", None)
+        cv = getattr(self, "dash_docker_canvas", None)
+        if inner is None or cv is None:
+            return
+        for w in inner.winfo_children():
+            w.destroy()
+        bg = getattr(self, "_dash_tile_bg", self.color_surface)
+        if not names:
+            tk.Label(
+                inner,
+                text=self.t("dash.docker_empty"),
+                bg=bg,
+                fg=self.color_text_muted,
+                font=("Segoe UI", 9),
+                anchor="w",
+            ).pack(anchor="w", pady=2)
+        else:
+            for nm in sorted(names, key=lambda s: s.lower()):
+                row = tk.Frame(inner, bg=bg)
+                row.pack(fill=tk.X, pady=1)
+                tk.Label(row, text="●", bg=bg, fg=led, font=("Segoe UI", 11)).pack(
+                    side=tk.LEFT, anchor="n", pady=0
+                )
+                tk.Label(
+                    row,
+                    text=nm,
+                    bg=bg,
+                    fg=self.color_text,
+                    font=self.font_mono,
+                    anchor="w",
+                ).pack(side=tk.LEFT, padx=(6, 0))
+        inner.update_idletasks()
+        bbox = cv.bbox("all")
+        if bbox:
+            cv.configure(scrollregion=bbox)
+        self._dashboard_metrics_touch_scrollregion()
+
+    def _apply_dashboard_snapshot(self, snap: dict) -> None:
+        if not snap.get("ok"):
+            try:
+                self.dash_status_lbl.config(text=self.t("dash.ssh_needed"))
+                inner = getattr(self, "dash_docker_inner", None)
+                cv = getattr(self, "dash_docker_canvas", None)
+                bg_tile = getattr(self, "_dash_tile_bg", self.color_surface)
+                if inner is not None:
+                    for w in inner.winfo_children():
+                        w.destroy()
+                    tk.Label(
+                        inner,
+                        text=self.t("dash.ssh_needed"),
+                        bg=bg_tile,
+                        fg=self.color_text_muted,
+                        font=("Segoe UI", 9),
+                        anchor="w",
+                    ).pack(anchor="w", pady=2)
+                if cv is not None:
+                    cv.update_idletasks()
+                    bbox = cv.bbox("all")
+                    if bbox:
+                        cv.configure(scrollregion=bbox)
+                sj_inner = getattr(self, "dash_script_jobs_inner", None)
+                sj_cv = getattr(self, "dash_script_jobs_canvas", None)
+                if sj_inner is not None:
+                    for w in sj_inner.winfo_children():
+                        w.destroy()
+                    tk.Label(
+                        sj_inner,
+                        text=self.t("dash.ssh_needed"),
+                        bg=bg_tile,
+                        fg=self.color_text_muted,
+                        font=("Segoe UI", 9),
+                        anchor="w",
+                    ).pack(anchor="w", pady=2)
+                if sj_cv is not None:
+                    sj_cv.update_idletasks()
+                    sj_bb = sj_cv.bbox("all")
+                    if sj_bb:
+                        sj_cv.configure(scrollregion=sj_bb)
+                self._dashboard_metrics_touch_scrollregion()
+            except (tk.TclError, AttributeError):
+                pass
+            return
+
+        cpu_val = snap.get("cpu")
+        ram_val = snap.get("ram")
+        try:
+            if cpu_val is not None:
+                self.dash_cpu_spark.push(cpu_val)
+                self.cpu_label.config(text=f"{int(cpu_val)}%")
+            if ram_val is not None:
+                self.dash_ram_spark.push(ram_val)
+                self.ram_label.config(text=f"{int(ram_val)}%")
         except (tk.TclError, AttributeError):
             pass
 
-    def update_ram_ui(self, val):
+        load_human = snap.get("load") or ""
         try:
-            self.ram_bar["value"] = val
-            self.ram_label.config(text=f"{int(val)}%")
+            vol_rows = snap.get("disk_volumes")
+            if vol_rows is not None and isinstance(vol_rows, list):
+                dk = tuple(
+                    str(r["path"])
+                    for r in vol_rows
+                    if isinstance(r, dict) and r.get("path") is not None
+                )
+                self._ensure_dashboard_disk_rows(dk)
+                dsp = getattr(self, "_dash_disk_sparks", {})
+                dcap = getattr(self, "_dash_disk_detail_labels", {})
+                for r in vol_rows:
+                    if not isinstance(r, dict):
+                        continue
+                    mp = r.get("path")
+                    if mp is None:
+                        continue
+                    lb = dcap.get(mp)
+                    if lb is not None:
+                        try:
+                            lb.config(text=self._dash_disk_volume_caption(r))
+                        except (tk.TclError, AttributeError):
+                            pass
+                    pct = r.get("pct")
+                    if pct is None:
+                        continue
+                    sp_w = dsp.get(str(mp))
+                    if sp_w is not None:
+                        try:
+                            sp_w.push(float(pct))
+                        except (TypeError, ValueError):
+                            pass
+
+            if load_human:
+                self.dash_load_lbl.config(text=f'{self.t("dash.load")}: {load_human}')
+
+            nid = snap.get("net_ifaces")
+            if isinstance(nid, dict):
+                order = tuple(sorted(nid.keys(), key=lambda z: z.lower()))
+                self._ensure_dashboard_net_rows(order)
+                nsp = getattr(self, "_dash_net_sparks", {})
+                for ifn, nm in nid.items():
+                    thru = nm.get("through_bps") if isinstance(nm, dict) else None
+                    if thru is not None and ifn in nsp:
+                        try:
+                            nsp[ifn].push(float(thru))
+                        except (TypeError, ValueError):
+                            pass
+
+                ln: list[str] = []
+                for ifn in order:
+                    nm = nid[ifn]
+                    if not isinstance(nm, dict):
+                        continue
+                    rx_a = nm.get("rx_bps")
+                    tx_a = nm.get("tx_bps")
+                    if rx_a is not None and tx_a is not None:
+                        ln.append(
+                            self.t(
+                                "dash.net_line",
+                                iface=ifn,
+                                rx=self._dash_fmt_rate(float(rx_a)),
+                                tx=self._dash_fmt_rate(float(tx_a)),
+                            )
+                        )
+                    else:
+                        ln.append(f"{ifn} — {self.t('dash.net_wait')}")
+                if ln:
+                    self.dash_net_lbl.config(text="\n".join(ln))
+                else:
+                    self.dash_net_lbl.config(text=self.t("dash.net_empty"))
+
+            if snap.get("docker_names") is not None:
+                self._dash_refresh_docker_rows(list(snap.get("docker_names") or []))
+
+            jobs_snap = snap.get("script_jobs")
+            if not isinstance(jobs_snap, list):
+                jobs_snap = []
+            rsnap = snap.get("script_running")
+            run_set = set(rsnap) if isinstance(rsnap, list) else set()
+            self._dash_refresh_script_job_rows(jobs_snap, run_set, list(snap.get("docker_names") or []))
+
+            self.dash_status_lbl.config(text="")
+            self._dashboard_metrics_touch_scrollregion()
         except (tk.TclError, AttributeError):
             pass
-
-    def update_monitor_ui(self, cpu_val, ram_val):
-        """Ein Tk-Tick pro Messung; keine Redraws wenn Anzeige-% unverändert."""
-        if cpu_val is not None:
-            ci = int(cpu_val)
-            if ci != getattr(self, "_mon_last_cpu_i", -9999):
-                self._mon_last_cpu_i = ci
-                self.update_cpu_ui(cpu_val)
-        if ram_val is not None:
-            ri = int(ram_val)
-            if ri != getattr(self, "_mon_last_ram_i", -9999):
-                self._mon_last_ram_i = ri
-                self.update_ram_ui(ram_val)
 
     def open_webcam_panel(self):
         existing = getattr(self, "_webcam_win", None)
@@ -622,7 +2024,7 @@ class MixinScriptsDockerMonitor:
             row_dep,
             self.t("webcam.check_tools"),
             lambda: self._webcam_check_dependencies(),
-            self.color_text_muted,
+            self.color_btn_secondary,
             width=12,
         ).pack(side=tk.LEFT, padx=(0, 6))
         self._register_danger_rounded(
@@ -720,12 +2122,12 @@ class MixinScriptsDockerMonitor:
         entry_dir = tk.Entry(row_path, width=34, font=self.font_mono, bg=self.color_input_bg, fg=self.color_input_fg, insertbackground=self.color_input_fg, relief="flat", highlightbackground=self.color_border, highlightthickness=1)
         entry_dir.insert(0, "/volume1/webcam")
         entry_dir.pack(side=tk.LEFT, padx=(8, 8), ipady=3)
-        self.create_modern_btn(row_path, self.t("webcam.browse"), lambda: self._webcam_pick_folder_dialog(entry_dir), self.color_text_muted, width=8).pack(side=tk.LEFT)
+        self.create_modern_btn(row_path, self.t("webcam.browse"), lambda: self._webcam_pick_folder_dialog(entry_dir), self.color_btn_secondary, width=8).pack(side=tk.LEFT)
 
         actions = tk.Frame(box, bg=self.color_surface)
         actions.pack(fill=tk.X, pady=(10, 2))
         self.create_modern_btn(actions, self.t("webcam.preview_start"), lambda: self._webcam_preview_start(combo_dev, combo_res, entry_fps, preview_lbl, var_auto_exp, entry_exp, entry_gain, combo_pl), self.color_btn_blue).pack(side=tk.LEFT, padx=(0, 6))
-        self.create_modern_btn(actions, self.t("webcam.preview_stop"), self._webcam_preview_stop, self.color_text_muted).pack(side=tk.LEFT, padx=(0, 6))
+        self.create_modern_btn(actions, self.t("webcam.preview_stop"), self._webcam_preview_stop, self.color_btn_secondary).pack(side=tk.LEFT, padx=(0, 6))
         self.create_modern_btn(actions, self.t("webcam.record_now"), lambda: self._webcam_record_now(combo_dev, combo_res, entry_fps, combo_dur_days, combo_dur_hours, combo_dur_mins, combo_dur_secs, entry_dir, var_auto_exp, entry_exp, entry_gain, combo_pl, combo_quality, var_motion, combo_motion_wait, combo_keep), self.color_user).pack(side=tk.LEFT, padx=(0, 6))
         self._register_danger_rounded(
             self.create_modern_btn(actions, self.t("webcam.schedule_save"), lambda: self._webcam_save_schedule(combo_dev, combo_res, entry_fps, combo_dur_days, combo_dur_hours, combo_dur_mins, combo_dur_secs, combo_h, combo_m, entry_dir, var_auto_exp, entry_exp, entry_gain, combo_pl, combo_quality, var_motion, combo_motion_wait, combo_keep), self.color_cron)
@@ -857,7 +2259,7 @@ class MixinScriptsDockerMonitor:
         btns.pack(fill=tk.X, padx=10, pady=(0, 10))
         self.create_modern_btn(btns, self.t("webcam.open"), open_sel, self.color_btn_blue, width=8).pack(side=tk.LEFT, padx=(0, 6))
         self.create_modern_btn(btns, self.t("webcam.select_this"), choose_here, self.color_user, width=12).pack(side=tk.LEFT, padx=(0, 6))
-        self.create_modern_btn(btns, self.t("docker.wizard.btn_close"), w.destroy, self.color_text_muted, width=8).pack(side=tk.RIGHT)
+        self.create_modern_btn(btns, self.t("docker.wizard.btn_close"), w.destroy, self.color_btn_secondary, width=8).pack(side=tk.RIGHT)
 
         lb.bind("<Double-1>", open_sel)
         # Always start at root so /volume* is immediately visible.
@@ -1111,11 +2513,24 @@ class MixinScriptsDockerMonitor:
 
         def worker():
             pk = _paramiko()
+            ssh = None
             while not w._webcam_preview_stop.is_set():
-                ssh = pk.SSHClient()
-                ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
+                if ssh is None:
+                    ssh = pk.SSHClient()
+                    ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
+                    try:
+                        ssh.connect(self.entry_ip.get().strip(), **self._ssh_connect_kwargs(timeout=25, banner_timeout=45, auth_timeout=45))
+                        self._ssh_transport_keepalive(ssh)
+                    except Exception as e:
+                        self.root.after(0, lambda m=str(e): self._webcam_log(f"⚠️ Preview error: {m}"))
+                        try:
+                            ssh.close()
+                        except Exception:
+                            pass
+                        ssh = None
+                        time.sleep(1.5)
+                        continue
                 try:
-                    ssh.connect(self.entry_ip.get().strip(), **self._ssh_connect_kwargs(timeout=25, banner_timeout=45, auth_timeout=45))
                     pre = self._webcam_controls_cmd(dev, ctl)
                     cmd = (
                         f"{pre} >/dev/null 2>&1 ; "
@@ -1141,13 +2556,19 @@ class MixinScriptsDockerMonitor:
                         self.root.after(0, apply)
                 except Exception as e:
                     self.root.after(0, lambda m=str(e): self._webcam_log(f"⚠️ Preview error: {m}"))
-                    time.sleep(1.5)
-                finally:
                     try:
                         ssh.close()
                     except Exception:
                         pass
+                    ssh = None
+                    time.sleep(1.5)
+                    continue
                 time.sleep(0.8)
+            try:
+                if ssh is not None:
+                    ssh.close()
+            except Exception:
+                pass
 
         t = threading.Thread(target=worker, daemon=True)
         w._webcam_preview_thread = t

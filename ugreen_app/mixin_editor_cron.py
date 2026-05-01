@@ -96,7 +96,7 @@ class MixinEditorCron:
             return
             
         res = self.run_ssh_cmd(f"cat {shlex.quote(path)}", True)
-        self.notebook.select(0)
+        self.notebook.select(1)
         self.entry_filename.delete(0, tk.END)
         self.entry_filename.insert(0, os.path.basename(path))
         

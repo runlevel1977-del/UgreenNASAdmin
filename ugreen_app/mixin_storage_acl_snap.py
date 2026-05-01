@@ -213,6 +213,7 @@ class MixinStorageAclSnap:
             ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
             try:
                 ssh.connect(self.entry_ip.get().strip(), **self._ssh_connect_kwargs(timeout=40, banner_timeout=60, auth_timeout=60))
+                self._ssh_transport_keepalive(ssh)
                 cmd = f"dd if={shlex.quote(dev)} bs=4M status=none"
                 stdin, stdout, stderr = ssh.exec_command(cmd)
                 try:
@@ -316,6 +317,7 @@ class MixinStorageAclSnap:
             ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
             try:
                 ssh.connect(self.entry_ip.get().strip(), **self._ssh_connect_kwargs(timeout=40, banner_timeout=60, auth_timeout=60))
+                self._ssh_transport_keepalive(ssh)
                 cmd = f"dd of={shlex.quote(dev)} bs=4M conv=fsync status=none"
                 stdin, stdout, stderr = ssh.exec_command(cmd)
                 sent = 0

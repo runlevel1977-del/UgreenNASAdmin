@@ -245,13 +245,13 @@ def net_share_enum_visible_disk_shares(server_host: str) -> list[dict[str, str]]
     return out
 
 
-def list_unc_directory(unc_path: str) -> list[tuple[str, bool, int | None]]:
-    """Einträge unter einer UNC: (Name, ist_Ordner, Dateigröße Bytes oder None bei Ordnern)."""
+def list_unc_directory(unc_path: str) -> list[tuple[str, bool, int | None, float | None]]:
+    """Einträge unter einer UNC: (Name, ist_Ordner, Dateigröße oder None bei Ordnern, mtime UNIX oder None)."""
     _require_win()
     p = os.path.normpath(unc_path)
     if not p.startswith("\\\\"):
         raise ValueError("Kein UNC-Pfad")
-    names: list[tuple[str, bool, int | None]] = []
+    names: list[tuple[str, bool, int | None, float | None]] = []
     try:
         with os.scandir(p) as it:
             for e in it:
@@ -260,12 +260,18 @@ def list_unc_directory(unc_path: str) -> list[tuple[str, bool, int | None]]:
                 except OSError:
                     continue
                 sz: int | None = None
-                if not is_dir:
-                    try:
-                        sz = int(e.stat(follow_symlinks=False).st_size)
-                    except OSError:
-                        sz = None
-                names.append((e.name, is_dir, sz))
+                mtime: float | None = None
+                try:
+                    st = e.stat(follow_symlinks=False)
+                    mtime = float(st.st_mtime)
+                    if not is_dir:
+                        try:
+                            sz = int(st.st_size)
+                        except OSError:
+                            sz = None
+                except OSError:
+                    pass
+                names.append((e.name, is_dir, sz, mtime))
     except OSError:
         raise
     names.sort(key=lambda t: (not t[1], t[0].lower()))

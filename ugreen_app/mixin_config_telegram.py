@@ -396,6 +396,9 @@ class MixinConfigTelegram:
             "script_notifications": {
                 "rules": [],
             },
+            "docker_update": {
+                "exclude_containers": [],
+            },
             "second_nas_smb": {
                 "peer_label": "",
                 "host": "",
@@ -1132,7 +1135,7 @@ if __name__ == "__main__":
                     loaded = json.load(f)
                 if isinstance(loaded, dict):
                     raw = loaded
-                    for sec in ("telegram", "email", "paths", "second_nas_smb", "script_notifications"):
+                    for sec in ("telegram", "email", "paths", "second_nas_smb", "script_notifications", "docker_update"):
                         if isinstance(raw.get(sec), dict):
                             data[sec].update(raw[sec])
             except Exception:

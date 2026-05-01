@@ -341,6 +341,7 @@ class MixinTransfer:
                 self.entry_ip.get(),
                 **self._ssh_connect_kwargs(timeout=25, banner_timeout=40, auth_timeout=40),
             )
+            self._ssh_transport_keepalive(ssh)
             self._ssh_sudo_bash(ssh, inner_bash_script)
         finally:
             try:
@@ -431,6 +432,7 @@ class MixinTransfer:
                 compress=False,
             ),
         )
+        self._ssh_transport_keepalive(ssh)
         try:
             inner = f"cat > {shlex.quote(rp)}"
             cmd = "/bin/sh -c " + shlex.quote(inner)
@@ -1269,6 +1271,7 @@ class MixinTransfer:
                                     allow_agent=False,
                                 ),
                             )
+                            self._ssh_transport_keepalive(sshv)
                             try:
                                 for rp, exs in uploaded_meta:
                                     got = self._remote_file_size_via_ssh(sshv, rp)

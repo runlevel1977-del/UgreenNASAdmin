@@ -4,6 +4,22 @@
 
 _(noch nicht veröffentlicht)_
 
+## 23.5.0 — 2026-05-01
+
+### Deutsch (ausführlich)
+
+- **Tab „Netzwerkgeräte“:** neue Übersicht **LAN- und USB-Geräte, die das NAS über SSH sieht** (Nachbarschaft/ARP-artige Daten; `lsusb` / `lsblk` für USB; ohne aktive SSH-Session Hinweis statt Scan). Für Nutzer dokumentiert die **README** den Ablauf **Geräte suchen** und Abgrenzung zum PC-Netzwerkscan.
+- **Internationalisierung (alle UI-Sprachen):** Modul **`ugreen_app/i18n_supplement_devices_telegram.py`** mit vollständigen Einträgen für **`tab.devices`**, **`nav.devices`**, alle **`devices.*`**-Zeichenketten sowie **vollständigem `health.telegram_hint`** (Token/Settings, NAS-Zentral-Wächter/Cron, **SSH-Login-Meldungen vs. Platten-Schwellen**, **SSH-Keepalive**, UGOS/vertrauenswürdige Client-IP) für **hr, fr, es, it, pl, ru, tr, ko, zh** — eingebunden per zusätzlichem Merge in **`i18n.py`**. PyInstaller: **`hiddenimports`** **`ugreen_app.i18n_supplement_devices_telegram`** in **`UgreenNASAdmin.spec`**.
+- **`translate()`:** bei Aufrufen **ohne** `str.format`-Platzhalter **LRU-Cache** (weniger Arbeit bei häufigen `self.t(...)`-Zugriffen).
+- **Dokumentation:** **`README.md`** stark erweitert — vollständige **Tab-Reihenfolge** (inkl. **Dashboard**, Netzwerkgeräte, **Backup**), neue Kapitel **Dashboard / Netzwerkgeräte / Backup**, Abschnitt **SSH-Login vs. Telegram-Wächter** (DE + EN); **`CHANGELOG.md`** dieser Eintrag.
+
+### English (summary)
+
+- **Network devices** tab: NAS-side LAN/USB discovery over SSH (documented in README).
+- **i18n:** `i18n_supplement_devices_telegram.py` + merged into **`i18n.py`** for nine locales; full **devices** strings and extended **health.telegram_hint**; PyInstaller hidden import in **`UgreenNASAdmin.spec`**.
+- **`translate()`:** LRU cache for plain lookups (no format kwargs).
+- **Docs:** README tab overview, Dashboard / Network devices / Backup chapters, Telegram SSH-login explanation (EN + DE); this CHANGELOG entry.
+
 ## 23.4.0 — 2026-04-26
 
 ### Deutsch (ausführlich)

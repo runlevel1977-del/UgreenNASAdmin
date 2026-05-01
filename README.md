@@ -1,6 +1,6 @@
 # Ugreen NAS Admin
 
-Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: scripts, file operations, Docker, system health, storage, permissions, snapshots, optional Telegram/Email notifications, and more. The UI is available in many languages; switch in **Settings** (or the status bar, depending on build).
+Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: **Dashboard** with live metrics, **scripts** and cron planner, **Explorer**, **NAS ↔ NAS** SMB copy, **network devices** discovery (as the NAS sees them), **Docker**, **system health** / Telegram guard, **storage**, **ACL**, **snapshots**, **scheduled backups**, and **Settings** — plus optional Telegram/Email notifications. The UI is available in many languages; switch in **Settings** (and often the status bar).
 
 **This file** is the **public release** README (folder **`öffentlich/`**). The step-by-step user guide below matches the **private** project’s main `README.md` (English + German). Release notes: [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -20,14 +20,14 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 
 **Links (immer aktuell):** [GitHub **Latest release**](https://github.com/runlevel1977-del/UgreenNASAdmin/releases/latest) · SourceForge „latest“ (oben) · [All releases](https://github.com/runlevel1977-del/UgreenNASAdmin/releases)
 
-### What's new in v23.3.0
+### What's new in v23.5.0
 
-- **Webcam Recorder suite:** live preview, immediate and scheduled recording, quality profiles, preflight checks, self-test, file rotation, optional motion detection.
-- **Webcam controls in-app:** auto/manual exposure, exposure value, gain and 50/60Hz power-line settings (`v4l2-ctl` integration).
-- **Smarter reliability:** explicit user/root write checks, clear recording status with last output filename, robust dependency checks (`ffmpeg`, `v4l2-ctl`).
-- **Disk imaging & restore:** select disks, image to PC or NAS, and restore from PC/NAS image files (with safety prompts).
-- **Docker Catalog:** browse/search Docker Hub images and prefill deployment wizard as `docker run` command or compose YAML presets.
-- **UI & docs refresh:** updated language strings, safer NAS folder browser (data volumes first), and release docs for current versions.
+- **Network devices tab:** list **LAN and USB devices the NAS sees** (ARP/neighbor-style data, `lsusb` / `lsblk` for USB); **Scan devices** requires an active **SSH** session.
+- **Translations:** full **devices** tab strings and extended **Telegram / SSH-login hint** (why security messages differ from disk thresholds, **keepalive**, UGOS tips) for **nine** UI languages (hr, fr, es, it, pl, ru, tr, ko, zh) via `ugreen_app/i18n_supplement_devices_telegram.py`.
+- **`translate()`:** small **LRU cache** for plain string lookups (fewer repeated lookups when the UI redraws).
+- **Docs:** README user guide — full **tab order** (Dashboard, Network devices, Backup), Telegram/SSH clarification (EN + DE).
+
+**Earlier highlights (v23.3):** **Webcam recorder suite**, **disk imaging & restore**, **Docker Catalog** — see [`CHANGELOG.md`](CHANGELOG.md).
 
 **Walkthrough on YouTube:** [https://youtu.be/RDaEZhuEbCc](https://youtu.be/RDaEZhuEbCc)
 
@@ -79,6 +79,29 @@ The **sidebar** matches the main areas (top to bottom). Use it to switch **tabs*
 
 **Safety:** Many actions need **“Full access”** (or similar) in the header; without it, destructive/SSH features stay locked. Re‑enable restrictions when you are done with maintenance.
 
+**Tab order (main area, left to right)** — use the **sidebar** icons to jump directly:
+
+1. **Dashboard** — overview and live tiles (CPU/RAM, disks, network, Docker summaries, upcoming jobs).  
+2. **Scripts** — edit and run shell scripts, planner/cron.  
+3. **Explorer** — NAS ↔ PC file browser and transfers.  
+4. **NAS ↔ NAS** — copy between this NAS (SSH) and a second system (SMB).  
+5. **Network devices** — list **LAN and USB devices the NAS sees** (requires SSH; see below).  
+6. **Docker** — containers, logs, compose, catalog/wizard.  
+7. **System health** — load, RAID/SMART/storage checks, Telegram/email guard, NAS central watch, reboot/shutdown (guarded).  
+8. **Storage** — volumes, shares, top folders, disk imaging/restore (dangerous).  
+9. **Users (ACL)** — inspect path permissions, chmod/chown helpers.  
+10. **Snapshots** — btrfs/ZFS/Snapper where available.  
+11. **Backup** — package Docker scripts, user data, or exports to archives (see below).  
+12. **Settings** — connection profiles, language, paths, Telegram/SMTP, script notifications, SMB peers.
+
+### Dashboard
+
+**Purpose:** At-a-glance **live** metrics while this tab is open: CPU/RAM sparklines, key **volume/disk** usage (`df`), **network** throughput per interface, and a compact **Docker** summary (running containers). Lower sections summarize **cron jobs** the app manages (host/Docker/script schedules and backup-related entries when installed).  
+
+- **SSH must be connected** for live numbers; otherwise tiles show the “SSH needed” hint.  
+- Switching away stops live updates tied to this page (design goal: reduce background load).  
+- Use it to spot **_disk fill_, busy CPU/RAM**, or **Docker downtime** before opening deeper tabs.
+
 ### 1) Scripts
 
 **Purpose:** Manage shell scripts on the NAS (usually under `/volume1/scripts/`), run tests, and schedule jobs.
@@ -126,7 +149,18 @@ Opens a **drawer** for **Cron scheduling**.
 
 **Tip:** Fix SMB credentials, DNS, and “guest vs user” on the other device before expecting stable transfers.
 
-### 4) Docker
+### 4) Network devices
+
+**Purpose:** See **devices from the NAS’s point of view** over SSH — useful when you plug in **USB** sticks/disks or want a quick **LAN neighbor / ARP** picture without scanning from the PC.
+
+- **Requirements:** Active **SSH session** to the NAS (same connection as elsewhere). Without SSH, **Scan devices** explains that you must connect first.  
+- **Scan devices** runs remote commands on the NAS (e.g. neighbor/ARP-style data for **LAN** rows; **lsusb** / **lsblk** for **USB** — hubs/controllers are filtered so you mostly see real endpoints and storage where `TRAN=usb`).  
+- The table columns (**Kind, Name/ID, IPv4, Details**) are translated with the rest of the UI.  
+- If the list is empty, the NAS reported no matching entries for that scan (permissions, firmware, or no devices).
+
+**Not a PC network scanner:** This tab does **not** replace Windows “see all Wi‑Fi clients”; it reflects **what the NAS kernel reports** via SSH.
+
+### 5) Docker
 
 **Purpose:** List containers, start/stop/restart, read logs, inspect, clean up, and work with **Compose** paths; optional **catalog** to pull images and launch a **wizard** for `docker run` or compose.
 
@@ -140,7 +174,7 @@ Opens a **drawer** for **Cron scheduling**.
 
 - **Log panel:** read static logs, or **live tail** (stream) and **stop** live tail when you are done.
 
-### 5) System Health
+### 6) System Health
 
 **Purpose:** See host load, storage, RAIDs, and optional **Telegram / Email** notifications for threshold alerts. Also hosts **reboot / shutdown** (guarded) and a **Save report** snapshot of what the panel collected.
 
@@ -148,7 +182,7 @@ Opens a **drawer** for **Cron scheduling**.
 - **Save report** — exports a text snapshot to your PC (path chosen by the app’s dialog as implemented).  
 - **Reboot / shutdown** — only when **Full access** is enabled; use only if you know the NAS is not busy with critical I/O.
 
-#### 5a) NAS ↔ Telegram: thresholds (panel in System Health)
+#### 6a) NAS ↔ Telegram: thresholds (panel in System Health)
 
 This block sends **alerts** when free space, temperature, or related checks cross **warning/critical** levels (exact metrics depend on what the connected NAS exposes).
 
@@ -158,14 +192,16 @@ This block sends **alerts** when free space, temperature, or related checks cros
 
 **Always configure Telegram/Email in Settings first (bot token, chat id, etc.), then return here to tune thresholds and test.**
 
-#### 5b) NAS “central watch” / deploy helpers (in System Health, below Telegram)
+**Understanding “SSH login” alerts vs. disk guard:** The **gray help text** under the Telegram block explains: messages about **SSH logins** usually come from the **NAS security audit** (each new SSH session), **not** from the disk/temperature thresholds in this panel. This app uses **SSH keepalive** so sessions drop less often (fewer reconnects = fewer login events). On **UGOS**, you can often mark your **PC’s IP as trusted** or reduce that notification type in the NAS UI — see the in-app hint in your language.
+
+#### 6b) NAS “central watch” / deploy helpers (in System Health, below Telegram)
 
 **Purpose:** Deploy and maintain a **NAS-side watcher** (systemd/cron) that reuses the same **Telegram/Email** credentials. Options often include which **containers** must be running, **ignore** lists, **auto-restart** lists, and whether **Docker** state is part of the check.
 
 - Use **“Install on NAS” / “Test on NAS”** style buttons (exact labels in your language) to upload scripts, run a test, and set **cron**/**systemd** as the wizard describes.  
 - The built-in help text in the app explains **ports** and **Posteo/STARTTLS** examples for **SMTP** in some versions — read that panel for email specifics.
 
-#### 5c) Daily report (if shown)
+#### 6c) Daily report (if shown)
 
 Some builds add a **daily report** block that can email/cross-post health summaries. Configure **SMTP/ Telegram** in Settings; follow the in-app description for schedule and “run once” tests.
 
@@ -193,7 +229,7 @@ You need: a **Telegram** account, one **bot token**, and your **chat id** (or gr
 
 **Script notifications and NAS-side runners** in Settings re-use the **same** bot credentials. After changing token/chat id, **re-save** and use **“Sync / install runner on NAS”** (wording in your app) if you rely on **cron** jobs without a PC.
 
-### 6) Storage (Speicher / Storage)
+### 7) Storage (Speicher / Storage)
 
 **Purpose:** Volumes, shares, and **space** insights; also **raw disk image** work (imaging to PC, imaging to the NAS, **restore** from PC/NAS) with strong confirmations (dangerous for data).
 
@@ -205,7 +241,7 @@ You need: a **Telegram** account, one **bot token**, and your **chat id** (or gr
 
 **Warning:** **Restore** and **overwrite** operations can **destroy** data. Keep **Full access** and backups in mind.
 
-### 7) Users (ACL) / “Benutzer”
+### 8) Users (ACL) / “Benutzer”
 
 **Purpose:** Inspect a **path** on the NAS (permissions/ownership) and run **limited chmod/chown** helpers, plus list system **users and groups** for reference.
 
@@ -215,7 +251,7 @@ You need: a **Telegram** account, one **bot token**, and your **chat id** (or gr
 
 **Best practice:** Test on a **non-production** subfolder. Avoid **777** except when you understand the security impact.
 
-### 8) Snapshots
+### 9) Snapshots
 
 **Purpose:** **Detect** which snapshot backends (btrfs / ZFS / Snapper) the NAS uses, then **list / create / delete** snapshots as supported.
 
@@ -224,7 +260,18 @@ You need: a **Telegram** account, one **bot token**, and your **chat id** (or gr
 
 **Note:** Not all firmware exposes every backend; what you see in the list is what the NAS reports on SSH.
 
-### 9) Settings
+### 10) Backup
+
+**Purpose:** Create **archives on the NAS** (or related flows) for **Docker compose/scripts**, **per-user data**, or **broader “user data” exports** — depending on what your build exposes. Typical steps:
+
+- Choose **volume scope** (all volumes vs. single volume) and refresh lists from the NAS (**Refresh lists** / similar).  
+- Pick a **user** or `*` for all users (hover/helper text explains scope).  
+- Use the action buttons (e.g. **Docker/scripts backup**, **user data**) — these run over SSH and may take time on large homes.  
+- After scheduling backups from this tab or the planner, related jobs can appear on the **Dashboard** job summary when a cron entry exists.
+
+**Safety:** Like other storage operations, **read every confirmation**; **Full access** may be required. Keep free space and paths in mind.
+
+### 11) Settings
 
 **Purpose:** Central configuration for the **app on your PC** (and optional files pushed to the **NAS**).
 
@@ -273,9 +320,32 @@ python ugreen_nas_admin.py
 
 ## Anleitung (Deutsch) — Schritt für Schritt
 
-**Navigation:** In der **linken Seitenleiste** stehen die **Hauptbereiche** in derselben Reihenfolge wie die Karteikarten: **Scripts → Explorer → NAS ↔ NAS → Docker → System Health → Speicher → Benutzer → Snapshots → Settings**. Darunter: **Hilfswerkzeuge** (z. B. alles neu laden) und (je nach Version) **Webcam** / **Live Monitor**.
-
 **Sicherheit:** Viele Aktionen erfordern oben **„Volle Rechte“**. Ohne Freigabe bleiben gefährliche Schritte deaktiviert. Nach Wartung wieder **einschränken**.
+
+**Reihenfolge der Tabs (Hauptbereich)** — in der **Seitenleiste** dieselbe Reihenfolge per Icon erreichbar:
+
+1. **Dashboard** — Überblick, Live-Kacheln (CPU/RAM, Plattenbelegung, Netz je Schnittstelle, Docker-Kurzinfo, geplante Jobs).  
+2. **Scripts** — Skripte, Editor, Cron/Zeitplaner.  
+3. **Explorer** — NAS ↔ PC, Übertragungen.  
+4. **NAS ↔ NAS** — Ugreen per SSH plus zweites System per SMB.  
+5. **Netzwerkgeräte** — Geräte, die der **NAS über SSH** sieht (LAN/USB; siehe eigener Abschnitt).  
+6. **Docker** — Container, Logs, Compose, Katalog/Assistent.  
+7. **System Health** — Last, RAID/SMART/Speicher, Telegram/E-Mail-Wächter, Deploy-Helfer.  
+8. **Speicher** — Volumes, Freigaben, Platz-Top, Imaging/Wiederherstellung.  
+9. **Benutzer (ACL)** — Rechte/ chmod-chown-Helfer.  
+10. **Snapshots** — btrfs/ZFS/Snapper je nach System.  
+11. **Backup** — Docker/Skripte, Nutzerdaten, Archive (Cron-Anbindung möglich).  
+12. **Settings** — Verbindung, Sprache, Pfade, Telegram/SMTP, Benachrichtigungen, SMB-Peers.
+
+Darunter in der Sidebar: **Hilfswerkzeuge** (z. B. alles neu laden) sowie (je nach Version) **Webcam** und **Live Monitor**.
+
+### Dashboard
+
+**Ziel:** **Live-Metriken**, solange dieser Tab aktiv ist: CPU/RAM-Verläufe, **df**-/Volume-Zeilen, **Netz**-Durchsatz, **Docker** (laufende Container), plus eine Übersicht **geplanter Cron-Jobs**, die die App kennt.
+
+- Ohne **SSH-Verbindung** zeigen die Kacheln den Hinweis, dass SSH nötig ist.  
+- Beim Tab-Wechsel laufen keine dauerhaften Hintergrund-Abfragen für dieses Dashboard weiter (weniger Last).  
+- Geeignet, um **vollen Speicher**, hohe Last oder **Docker-Probleme** schnell zu erkennen, bevor du tiefer einsteigst.
 
 ### 1) Scripts
 
@@ -314,7 +384,18 @@ Kombinieren mit **Benachrichtigungen** in **Settings**, damit Nacht-Jobs per **T
 
 **Tipp:** SMB-Zugang, **DNS-Name** vs. **IP** und Rechte am zweiten System zuerst prüfen.
 
-### 4) Docker
+### 4) Netzwerkgeräte
+
+**Ziel:** Liste der **Geräte aus Sicht des NAS** (per SSH auf dem Gerät ermittelt) — praktisch für **USB**-Sticks/Festplatten und einen schnellen **LAN-/Nachbarschafts**- Überblick, ohne den PC zu scannen.
+
+- **SSH muss verbunden sein** — sonst weist **„Geräte suchen“** darauf hin.  
+- **Geräte suchen** führt Kommandos auf dem NAS aus (Nachbarschaft/ARP-artige Daten für **LAN**; **lsusb** / **lsblk** für **USB**; Controller/Hubs werden gefiltert, sichtbar sind vor allem echte Endgeräte und Speicher bei `TRAN=usb`).  
+- Spalten **Art, Name/Kennung, IPv4, Details** folgen der gewählten **UI-Sprache**.  
+- Leere Liste = das NAS hat für diesen Scan nichts Passendes geliefert (oder keine passenden Geräte).
+
+**Kein PC-Netzwerkscanner:** Hier siehst du nur, **was das NAS über SSH meldet**, nicht automatisch jedes WLAN-Client-Gerät in deinem Heimnetz.
+
+### 5) Docker
 
 **Ziel:** Container sehen, steuern, **Logs/Inspect**, **Compose**-Pfad bedienen, optional **Katalog** (Docker Hub) und **Assistenten** für `docker run` / Compose.
 
@@ -324,23 +405,25 @@ Kombinieren mit **Benachrichtigungen** in **Settings**, damit Nacht-Jobs per **T
 - **Compose-Datei** + **config / ps / up -d** — Pfad z. B. `/volume1/docker/docker-compose.yml` in **Settings** hinterlegen, wenn es immer derselbe ist.  
 - **Log:** **Live-Stream** an/aus, damit fließend Log nicht unnötig läuft.
 
-### 5) System Health
+### 6) System Health
 
 **Ziel:** Last, **Speicher**, **RAID**, ggf. **SMART/Storage**-Infos; **Meldungen** per **Telegram/E-Mail** bei Grenzwerten; ggf. **Neustart / Herunterfahren** (nur mit **volle Rechte**). **Report speichern** = Text-Snapshot des Panels.
 
 - **Aktualisieren / RAID / SMART / Speicher** — Ruft Befehle per SSH; Ausgabe im **Bereich unten** im Tab. **Report** auf die PC-Platte sichern, wenn Ihr so einen Knopf habt.  
 - **Reboot/Shutdown** nur mit bewusster Wartung.
 
-#### 5a) Telegram-Überwachung (Grenzen im Tab System Health)
+#### 6a) Telegram-Überwachung (Grenzen im Tab System Health)
 
 **Häkchen**, **Intervall**, **Platten-warn/crit-%-Werte**, **max. Temperatur**, **Abklingzeit (Cooldown)**, damit nicht **zu viele** Nachrichten kommen. **Test** und **Checks ausführen** — Voraussetzung: **Token und Chat-ID** in **Settings** und Bot gestartet (s. unten *Telegram ausführlich*).  
 Hinweistexte im Tab zeigen oft den **erwarteten Skriptpfad** auf dem NAS (z. B. unter `/volume1/scripts/`).
 
-#### 5b) Zentraler NAS-Wächter (Deploy)
+**Hintergrund »SSH-Anmeldung« vs. Platten-Wächter:** Der graue **Erläuterungstext** unter dem Telegram-Block (in allen unterstützten Sprachen) erklärt: Meldungen zu **SSH-Anmeldungen** kommen oft aus dem **UGOS-/Sicherheitsaudit** des NAS (jede neue Sitzung), **nicht** von den Platten-/Temperatur-Schwellen in diesem Panel. Die App nutzt **SSH-Keepalive**, damit Sitzungen seltener abreißen (**weniger** neue Anmeldevorgänge). Auf dem NAS kannst du ggf. die **fest IP deines PCs als vertrauenswürdig** eintragen oder dort die Benachrichtigungsart drosseln — siehe Text in der App.
+
+#### 6b) Zentraler NAS-Wächter (Deploy)
 
 **Ebenfalls in System Health:** Skripte auf dem NAS ablegen, **systemd/cron** einrichten, **Docker-Container-Überwachung** (Listen für „muss laufen“ / **Ignorieren** / **auto-restart**), Kanal **Telegram/E-Mail/Beides** — alles an dieselben **Zugangsdaten** aus **Settings** geknüpft. **Auf dem NAS testen** / **Installieren** führt durch die Ablage `…/scripts/` und ggf. **Cron-Test** / `--once`.
 
-#### 5c) Tagesbericht (falls sichtbar)
+#### 6c) Tagesbericht (falls sichtbar)
 
 E-Mail- oder **kombinierter** Ablauf mit denselben **SMTP**-Einstellungen.
 
@@ -363,24 +446,35 @@ E-Mail- oder **kombinierter** Ablauf mit denselben **SMTP**-Einstellungen.
 
 **Skript-Benachrichtigungen** und **NAS-Runner** nutzen **dieselbe** Bot-Konfiguration. Nach Token-Wechsel **neu speichern** und **Runner synchronisieren**, wenn Cron Nachts laufen soll.
 
-### 6) Speicher
+### 7) Speicher
 
 **Ziel:** Volumes/Freigaben, **Platz-Top-Ordner**; dazu ggf. **Roh-Images** (Image auf **PC** / **NAS**), **Wiederherstellung** — **höchster Datenverlust** möglich, jede Rückfrage ernst nehmen.
 
 - **Aktualisieren**, ggf. **Shares**; **Oberster Pfad** (z. B. `/volume1`) + **Top 20**.  
 - **Laufwerke scannen**, **Image** erzeugen / zurückspielen — nur mit **Backups** und klarer Ziel-Platte.
 
-### 7) Benutzer (ACL)
+### 8) Benutzer (ACL)
 
 **Ziel:** Rechte/Owner eines **Ordners** prüfen, **chmod/chown** per Shell-Helfer, **User/Gruppen** listen.
 
 - **Pfad** setzen, **anzeigen**, dann vorsichtig **chmod 755/777** (rekursiv) oder **eigener Modus**, **chown** (`user:group`). Alles **irreversibel** für laufende Dienste möglich.
 
-### 8) Snapshots
+### 9) Snapshots
 
 **Ziel:** **Backend** erkennen (btrfs / ZFS / Snapper), **Listen**, **erzeugen**, **löschen** — Löschungen sind **dauerhaft** für betroffene Snapshots.
 
-### 9) Settings (Einstellungen)
+### 10) Backup
+
+**Ziel:** **Archive auf dem NAS** (bzw. zugehörige Abläufe) für **Docker-/Skript-Bestand**, **Nutzerdaten** oder breitere Exporte — je nach Schaltflächen in deiner Version.
+
+- **Volumes** (alle vs. einzelnes Volume) wählen, **Listen aktualisieren** (vom NAS einlesen).  
+- **Nutzer** wählen oder `*` für alle (Hilfetext in der App).  
+- Aktionen wie **Docker/Skripte sichern** oder **Nutzdaten** starten **SSH-Jobs** — bei großen Homes kann das dauern.  
+- Geplante Jobs können im **Dashboard** in der Cron-Übersicht erscheinen, wenn ein Eintrag existiert.
+
+**Vorsicht:** Bestätigungsdialoge ernst nehmen; **volle Rechte** können nötig sein; freien Speicher beachten.
+
+### 11) Settings (Einstellungen)
 
 - **Laden / Anwenden / Speichern** — Konfiguration aus **JSON**-Dateien; sensible Daten **nicht** in Git.  
 - **Profile** (NAS-Verbindung), **SSH-Key**, ggf. **Tresor (keyring)** statt Klartext-Passwort.  
