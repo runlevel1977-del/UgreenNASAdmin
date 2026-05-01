@@ -1,8 +1,8 @@
 # Ugreen NAS Admin
 
-Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: **Dashboard** with live metrics, **scripts** and cron planner, **Explorer**, **NAS ↔ NAS** SMB copy, **network devices** discovery (as the NAS sees them), **Docker**, **system health** / Telegram guard, **storage**, **ACL**, **snapshots**, **scheduled backups**, and **Settings** — plus optional Telegram/Email notifications. The UI is available in many languages; switch in **Settings** (and often the status bar).
+Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: **Dashboard** with live metrics, **scripts** and cron planner, **Explorer**, **NAS ↔ NAS** SMB copy, **network devices**, **Docker**, **system health** / Telegram guard, **storage**, **ACL**, **snapshots**, dedicated **Backup** tab (**Docker+scripts**, **user data**, **full data exports**; destinations **NAS / PC folder / USB on the NAS / second NAS SMB**; **cron scheduling on the NAS** without leaving a PC running), **Settings**, plus optional Telegram/Email notifications. The UI is available in many languages; switch in **Settings** (and often the status bar).
 
-**This file** is the **public release** README (folder **`öffentlich/`**). The step-by-step user guide below matches the **private** project’s main `README.md` (English + German). Release notes: [`CHANGELOG.md`](CHANGELOG.md).
+**This file** is the **public release** README (folder **`öffentlich/`**). The step-by-step guide below mirrors the **private** project’s main `README.md` (English + German), including **an extended Backup chapter** users asked for — release notes in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Download — which button on GitHub?
 
@@ -20,14 +20,16 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 
 **Links (immer aktuell):** [GitHub **Latest release**](https://github.com/runlevel1977-del/UgreenNASAdmin/releases/latest) · SourceForge „latest“ (oben) · [All releases](https://github.com/runlevel1977-del/UgreenNASAdmin/releases)
 
-### What's new in v23.5.0
+### What's new in v23.5.1
 
-- **Network devices tab:** list **LAN and USB devices the NAS sees** (ARP/neighbor-style data, `lsusb` / `lsblk` for USB); **Scan devices** requires an active **SSH** session.
-- **Translations:** full **devices** tab strings and extended **Telegram / SSH-login hint** (why security messages differ from disk thresholds, **keepalive**, UGOS tips) for **nine** UI languages (hr, fr, es, it, pl, ru, tr, ko, zh) via `ugreen_app/i18n_supplement_devices_telegram.py`.
-- **`translate()`:** small **LRU cache** for plain string lookups (fewer repeated lookups when the UI redraws).
-- **Docs:** README user guide — full **tab order** (Dashboard, Network devices, Backup), Telegram/SSH clarification (EN + DE).
+- **Documentation (main topic for many users):** full **Backup & restore** chapter in the user guide — three archive modes (**Docker+scripts**, **user data**, **all data**), destinations (**NAS**, **Windows folder**, **USB on NAS**, **second NAS via SMB profile**), and **scheduled jobs on the NAS** (cron, JSON runner — **not** PC-only destinations for nightly jobs); **DE + EN**; “backup‑first” pointer right after the safety note.
+- **Version bump** to **23.5.1** (window title / Info dialog align with Releases).
 
-**Earlier highlights (v23.3):** **Webcam recorder suite**, **disk imaging & restore**, **Docker Catalog** — see [`CHANGELOG.md`](CHANGELOG.md).
+### What shipped in v23.5.0
+
+- **Network devices** tab; **nine-locale i18n** supplement for devices + Telegram hint; **`translate()` LRU cache**; README tab-order + Telegram/SSH note — details in [`CHANGELOG.md`](CHANGELOG.md).
+
+**Earlier highlights (v23.3):** **Webcam recorder suite**, **disk imaging & restore**, **Docker Catalog** — [`CHANGELOG.md`](CHANGELOG.md).
 
 **Walkthrough on YouTube:** [https://youtu.be/RDaEZhuEbCc](https://youtu.be/RDaEZhuEbCc)
 
@@ -79,6 +81,8 @@ The **sidebar** matches the main areas (top to bottom). Use it to switch **tabs*
 
 **Safety:** Many actions need **“Full access”** (or similar) in the header; without it, destructive/SSH features stay locked. Re‑enable restrictions when you are done with maintenance.
 
+**If your main goal is backups** (homes, Docker, nights without the PC ON): skip straight to **section “10) Backup & restore”** in the English guide below — it explains destinations, the three archive types, and **scheduled cron jobs on the NAS**.
+
 **Tab order (main area, left to right)** — use the **sidebar** icons to jump directly:
 
 1. **Dashboard** — overview and live tiles (CPU/RAM, disks, network, Docker summaries, upcoming jobs).  
@@ -91,7 +95,7 @@ The **sidebar** matches the main areas (top to bottom). Use it to switch **tabs*
 8. **Storage** — volumes, shares, top folders, disk imaging/restore (dangerous).  
 9. **Users (ACL)** — inspect path permissions, chmod/chown helpers.  
 10. **Snapshots** — btrfs/ZFS/Snapper where available.  
-11. **Backup** — package Docker scripts, user data, or exports to archives (see below).  
+11. **Backup** — create **archives on the NAS** (or copy to **PC** / **USB stick on the NAS** / **second NAS** via SMB profile); **schedule** recurring jobs with **cron on the NAS** (see detailed section).  
 12. **Settings** — connection profiles, language, paths, Telegram/SMTP, script notifications, SMB peers.
 
 ### Dashboard
@@ -260,16 +264,48 @@ You need: a **Telegram** account, one **bot token**, and your **chat id** (or gr
 
 **Note:** Not all firmware exposes every backend; what you see in the list is what the NAS reports on SSH.
 
-### 10) Backup
+### 10) Backup & restore
 
-**Purpose:** Create **archives on the NAS** (or related flows) for **Docker compose/scripts**, **per-user data**, or **broader “user data” exports** — depending on what your build exposes. Typical steps:
+**Purpose:** This is the tab most people use for **practical data safety** without learning shell tar/rsync by hand. The app builds **compressed archives on the NAS** (or copies them to your **PC** or an **external USB drive plugged into the NAS**, or stages toward a **second NAS** profile), and can **install scheduled jobs** so backups run at night when the **PC is off**.
 
-- Choose **volume scope** (all volumes vs. single volume) and refresh lists from the NAS (**Refresh lists** / similar).  
-- Pick a **user** or `*` for all users (hover/helper text explains scope).  
-- Use the action buttons (e.g. **Docker/scripts backup**, **user data**) — these run over SSH and may take time on large homes.  
-- After scheduling backups from this tab or the planner, related jobs can appear on the **Dashboard** job summary when a cron entry exists.
+#### What you can back up (three main actions)
 
-**Safety:** Like other storage operations, **read every confirmation**; **Full access** may be required. Keep free space and paths in mind.
+1. **Docker + scripts** — bundles **Docker-related trees** (compose, container data patterns the app knows about) plus your **`/volume1/scripts/`** (and similar) material into one archive. Use this before major Docker or firmware work.  
+2. **User data** — backs up **home/user data** for the **selected Linux user** (or `*` = all users the NAS lists). Good for “save my photos and home folder before I reinstall an app.”  
+3. **All user data** — **broadest** export of user-facing data the workflow includes (larger, longer run).  
+
+All three need an **SSH connection**; many steps also need **Full access** / confirmations because they run privileged commands on the NAS.
+
+#### Before you click: scope and lists
+
+- **Volumes:** **All volumes** vs **single volume** (e.g. `/volume1`). The single-volume mode limits how much the NAS walks.  
+- **Refresh lists** — loads **volume** and **user** dropdowns from the NAS; do this after adding users or USB pools.  
+- **User:** pick one account or **`*`** for all (see the small hint next to the control).
+
+#### Where the archive goes (destination)
+
+Pick the **destination mode** in the UI (labels may vary slightly by language):
+
+- **NAS (internal)** — archive stays **on the NAS disk** (default). Fastest path; ideal for cron jobs.  
+- **PC** — choose a **folder on your Windows PC**; after the NAS finishes building the archive, the app **pulls** a copy down. Optional checkbox: **delete the archive on the NAS after a successful PC copy** to save space (read it carefully — it deletes the NAS copy).  
+- **USB** — **USB mass storage mounted on the NAS**. Use **Refresh lists** so the app discovers mount points; pick the stick from the dropdown. Practical for **air‑gapped** or off-site rotations.  
+
+For **another Ugreen/QNAP/SMB NAS** as a destination, configure **SMB peer profiles** in **Settings** (same profiles as **NAS ↔ NAS**). Then select that profile where the Backup tab offers **second NAS** / SMB target wording — the archive is prepared on your primary NAS first, then shipped per the workflow (exact status text appears in the log).
+
+**Scheduled backups (lower part of the tab):**
+
+- Lets you define **named jobs**, choose the same three **kinds** (Docker+scripts / user data / all data), and set **minute/hour/day/month/weekday** like the planner.  
+- The app writes **`scheduled_backups.json`**, **`ugreen_scheduled_backup_runner.py`**, and **cron lines** (under `/etc/cron.d/` as documented in-app) onto the NAS when you **sync/save to NAS**.  
+- **Important:** Cron jobs **cannot** use “backup to PC folder” — the NAS must wake up alone, so scheduled targets must be **NAS internal disk** or **USB on the NAS** (the UI warns about this).  
+- **Load from NAS / Save to NAS** syncs your job list with what is stored remotely; deleted rows only take effect after you write back to the NAS.
+
+**Operational tips:**
+
+- Leave **enough free space** on the target volume/USB; big “all user data” runs can produce **many GB**.  
+- Watch the **log / status area** in the Backup tab — copy errors verbatim if something fails (paths, permission, busy files).  
+- After sync, planned backup jobs typically show under **Dashboard** → scheduled jobs summary (same cron namespace the app manages).
+
+**Safety:** Confirm every warning; snapshots or a trial **user data** run on one user first beats losing data on mistaken scope.
 
 ### 11) Settings
 
@@ -322,6 +358,8 @@ python ugreen_nas_admin.py
 
 **Sicherheit:** Viele Aktionen erfordern oben **„Volle Rechte“**. Ohne Freigabe bleiben gefährliche Schritte deaktiviert. Nach Wartung wieder **einschränken**.
 
+**Wenn ihr vor allem Daten sichern wollt** (Homes, Docker, automatisch nachts ohne PC): zuerst **Abschnitt 10) Backup & Wiederherstellen** unten lesen — dort stehen Archive, **Ziele (NAS / PC / USB / Zweit-NAS)** und **Cron auf dem NAS** ausführlich.
+
 **Reihenfolge der Tabs (Hauptbereich)** — in der **Seitenleiste** dieselbe Reihenfolge per Icon erreichbar:
 
 1. **Dashboard** — Überblick, Live-Kacheln (CPU/RAM, Plattenbelegung, Netz je Schnittstelle, Docker-Kurzinfo, geplante Jobs).  
@@ -334,7 +372,7 @@ python ugreen_nas_admin.py
 8. **Speicher** — Volumes, Freigaben, Platz-Top, Imaging/Wiederherstellung.  
 9. **Benutzer (ACL)** — Rechte/ chmod-chown-Helfer.  
 10. **Snapshots** — btrfs/ZFS/Snapper je nach System.  
-11. **Backup** — Docker/Skripte, Nutzerdaten, Archive (Cron-Anbindung möglich).  
+11. **Backup & Wiederherstellen** — **Docker+Skripte**, **Nutzerdaten**, **alle Nutzerdaten** als Archive; Ziel **NAS-intern**, **PC-Ordner**, **USB am NAS** oder **Zweit-NAS (SMB)**; **geplante Aufträge per Cron auf dem NAS** (PC kann aus sein) — Details im Abschnitt **10)**.  
 12. **Settings** — Verbindung, Sprache, Pfade, Telegram/SMTP, Benachrichtigungen, SMB-Peers.
 
 Darunter in der Sidebar: **Hilfswerkzeuge** (z. B. alles neu laden) sowie (je nach Version) **Webcam** und **Live Monitor**.
@@ -463,16 +501,48 @@ E-Mail- oder **kombinierter** Ablauf mit denselben **SMTP**-Einstellungen.
 
 **Ziel:** **Backend** erkennen (btrfs / ZFS / Snapper), **Listen**, **erzeugen**, **löschen** — Löschungen sind **dauerhaft** für betroffene Snapshots.
 
-### 10) Backup
+### 10) Backup & Wiederherstellen
 
-**Ziel:** **Archive auf dem NAS** (bzw. zugehörige Abläufe) für **Docker-/Skript-Bestand**, **Nutzerdaten** oder breitere Exporte — je nach Schaltflächen in deiner Version.
+**Ziel:** Für viele Nutzer der **zentrale Platz für Datensicherung** ohne manuelle Shell-Befehle: die App erzeugt **komprimierte Archive auf dem NAS** (oder kopiert sie auf den **PC**, auf einen **am NAS eingesteckten USB-Stick** oder bereitet den Weg zum **zweiten NAS per SMB**), und kann **Nacht-/Wochenend-Jobs per Cron direkt auf dem NAS** eintragen — **ohne laufenden Windows-PC**.
 
-- **Volumes** (alle vs. einzelnes Volume) wählen, **Listen aktualisieren** (vom NAS einlesen).  
-- **Nutzer** wählen oder `*` für alle (Hilfetext in der App).  
-- Aktionen wie **Docker/Skripte sichern** oder **Nutzdaten** starten **SSH-Jobs** — bei großen Homes kann das dauern.  
-- Geplante Jobs können im **Dashboard** in der Cron-Übersicht erscheinen, wenn ein Eintrag existiert.
+#### Was kann ich sichern? (drei Hauptaktionen)
 
-**Vorsicht:** Bestätigungsdialoge ernst nehmen; **volle Rechte** können nötig sein; freien Speicher beachten.
+1. **Alle Docker und Skripte / Docker + Scripts** — packt Docker-relevante Verzeichnisstrukturen (u. a. Compose-/Container-Kontext) und typische **Skript-Pfade** wie `/volume1/scripts/` in **ein** Archiv. Sinnvoll vor **Docker-Umbauten** oder **Firmware-Updates**.  
+2. **Userdaten** — sichert **Home-/Benutzerdaten** für **einen** ausgewählten Linux-User oder für **alle** (`*` = alle in der Liste). Praktisch für „Familienordner retten, bevor ich Software neu installiere“.  
+3. **Alle Daten / alle Nutzerdaten** — **breitester** Export im Sinne des Workflows; **am größten und langsamsten**.  
+
+Alles läuft über **SSH**; viele Schritte brauchen **volle Rechte** und Sicherheitsabfragen, weil auf dem NAS privilegierte Befehle laufen.
+
+#### Vor dem Klick: Umfang und Listen
+
+- **Volumes:** **Alle Volumes** vs. **nur ein Volume** (z. B. `/volume1`) — eingeschränkter Umfang spart Zeit und I/O.  
+- **Listen aktualisieren** — liest **Volume-** und **User-**Dropdown vom NAS neu ein (nach neuen Nutzern, neuen Pools, neuem USB sinnvoll).  
+- **User:** einen Account wählen oder **`*`** für alle (kurzer Hilfetext in der App).
+
+#### Wohin mit dem Archiv? (Ziel / Destination)
+
+Je nach Kombobox (Bezeichnung leicht sprachabhängig):
+
+- **NAS (intern)** — Archiv bleibt **auf der Platte des NAS**; Standard und **Pflichtbasis** für **geplante** Jobs ohne PC.  
+- **PC** — Ordner unter **Windows** wählen; nach dem Bau auf dem NAS holt die App die Datei auf den PC. Optional: **Nach erfolgreicher PC-Kopie Archiv auf dem NAS löschen** (stellt Platz frei — **genau lesen**, es löscht die NAS-Kopie).  
+- **USB** — **USB-Massenspeicher, am NAS gemountet**. Erst **Listen aktualisieren**, dann Mountpunkt aus der Liste wählen; gut für **Offline-Rotation**.  
+
+**Zweites NAS:** In **Settings** die **SMB-Peer-Profile** anlegen (dieselben wie beim Tab **NAS ↔ NAS**). Im Backup-Tab das passende Profil wählen, wenn die UI **„anderes NAS“** / SMB-Ziel anbietet — Ablauf und Status stehen im **Protokoll** des Tabs.
+
+#### Geplante Backups (unterer Bereich im Tab)
+
+- **Namen/Merker**, **Art** (Docker+Skripte / Userdaten / alle Daten), **Cron-Zeit** wie im **Zeitplaner** (Minute/Stunde/Tag/Monat/Wochentag).  
+- **Auf NAS sichern / synchronisieren** schreibt u. a. **`scheduled_backups.json`**, den **Runner** `ugreen_scheduled_backup_runner.py` und **Cron-Zeilen** (in der App beschrieben, typisch unter **`/etc/cron.d/`**).  
+- **Wichtig:** Geplante Jobs **funktionieren nicht mit reinem „Ziel PC“** — nachts ist kein Desktop da; Ziel muss **NAS-Disk** oder **USB am NAS** sein (die App warnt entsprechend).  
+- **Von NAS laden** / erneutes **Speichern** hält lokale Liste und NAS **gleich**; erst nach **„Auf NAS sichern“** sind Änderungen auf dem Gerät aktiv.
+
+#### Praxis-Tipps
+
+- Auf Zielvolume/USB **genug freien Platz** einplanen.  
+- **Log-Ausgabe** im Backup-Tab bei Fehlern kopieren (Pfade, Rechte, gesperrte Dateien).  
+- Nach Einrichtung zeigen Aufträge oft im **Dashboard** unter den **Cron-/Job-Zusammenfassungen**.
+
+**Vorsicht:** Rückfragen bestätigen; lieber erst **ein User**/`Userdaten` testen oder **Snapshots** zusätzlich nutzen als mit falschem Umfang alles zu überschreiben.
 
 ### 11) Settings (Einstellungen)
 
