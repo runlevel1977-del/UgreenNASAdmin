@@ -4,6 +4,51 @@
 
 _(noch nicht veröffentlicht)_
 
+## 23.5.2 — 2026-05-03
+
+### Deutsch (ausführlich)
+
+- **Öffentliche GitHub-Doku / README:** Screenshot-Galerie komplett erneuert — Bilder nach **App-Bereichen** benannt und unter **`öffentlich/images/`** ohne Leerzeichen im Dateinamen abgelegt (u. a. `dashboard.png`, `scripts.png`, `task_scheduler.png`, `explorer.png`, `nas_to_nas.png`, `devices.png`, `storage.png`, `docker.png`, `users.png`, `snapshots.png`, `backup.png` / `backup_2.png` / `backup_3.png`, `system_health*.png`, `settings*.png`, `info.png`), damit **GitHub und ZIP** die Links zuverlässig auflösen.
+- **`tools/build_oeffentlich_readme.py`:** Pfade und **Bildunterschriften** an die neue Galerie angepasst; Kurzblöcke **„What’s new“** um **v23.5.2** ergänzt.
+- **`ugreen_app/nas_manager.py`:** **`__version__`** → **23.5.2** (öffentlicher Tree **`öffentlich/`** ebenfalls).
+
+### English (summary)
+
+- **Public README / GitHub:** full **screenshot refresh** — area-based filenames under **`images/`** (URL-safe, no spaces); captions aligned with tabs (Dashboard, Scripts, scheduler, Explorer, NAS↔NAS, devices, storage, Docker, users, snapshots, backup, system health, settings, Info).
+- **`build_oeffentlich_readme.py`:** updated `<img>` paths and “What’s new” blurb for **v23.5.2**.
+- **Version bump** to **23.5.2** (private + `öffentlich/`).
+
+## 23.5.1 — 2026-05-01
+
+Patch-Release (**ohne neue App-Features**) — Versionsnummer, Doku und **öffentlicher** Release-Tree an die Backup-Dokumentation angeglichen.
+
+### Deutsch (ausführlich)
+
+- **`README.md` (privat):** Abschnitt **„10) Backup & Wiederherstellen“ / „Backup & restore“** stark erweitert — **drei Modi** (Docker+Skripte / Userdaten / alle Daten), **Ziele** NAS-intern · **PC-Ordner** · **USB am NAS** · **Zweit-NAS (SMB)**; **geplante Jobs** (`scheduled_backups.json`, **`ugreen_scheduled_backup_runner.py`**, Cron), Hinweis **kein reines „Ziel nur PC“** bei Cron; Kurz-Verweis für „Backup-first“-Nutzer direkt unter der Sicherheitwarnung (DE + EN Tab-Liste).
+- **`tools/build_oeffentlich_readme.py`:** Öffentliches README-Intro + **What’s new** an Backup-Kapitel und **v23.5.1** angepasst.
+- **`ugreen_app/nas_manager.py`:** **`__version__`** → **23.5.1**.
+
+### English (summary)
+
+- **README:** Expanded **§10 Backup & restore** (three modes, NAS/PC/USB/second‑NAS destinations, NAS-side cron notes); backup-focused callouts; synced public README generator blurbs.
+- **Version bump** to **23.5.1** (`nas_manager.py`).
+
+## 23.5.0 — 2026-05-01
+
+### Deutsch (ausführlich)
+
+- **Tab „Netzwerkgeräte“:** neue Übersicht **LAN- und USB-Geräte, die das NAS über SSH sieht** (Nachbarschaft/ARP-artige Daten; `lsusb` / `lsblk` für USB; ohne aktive SSH-Session Hinweis statt Scan). Für Nutzer dokumentiert die **README** den Ablauf **Geräte suchen** und Abgrenzung zum PC-Netzwerkscan.
+- **Internationalisierung (alle UI-Sprachen):** Modul **`ugreen_app/i18n_supplement_devices_telegram.py`** mit vollständigen Einträgen für **`tab.devices`**, **`nav.devices`**, alle **`devices.*`**-Zeichenketten sowie **vollständigem `health.telegram_hint`** (Token/Settings, NAS-Zentral-Wächter/Cron, **SSH-Login-Meldungen vs. Platten-Schwellen**, **SSH-Keepalive**, UGOS/vertrauenswürdige Client-IP) für **hr, fr, es, it, pl, ru, tr, ko, zh** — eingebunden per zusätzlichem Merge in **`i18n.py`**. PyInstaller: **`hiddenimports`** **`ugreen_app.i18n_supplement_devices_telegram`** in **`UgreenNASAdmin.spec`**.
+- **`translate()`:** bei Aufrufen **ohne** `str.format`-Platzhalter **LRU-Cache** (weniger Arbeit bei häufigen `self.t(...)`-Zugriffen).
+- **Dokumentation:** **`README.md`** stark erweitert — vollständige **Tab-Reihenfolge** (inkl. **Dashboard**, Netzwerkgeräte), neue Kapitel **Dashboard / Netzwerkgeräte / Backup-Einstieg**, Abschnitt **SSH-Login vs. Telegram-Wächter** (DE + EN); **`CHANGELOG.md`** dieser Eintrag.
+
+### English (summary)
+
+- **Network devices** tab: NAS-side LAN/USB discovery over SSH (documented in README).
+- **i18n:** `i18n_supplement_devices_telegram.py` + merged into **`i18n.py`** for nine locales; full **devices** strings and extended **health.telegram_hint**; PyInstaller hidden import in **`UgreenNASAdmin.spec`**.
+- **`translate()`:** LRU cache for plain lookups (no format kwargs).
+- **Docs:** README tab overview, Dashboard / Network devices, Backup overview, Telegram/SSH clarification (EN + DE).
+
 ## 23.4.0 — 2026-04-26
 
 ### Deutsch (ausführlich)

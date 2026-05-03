@@ -122,9 +122,9 @@ This project is licensed under the MIT License. See the `LICENSE` file in this f
 
 INTRO = r"""# Ugreen NAS Admin
 
-Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: scripts, file operations, Docker, system health, storage, permissions, snapshots, optional Telegram/Email notifications, and more. The UI is available in many languages; switch in **Settings** (or the status bar, depending on build).
+Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: **Dashboard** with live metrics, **scripts** and cron planner, **Explorer**, **NAS ↔ NAS** SMB copy, **network devices**, **Docker**, **system health** / Telegram guard, **storage**, **ACL**, **snapshots**, dedicated **Backup** tab (**Docker+scripts**, **user data**, **full data exports**; destinations **NAS / PC folder / USB on the NAS / second NAS SMB**; **cron scheduling on the NAS** without leaving a PC running), **Settings**, plus optional Telegram/Email notifications. The UI is available in many languages; switch in **Settings** (and often the status bar).
 
-**This file** is the **public release** README (folder **`öffentlich/`**). The step-by-step user guide below matches the **private** project’s main `README.md` (English + German). Release notes: [`CHANGELOG.md`](CHANGELOG.md).
+**This file** is the **public release** README (folder **`öffentlich/`**). The step-by-step guide below mirrors the **private** project’s main `README.md` (English + German), including **an extended Backup chapter** users asked for — release notes in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Download — which button on GitHub?
 
@@ -142,52 +142,101 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 
 **Links (immer aktuell):** [GitHub **Latest release**](https://github.com/runlevel1977-del/UgreenNASAdmin/releases/latest) · SourceForge „latest“ (oben) · [All releases](https://github.com/runlevel1977-del/UgreenNASAdmin/releases)
 
-### What's new in v23.3.0
+### What's new in v23.5.2
 
-- **Webcam Recorder suite:** live preview, immediate and scheduled recording, quality profiles, preflight checks, self-test, file rotation, optional motion detection.
-- **Webcam controls in-app:** auto/manual exposure, exposure value, gain and 50/60Hz power-line settings (`v4l2-ctl` integration).
-- **Smarter reliability:** explicit user/root write checks, clear recording status with last output filename, robust dependency checks (`ffmpeg`, `v4l2-ctl`).
-- **Disk imaging & restore:** select disks, image to PC or NAS, and restore from PC/NAS image files (with safety prompts).
-- **Docker Catalog:** browse/search Docker Hub images and prefill deployment wizard as `docker run` command or compose YAML presets.
-- **UI & docs refresh:** updated language strings, safer NAS folder browser (data volumes first), and release docs for current versions.
+- **GitHub README gallery refreshed:** screenshots are named by **feature area** (Dashboard, Scripts, Task scheduler, Explorer, NAS↔NAS, Network devices, Storage, Docker, Users & permissions, Snapshots, Backup & restore, System & Health, Central settings, Info). Files live under **`images/`** with **no spaces** in filenames (e.g. `dashboard.png`, `nas_to_nas.png`, `system_health_2.png`) so links stay reliable everywhere.
+- **Version** **23.5.2** — documentation / presentation release; see [`CHANGELOG.md`](CHANGELOG.md).
+
+### What shipped in v23.5.1
+
+- **Backup & restore** user-guide expansion (three modes, destinations, NAS-side cron); **DE + EN**; version **23.5.1**.
+
+### What shipped in v23.5.0
+
+- **Network devices** tab; **nine-locale i18n** supplement for devices + Telegram hint; **`translate()` LRU cache**; README tab-order + Telegram/SSH note — details in [`CHANGELOG.md`](CHANGELOG.md).
+
+**Earlier highlights (v23.3):** **Webcam recorder suite**, **disk imaging & restore**, **Docker Catalog** — [`CHANGELOG.md`](CHANGELOG.md).
 
 **Walkthrough on YouTube:** [https://youtu.be/RDaEZhuEbCc](https://youtu.be/RDaEZhuEbCc)
 
 ### Screenshots
 
-Images live under **`images/`** (`1.png` … `6.png`, health tab). **Do not** show real passwords or private IPs in screenshots.
+All files are under **`images/`**. **Do not** show real passwords or private IPs in screenshots.
 
 <p align="center">
-  <img src="images/1.png" alt="Ugreen NAS Admin — main view" width="820" />
+  <img src="images/dashboard.png" alt="Dashboard — live metrics" width="820" />
 </p>
-<p align="center"><sub>Main window (v23+ UI; screenshot may vary by build)</sub></p>
+<p align="center"><sub>Dashboard (CPU, memory, disks, network, Docker summary)</sub></p>
 
 <p align="center">
-  <img src="images/2.png" alt="Ugreen NAS Admin — view 2" width="400" />
+  <img src="images/scripts.png" alt="Scripts & automation" width="400" />
   &nbsp;&nbsp;
-  <img src="images/3.png" alt="Ugreen NAS Admin — view 3" width="400" />
+  <img src="images/task_scheduler.png" alt="Task scheduler drawer" width="400" />
 </p>
-<p align="center"><sub>More areas</sub></p>
+<p align="center"><sub>Scripts &amp; automation · Task scheduler (cron)</sub></p>
 
 <p align="center">
-  <img src="images/4.png" alt="Ugreen NAS Admin — view 4" width="400" />
+  <img src="images/explorer.png" alt="NAS Explorer" width="400" />
   &nbsp;&nbsp;
-  <img src="images/5.png" alt="Ugreen NAS Admin — view 5" width="400" />
+  <img src="images/nas_to_nas.png" alt="NAS to NAS transfer" width="400" />
 </p>
-<p align="center">
-  <img src="images/6.png" alt="Ugreen NAS Admin — view 6" width="820" />
-</p>
-<p align="center"><sub>e.g. Docker, Explorer, sidebar with live monitor</sub></p>
+<p align="center"><sub>NAS Explorer · NAS ↔ NAS</sub></p>
 
 <p align="center">
-  <img src="images/health_system_1.png" alt="System & Health — overview" width="400" />
+  <img src="images/devices.png" alt="Network devices" width="400" />
   &nbsp;&nbsp;
-  <img src="images/health_system_2.png" alt="System & Health — guard" width="400" />
+  <img src="images/storage.png" alt="Storage & shares" width="400" />
+</p>
+<p align="center"><sub>Network devices · Storage &amp; shares</sub></p>
+
+<p align="center">
+  <img src="images/docker.png" alt="Docker Manager" width="400" />
+  &nbsp;&nbsp;
+  <img src="images/users.png" alt="Users & permissions" width="400" />
+</p>
+<p align="center"><sub>Docker Manager · Users &amp; permissions (ACL)</sub></p>
+
+<p align="center">
+  <img src="images/snapshots.png" alt="Snapshots" width="820" />
+</p>
+<p align="center"><sub>Snapshots</sub></p>
+
+<p align="center">
+  <img src="images/backup.png" alt="Backup & restore" width="400" />
+  &nbsp;&nbsp;
+  <img src="images/backup_2.png" alt="Backup & restore — scheduling" width="400" />
 </p>
 <p align="center">
-  <img src="images/health_system_3.png" alt="System & Health — daily report" width="820" />
+  <img src="images/backup_3.png" alt="Backup & restore — destinations" width="820" />
 </p>
-<p align="center"><sub>System &amp; Health tab (Telegram, NAS central watch, daily report)</sub></p>
+<p align="center"><sub>Backup &amp; restore (modes, schedule, destinations)</sub></p>
+
+<p align="center">
+  <img src="images/system_health.png" alt="System & Health" width="400" />
+  &nbsp;&nbsp;
+  <img src="images/system_health_2.png" alt="System & Health — guard" width="400" />
+</p>
+<p align="center">
+  <img src="images/system_health_3.png" alt="System & Health — daily report" width="820" />
+</p>
+<p align="center"><sub>System &amp; Health (Telegram, NAS central watch, daily report)</sub></p>
+
+<p align="center">
+  <img src="images/settings.png" alt="Central settings" width="400" />
+  &nbsp;&nbsp;
+  <img src="images/settings_2.png" alt="Central settings — paths" width="400" />
+</p>
+<p align="center">
+  <img src="images/settings_3.png" alt="Central settings — Telegram" width="400" />
+  &nbsp;&nbsp;
+  <img src="images/settings_4.png" alt="Central settings — second NAS" width="400" />
+</p>
+<p align="center"><sub>Central settings (connection, paths, Telegram, second NAS, …)</sub></p>
+
+<p align="center">
+  <img src="images/info.png" alt="Info dialog" width="520" />
+</p>
+<p align="center"><sub>Info (README / changelog / manual PDFs)</sub></p>
 
 ### About this public folder
 
