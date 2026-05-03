@@ -4,21 +4,18 @@
 
 _(noch nicht veröffentlicht)_
 
-## 23.5.0 — 2026-05-01
+## 23.5.2 — 2026-05-03
 
 ### Deutsch (ausführlich)
 
-- **Tab „Netzwerkgeräte“:** neue Übersicht **LAN- und USB-Geräte, die das NAS über SSH sieht** (Nachbarschaft/ARP-artige Daten; `lsusb` / `lsblk` für USB; ohne aktive SSH-Session Hinweis statt Scan). Für Nutzer dokumentiert die **README** den Ablauf **Geräte suchen** und Abgrenzung zum PC-Netzwerkscan.
-- **Internationalisierung (alle UI-Sprachen):** Modul **`ugreen_app/i18n_supplement_devices_telegram.py`** mit vollständigen Einträgen für **`tab.devices`**, **`nav.devices`**, alle **`devices.*`**-Zeichenketten sowie **vollständigem `health.telegram_hint`** (Token/Settings, NAS-Zentral-Wächter/Cron, **SSH-Login-Meldungen vs. Platten-Schwellen**, **SSH-Keepalive**, UGOS/vertrauenswürdige Client-IP) für **hr, fr, es, it, pl, ru, tr, ko, zh** — eingebunden per zusätzlichem Merge in **`i18n.py`**. PyInstaller: **`hiddenimports`** **`ugreen_app.i18n_supplement_devices_telegram`** in **`UgreenNASAdmin.spec`**.
-- **`translate()`:** bei Aufrufen **ohne** `str.format`-Platzhalter **LRU-Cache** (weniger Arbeit bei häufigen `self.t(...)`-Zugriffen).
-- **Dokumentation:** **`README.md`** stark erweitert — vollständige **Tab-Reihenfolge** (inkl. **Dashboard**, Netzwerkgeräte), neue Kapitel **Dashboard / Netzwerkgeräte / Backup-Einstieg**, Abschnitt **SSH-Login vs. Telegram-Wächter** (DE + EN); **`CHANGELOG.md`** dieser Eintrag.
+- **Öffentliche GitHub-Doku / README:** Screenshot-Galerie komplett erneuert — Bilder nach **App-Bereichen** benannt und unter **`images/`** ohne Leerzeichen im Dateinamen (u. a. `dashboard.png`, `scripts.png`, `task_scheduler.png`, `explorer.png`, `nas_to_nas.png`, `devices.png`, `storage.png`, `docker.png`, `users.png`, `snapshots.png`, `backup.png` / `backup_2.png` / `backup_3.png`, `system_health*.png`, `settings*.png`, `info.png`), damit **GitHub und ZIP** die Links zuverlässig auflösen.
+- **`tools/build_oeffentlich_readme.py`** (privates Projekt): Pfade und Bildunterschriften an die neue Galerie angepasst; **„What’s new“** um **v23.5.2** ergänzt — nach `python tools/build_oeffentlich_readme.py` ist dieses **`README.md`** aktualisiert.
+- **`__version__`** → **23.5.2** in **`ugreen_app/nas_manager.py`**.
 
 ### English (summary)
 
-- **Network devices** tab: NAS-side LAN/USB discovery over SSH (documented in README).
-- **i18n:** `i18n_supplement_devices_telegram.py` + merged into **`i18n.py`** for nine locales; full **devices** strings and extended **health.telegram_hint**; PyInstaller hidden import in **`UgreenNASAdmin.spec`**.
-- **`translate()`:** LRU cache for plain lookups (no format kwargs).
-- **Docs:** README tab overview, Dashboard / Network devices, Backup overview, Telegram/SSH clarification (EN + DE).
+- **Public README / GitHub:** full **screenshot refresh** — area-based filenames under **`images/`** (URL-safe); captions aligned with major tabs.
+- **Version bump** to **23.5.2**.
 
 ## 23.5.1 — 2026-05-01
 
@@ -34,6 +31,22 @@ Patch-Release (**ohne neue App-Features**) — Versionsnummer, Doku und **öffen
 
 - **README:** Expanded **§10 Backup & restore** (three modes, NAS/PC/USB/second‑NAS destinations, NAS-side cron notes); backup-focused callouts; synced public README generator blurbs.
 - **Version bump** to **23.5.1** (`nas_manager.py`).
+
+## 23.5.0 — 2026-05-01
+
+### Deutsch (ausführlich)
+
+- **Tab „Netzwerkgeräte“:** neue Übersicht **LAN- und USB-Geräte, die das NAS über SSH sieht** (Nachbarschaft/ARP-artige Daten; `lsusb` / `lsblk` für USB; ohne aktive SSH-Session Hinweis statt Scan). Für Nutzer dokumentiert die **README** den Ablauf **Geräte suchen** und Abgrenzung zum PC-Netzwerkscan.
+- **Internationalisierung (alle UI-Sprachen):** Modul **`ugreen_app/i18n_supplement_devices_telegram.py`** mit vollständigen Einträgen für **`tab.devices`**, **`nav.devices`**, alle **`devices.*`**-Zeichenketten sowie **vollständigem `health.telegram_hint`** (Token/Settings, NAS-Zentral-Wächter/Cron, **SSH-Login-Meldungen vs. Platten-Schwellen**, **SSH-Keepalive**, UGOS/vertrauenswürdige Client-IP) für **hr, fr, es, it, pl, ru, tr, ko, zh** — eingebunden per zusätzlichem Merge in **`i18n.py`**. PyInstaller: **`hiddenimports`** **`ugreen_app.i18n_supplement_devices_telegram`** in **`UgreenNASAdmin.spec`**.
+- **`translate()`:** bei Aufrufen **ohne** `str.format`-Platzhalter **LRU-Cache** (weniger Arbeit bei häufigen `self.t(...)`-Zugriffen).
+- **Dokumentation:** **`README.md`** stark erweitert — vollständige **Tab-Reihenfolge** (inkl. **Dashboard**, Netzwerkgeräte), neue Kapitel **Dashboard / Netzwerkgeräte / Backup-Einstieg**, Abschnitt **SSH-Login vs. Telegram-Wächter** (DE + EN); **`CHANGELOG.md`** dieser Eintrag.
+
+### English (summary)
+
+- **Network devices** tab: NAS-side LAN/USB discovery over SSH (documented in README).
+- **i18n:** `i18n_supplement_devices_telegram.py` + merged into **`i18n.py`** for nine locales; full **devices** strings and extended **health.telegram_hint**; PyInstaller hidden import in **`UgreenNASAdmin.spec`**.
+- **`translate()`:** LRU cache for plain lookups (no format kwargs).
+- **Docs:** README tab overview, Dashboard / Network devices, Backup overview, Telegram/SSH clarification (EN + DE).
 
 ## 23.4.0 — 2026-04-26
 
