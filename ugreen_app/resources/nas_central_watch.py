@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shlex
 import socket
 import smtplib
@@ -133,6 +134,23 @@ def _max_temp_c(sensor_out: str) -> float:
             v = v / 10.0
         mx = max(mx, float(v))
     return mx
+
+
+def _parse_fan_rpms(raw: str) -> list[tuple[str, int]]:
+    """UGOS it86: 'sysfan1 speed:482'; hwmon fallback: 'fan1_input 482'."""
+    out: list[tuple[str, int]] = []
+    for ln in (raw or "").splitlines():
+        s = (ln or "").strip()
+        if not s:
+            continue
+        m = re.search(r"([A-Za-z0-9._-]+)\s+speed:(\d+)", s)
+        if m:
+            out.append((m.group(1), int(m.group(2))))
+            continue
+        parts = s.split()
+        if len(parts) >= 2 and parts[0].startswith("fan") and parts[1].isdigit():
+            out.append((parts[0], int(parts[1])))
+    return out
 
 
 def _send_telegram(token: str, chat_id: str, text: str) -> tuple[bool, str]:
@@ -299,6 +317,12 @@ def _ssh_failed_login_count(window_min: int) -> int:
     return _grep_fail_count("\n".join(lines))
 
 
+def _svc_state(name: str) -> tuple[str, str]:
+    _, a = _run(f"systemctl is-active {shlex.quote(name)} 2>/dev/null || echo unknown", 10)
+    _, e = _run(f"systemctl is-enabled {shlex.quote(name)} 2>/dev/null || echo unknown", 10)
+    return (a or "").strip(), (e or "").strip()
+
+
 def _ignored(name: str, patterns: list[str]) -> bool:
     n = name.strip()
     for p in patterns:
@@ -347,6 +371,29 @@ def run_checks(cfg: dict[str, Any], state: dict[str, Any], *, force_notify: bool
                 "raid",
                 _tr(cfg, "RAID/mdstat auffällig:\n", "RAID/mdstat suspicious:\n") + snip,
             )
+        md_start_a, _md_start_e = _svc_state("mdcheck_start.service")
+        md_cont_a, _md_cont_e = _svc_state("mdcheck_continue.service")
+        if md_start_a in ("failed", "unknown") or md_cont_a in ("failed", "unknown"):
+            emit(
+                "raid_mdcheck",
+                _tr(
+                    cfg,
+                    f"RAID-mdcheck Dienste auffällig: mdcheck_start={md_start_a}, mdcheck_continue={md_cont_a}",
+                    f"RAID mdcheck services look wrong: mdcheck_start={md_start_a}, mdcheck_continue={md_cont_a}",
+                ),
+            )
+
+    if cfg.get("check_network_ready", True):
+        n_a, n_e = _svc_state("systemd-networkd-wait-online.service")
+        if n_a in ("failed", "unknown"):
+            emit(
+                "network_ready",
+                _tr(
+                    cfg,
+                    f"Network-Ready Dienst auffällig: active={n_a} enabled={n_e}",
+                    f"Network-ready service looks wrong: active={n_a} enabled={n_e}",
+                ),
+            )
 
     if cfg.get("check_temp", True):
         _, sens = _run(
@@ -365,6 +412,32 @@ def run_checks(cfg: dict[str, Any], state: dict[str, Any], *, force_notify: bool
                 ),
             )
 
+    if cfg.get("check_fan", True):
+        fmin = max(0, int(cfg.get("fan_min_rpm", 200)))
+        _, fan_raw = _run(
+            "sudo -n cat /proc/it86/fan 2>/dev/null || cat /proc/it86/fan 2>/dev/null || "
+            "for f in /sys/class/hwmon/hwmon*/fan*_input; do "
+            '[ -r "$f" ] && echo "$(basename "$f") $(cat "$f")"; done 2>/dev/null',
+            15,
+        )
+        rpms = _parse_fan_rpms(fan_raw)
+        if not rpms:
+            emit(
+                "fan_unread",
+                _tr(cfg, "Lüfter: RPM nicht lesbar (it86/hwmon).", "Fan: could not read RPM (it86/hwmon)."),
+            )
+        elif fmin > 0:
+            lowest = min(r for _n, r in rpms)
+            if lowest <= fmin:
+                emit(
+                    "fan_low",
+                    _tr(
+                        cfg,
+                        f"Lüfter-Warnung: niedrigste Drehzahl {lowest} RPM (Schwelle {fmin}).",
+                        f"Fan warning: lowest speed {lowest} RPM (threshold {fmin}).",
+                    ),
+                )
+
     if cfg.get("check_systemd_failed", False):
         _, failed = _run("systemctl --failed --no-pager 2>/dev/null | head -40", 20)
         if failed.strip() and "0 loaded units listed" not in failed and "0 loaded" not in failed.lower():
@@ -374,6 +447,87 @@ def run_checks(cfg: dict[str, Any], state: dict[str, Any], *, force_notify: bool
                     _tr(cfg, "systemctl --failed (Auszug):\n", "systemctl --failed (excerpt):\n")
                     + failed.strip()[:800],
                 )
+
+    if cfg.get("check_ups", True):
+        _, ups = _run(
+            "for s in nut-monitor nut-server; do "
+            "A=$(systemctl is-active ${s}.service 2>/dev/null || echo unknown); "
+            "E=$(systemctl is-enabled ${s}.service 2>/dev/null || echo unknown); "
+            "echo \"$s active=$A enabled=$E\"; "
+            "done",
+            20,
+        )
+        low = (ups or "").lower()
+        if "active=active" not in low:
+            emit(
+                "ups_services",
+                _tr(cfg, "UPS/NUT Status auffällig:\n", "UPS/NUT status looks wrong:\n") + (ups.strip()[:700] or "no output"),
+            )
+
+    if cfg.get("check_ugos_core_services", True):
+        _, svc = _run(
+            "for s in storage_serv snapshot_serv docker_serv ugbus syncbackup_serv; do "
+            "A=$(systemctl is-active ${s}.service 2>/dev/null || echo unknown); "
+            "E=$(systemctl is-enabled ${s}.service 2>/dev/null || echo unknown); "
+            "echo \"$s active=$A enabled=$E\"; "
+            "done",
+            20,
+        )
+        bad = []
+        for ln in (svc or "").splitlines():
+            s = ln.strip().lower()
+            if not s:
+                continue
+            if "active=active" not in s:
+                bad.append(ln.strip())
+        if bad:
+            emit(
+                "ugos_core_services",
+                _tr(cfg, "UGOS-Core-Services auffällig:\n", "UGOS core services not healthy:\n")
+                + "\n".join(bad[:12]),
+            )
+
+    if cfg.get("check_file_services", True):
+        bad_fs: list[str] = []
+        for s in ("smbd.service", "nfs-server.service", "wsdd2.service"):
+            a, e = _svc_state(s)
+            if a not in ("active", "inactive"):
+                bad_fs.append(f"{s}: active={a} enabled={e}")
+        if bad_fs:
+            emit(
+                "file_services",
+                _tr(cfg, "SMB/NFS Dienste auffällig:\n", "SMB/NFS services look wrong:\n") + "\n".join(bad_fs),
+            )
+
+    if cfg.get("check_maintenance_timers", True):
+        bad_timers: list[str] = []
+        for t in (
+            "fstrim.timer",
+            "sysstat-collect.timer",
+            "sysstat-summary.timer",
+            "logrotate.timer",
+            "dpkg-db-backup.timer",
+        ):
+            a, e = _svc_state(t)
+            if e in ("disabled", "masked", "unknown") or a == "failed":
+                bad_timers.append(f"{t}: active={a} enabled={e}")
+        if bad_timers:
+            emit(
+                "maintenance_timers",
+                _tr(cfg, "Wartungs-Timer auffällig:\n", "Maintenance timers look wrong:\n") + "\n".join(bad_timers),
+            )
+
+    if cfg.get("check_smart", True):
+        sm_a, sm_e = _svc_state("smartmontools.service")
+        if sm_a != "active":
+            emit(
+                "smart_daemon",
+                _tr(
+                    cfg,
+                    f"SMART-Dienst nicht aktiv: smartmontools active={sm_a} enabled={sm_e}",
+                    f"SMART daemon not active: smartmontools active={sm_a} enabled={sm_e}",
+                ),
+            )
 
     if cfg.get("check_login_failures", False):
         win_m = max(5, min(1440, int(cfg.get("login_fail_window_min", 30))))
@@ -397,6 +551,17 @@ def run_checks(cfg: dict[str, Any], state: dict[str, Any], *, force_notify: bool
                 _tr(cfg, "Docker antwortet nicht (docker info fehlgeschlagen).", "Docker not responding (docker info failed)."),
             )
         else:
+            d_a, _d_e = _svc_state("docker.service")
+            c_a, _c_e = _svc_state("containerd.service")
+            if d_a != "active" or c_a != "active":
+                emit(
+                    "docker_runtime",
+                    _tr(
+                        cfg,
+                        f"Docker Runtime auffällig: dockerd={d_a}, containerd={c_a}",
+                        f"Docker runtime looks wrong: dockerd={d_a}, containerd={c_a}",
+                    ),
+                )
             _, ps = _run(
                 "docker ps -a --no-trunc --format '{{.Names}}\\t{{.Status}}' 2>/dev/null",
                 90,

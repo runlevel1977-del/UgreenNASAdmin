@@ -7,17 +7,40 @@ ICON = os.path.join(PROJECT, "nas_icon.ico")
 PNG = os.path.join(PROJECT, "nas_icon_app.png")
 NAS_WATCH = os.path.join(PROJECT, "ugreen_app", "resources", "nas_central_watch.py")
 NAS_DAILY = os.path.join(PROJECT, "ugreen_app", "resources", "nas_daily_report.py")
+NAS_SB_RUNNER = os.path.join(PROJECT, "ugreen_app", "resources", "ugreen_scheduled_backup_runner.py")
+README = os.path.join(PROJECT, "README.md")
+CHANGELOG = os.path.join(PROJECT, "CHANGELOG.md")
+MANUAL_DE_PDF = os.path.join(PROJECT, "HANDBUCH.pdf")
+MANUAL_EN_PDF = os.path.join(PROJECT, "HANDBOOK_EN.pdf")
+MANUAL_DE_MD = os.path.join(PROJECT, "HANDBUCH.md")
+MANUAL_EN_MD = os.path.join(PROJECT, "HANDBOOK_EN.md")
+
+_DATAS = [
+    (ICON, "."),
+    (PNG, "."),
+    (NAS_WATCH, "ugreen_app/resources"),
+    (NAS_DAILY, "ugreen_app/resources"),
+]
+if os.path.isfile(NAS_SB_RUNNER):
+    _DATAS.append((NAS_SB_RUNNER, "ugreen_app/resources"))
+if os.path.isfile(README):
+    _DATAS.append((README, "."))
+if os.path.isfile(CHANGELOG):
+    _DATAS.append((CHANGELOG, "."))
+if os.path.isfile(MANUAL_DE_PDF):
+    _DATAS.append((MANUAL_DE_PDF, "."))
+if os.path.isfile(MANUAL_EN_PDF):
+    _DATAS.append((MANUAL_EN_PDF, "."))
+if os.path.isfile(MANUAL_DE_MD):
+    _DATAS.append((MANUAL_DE_MD, "."))
+if os.path.isfile(MANUAL_EN_MD):
+    _DATAS.append((MANUAL_EN_MD, "."))
 
 a = Analysis(
     [MAIN],
     pathex=[PROJECT],
     binaries=[],
-    datas=[
-        (ICON, "."),
-        (PNG, "."),
-        (NAS_WATCH, "ugreen_app/resources"),
-        (NAS_DAILY, "ugreen_app/resources"),
-    ],
+    datas=_DATAS,
     hiddenimports=[
         "ugreen_app",
         "ugreen_app._paramiko",
@@ -35,6 +58,8 @@ a = Analysis(
         "ugreen_app.mixin_transfer",
         "ugreen_app.rounded_ui",
         "ugreen_app.i18n",
+        "ugreen_app.i18n_backup_locales",
+        "ugreen_app.i18n_supplement_devices_telegram",
         "PIL.Image",
         "PIL.ImageDraw",
         "PIL.ImageTk",

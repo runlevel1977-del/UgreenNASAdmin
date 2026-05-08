@@ -234,13 +234,14 @@ class MixinConfigTelegram:
             pass
 
     def _load_ui_lang_from_disk(self):
+        from ugreen_app.i18n import normalize_lang
+
         try:
             p = self._connection_config_path()
             if os.path.isfile(p):
                 with open(p, encoding="utf-8") as f:
                     data = json.load(f)
-                if data.get("ui_lang") in ("de", "en"):
-                    return data["ui_lang"]
+                return normalize_lang(data.get("ui_lang"), default="de")
         except Exception:
             pass
         return "de"
@@ -311,6 +312,335 @@ class MixinConfigTelegram:
             self.set_status(self.t("keyring.stored"))
         else:
             messagebox.showerror(self.t("msg.connection"), self.t("keyring.failed"))
+
+    def _settings_generate_ssh_key_pair(self) -> None:
+        """Erzeugt ein SSH-Key-Paar auf dem PC; öffentlichen Teil in die Zwischenablage."""
+        from tkinter import filedialog, simpledialog
+
+        root = getattr(self, "root", None)
+        folder = filedialog.askdirectory(
+            title=self.t("settings.gen_ssh_key_pick_dir"),
+            parent=root,
+            initialdir=os.path.expanduser("~"),
+        )
+        if not folder:
+            return
+        base_name = "ugreen_nas_admin"
+        priv_path = os.path.join(folder, base_name)
+        pub_path = priv_path + ".pub"
+        if os.path.isfile(priv_path) or os.path.isfile(pub_path):
+            if not messagebox.askyesno(
+                self.t("msg.connection"),
+                self.t("settings.gen_ssh_key_exists"),
+                parent=root,
+            ):
+                return
+        pp_resp = simpledialog.askstring(
+            self.t("settings.gen_ssh_key_pass_title"),
+            self.t("settings.gen_ssh_key_pass_prompt"),
+            show="*",
+            parent=root,
+        )
+        if pp_resp is None:
+            return
+        passphrase = pp_resp
+        try:
+            pk_mod = _paramiko()
+            if passphrase:
+                key = pk_mod.RSAKey.generate(bits=4096)
+            else:
+                try:
+                    key = pk_mod.Ed25519Key.generate()
+                except Exception:
+                    key = pk_mod.RSAKey.generate(bits=4096)
+            pwd_bytes: bytes | None = passphrase.encode("utf-8") if passphrase else None
+            with open(priv_path, "wb") as f:
+                key.write_private_key(f, password=pwd_bytes)
+            try:
+                os.chmod(priv_path, stat.S_IRUSR | stat.S_IWUSR)
+            except OSError:
+                pass
+            comment = "ugreen-nas-admin"
+            pub_line = f"{key.get_name()} {key.get_base64()} {comment}"
+            with open(pub_path, "w", encoding="utf-8", newline="\n") as f:
+                f.write(pub_line + "\n")
+        except Exception as e:
+            messagebox.showerror(
+                self.t("msg.connection"),
+                self.t("settings.gen_ssh_key_fail", e=str(e)),
+                parent=root,
+            )
+            return
+        try:
+            rw = getattr(self, "root", None)
+            if rw is not None:
+                rw.clipboard_clear()
+                rw.clipboard_append(pub_line)
+                rw.update_idletasks()
+        except Exception:
+            pass
+        messagebox.showinfo(
+            self.t("msg.connection"),
+            self.t("settings.gen_ssh_key_done", priv=priv_path, pub=pub_path),
+            parent=root,
+        )
+        if messagebox.askyesno(
+            self.t("msg.connection"),
+            self.t("settings.gen_ssh_key_apply"),
+            parent=root,
+        ):
+            if hasattr(self, "var_ssh_use_key"):
+                self.var_ssh_use_key.set(True)
+            if hasattr(self, "entry_ssh_key_path"):
+                self.entry_ssh_key_path.delete(0, tk.END)
+                self.entry_ssh_key_path.insert(0, priv_path)
+            if hasattr(self, "entry_ssh_key_pass"):
+                self.entry_ssh_key_pass.delete(0, tk.END)
+                if passphrase:
+                    self.entry_ssh_key_pass.insert(0, passphrase)
+
+    def _settings_resolve_public_key_line(self) -> tuple[str | None, str | None]:
+        """Liest eine Zeile OpenSSH-public-key aus Pfad-Feld oder Dateiauswahl."""
+        from pathlib import Path
+
+        root = getattr(self, "root", None)
+        pk = ""
+        if hasattr(self, "entry_ssh_key_path"):
+            pk = self.entry_ssh_key_path.get().strip()
+        candidates: list[str] = []
+        if pk:
+            candidates.append(pk if pk.endswith(".pub") else pk + ".pub")
+        for cand in candidates:
+            if cand and os.path.isfile(cand):
+                try:
+                    line = (
+                        Path(cand).read_text(encoding="utf-8", errors="replace").strip().splitlines()
+                    )
+                    if line and line[0].strip():
+                        return (line[0].strip(), cand)
+                except OSError:
+                    pass
+        from tkinter import filedialog
+
+        path = filedialog.askopenfilename(
+            title=self.t("settings.install_pubkey_pick_pub"),
+            parent=root,
+            filetypes=[
+                (self.t("settings.install_pubkey_pub_files"), "*.pub"),
+                (self.t("settings.install_pubkey_all_files"), "*.*"),
+            ],
+        )
+        if not path:
+            return (None, None)
+        try:
+            line = Path(path).read_text(encoding="utf-8", errors="replace").strip().splitlines()
+            if line and line[0].strip():
+                return (line[0].strip(), path)
+        except OSError:
+            pass
+        return (None, None)
+
+    def _settings_authorized_keys_append_cmd(self, pub_line: str) -> str:
+        """Remote-Befehl: eine Zeile an ~/.ssh/authorized_keys anhängen (idempotent)."""
+        inner = (
+            "set -e; "
+            f"PUB={shlex.quote(pub_line)}; "
+            'test -n "$PUB"; '
+            'mkdir -p "$HOME/.ssh"; chmod 700 "$HOME/.ssh"; '
+            'touch "$HOME/.ssh/authorized_keys"; chmod 600 "$HOME/.ssh/authorized_keys"; '
+            'if grep -qxF "$PUB" "$HOME/.ssh/authorized_keys" 2>/dev/null; then echo "KEY_ALREADY_PRESENT"; exit 0; fi; '
+            'printf "%s\\n" "$PUB" >> "$HOME/.ssh/authorized_keys"; echo "KEY_ADDED"'
+        )
+        return "/bin/bash -lc " + shlex.quote(inner)
+
+    def _settings_ssh_install_pubkey_password_only(
+        self,
+        *,
+        host: str,
+        user: str,
+        password: str,
+        port: int,
+        pub_line: str,
+    ) -> str:
+        """SSH nur mit Passwort (ohne Key), damit der neue Public Key eingetragen werden kann."""
+        self._ssh_mgr.close()
+        try:
+            cmd = self._settings_authorized_keys_append_cmd(pub_line)
+            return self._ssh_mgr.run(
+                host.strip(),
+                user,
+                password,
+                cmd,
+                ssh_port=int(port),
+                ssh_use_key=False,
+                ssh_key_path="",
+                ssh_key_passphrase="",
+                use_sudo=False,
+                set_status=None,
+            )
+        finally:
+            self._ssh_mgr.close()
+
+    def _settings_install_pubkey_to_ugreen(self) -> None:
+        pub_line, _src = self._settings_resolve_public_key_line()
+        if not pub_line:
+            messagebox.showwarning(
+                self.t("msg.connection"),
+                self.t("settings.install_pubkey_missing_pub"),
+                parent=getattr(self, "root", None),
+            )
+            return
+        pw = self.entry_pwd.get() if hasattr(self, "entry_pwd") else ""
+        if not (pw or "").strip():
+            messagebox.showwarning(
+                self.t("msg.connection"),
+                self.t("settings.install_pubkey_need_password_ugreen"),
+                parent=getattr(self, "root", None),
+            )
+            return
+        host = self.entry_ip.get().strip() if hasattr(self, "entry_ip") else ""
+        user = self.entry_user.get().strip() if hasattr(self, "entry_user") else ""
+        if not host or not user:
+            messagebox.showwarning(
+                self.t("msg.connection"),
+                self.t("settings.install_pubkey_need_host_user"),
+                parent=getattr(self, "root", None),
+            )
+            return
+        port = 22
+        try:
+            port = int(self._get_ssh_port())
+        except Exception:
+            pass
+        out = self._settings_ssh_install_pubkey_password_only(
+            host=host,
+            user=user,
+            password=pw,
+            port=port,
+            pub_line=pub_line,
+        )
+        raw = (out or "").strip()
+        if "KEY_ADDED" not in raw and "KEY_ALREADY_PRESENT" not in raw:
+            messagebox.showerror(
+                self.t("msg.connection"),
+                self.t("settings.install_pubkey_fail", out=raw[:1200]),
+                parent=getattr(self, "root", None),
+            )
+            return
+        messagebox.showinfo(
+            self.t("msg.connection"),
+            self.t("settings.install_pubkey_ok", target=host, out=raw[:800]),
+            parent=getattr(self, "root", None),
+        )
+
+    def _settings_install_pubkey_to_second_nas(self) -> None:
+        pub_line, _src = self._settings_resolve_public_key_line()
+        if not pub_line:
+            messagebox.showwarning(
+                self.t("msg.connection"),
+                self.t("settings.install_pubkey_missing_pub"),
+                parent=getattr(self, "root", None),
+            )
+            return
+        h = (
+            self.entry_settings_second_nas_host.get().strip()
+            if hasattr(self, "entry_settings_second_nas_host")
+            else ""
+        )
+        u = (
+            self.entry_settings_second_nas_user.get().strip()
+            if hasattr(self, "entry_settings_second_nas_user")
+            else ""
+        )
+        p = (
+            self.entry_settings_second_nas_pwd.get()
+            if hasattr(self, "entry_settings_second_nas_pwd")
+            else ""
+        )
+        if not h or not u or not (p or "").strip():
+            messagebox.showwarning(
+                self.t("msg.connection"),
+                self.t("settings.install_pubkey_need_second_nas"),
+                parent=getattr(self, "root", None),
+            )
+            return
+        from tkinter import simpledialog
+
+        prt = simpledialog.askinteger(
+            self.t("settings.install_pubkey_qnap_port_title"),
+            self.t("settings.install_pubkey_qnap_port_prompt"),
+            initialvalue=22,
+            minvalue=1,
+            maxvalue=65535,
+            parent=getattr(self, "root", None),
+        )
+        if prt is None:
+            return
+        out = self._settings_ssh_install_pubkey_password_only(
+            host=h,
+            user=u,
+            password=p,
+            port=prt,
+            pub_line=pub_line,
+        )
+        raw = (out or "").strip()
+        if "KEY_ADDED" not in raw and "KEY_ALREADY_PRESENT" not in raw:
+            messagebox.showerror(
+                self.t("msg.connection"),
+                self.t("settings.install_pubkey_fail", out=raw[:1200]),
+                parent=getattr(self, "root", None),
+            )
+            return
+        messagebox.showinfo(
+            self.t("msg.connection"),
+            self.t("settings.install_pubkey_ok", target=h, out=raw[:800]),
+            parent=getattr(self, "root", None),
+        )
+
+    def _settings_install_pubkey_dialog(self) -> None:
+        """Ziel wählen: UGREEN-Verbindung oder zweites NAS (z. B. QNAP) per SSH-Passwort."""
+        root = getattr(self, "root", None)
+        w = tk.Toplevel(root)
+        w.title(self.t("settings.install_pubkey_dialog_title"))
+        w.configure(bg=self.color_surface)
+        w.transient(root)
+        try:
+            w.grab_set()
+        except Exception:
+            pass
+        f = tk.Frame(w, bg=self.color_surface, padx=16, pady=14)
+        f.pack(fill=tk.BOTH, expand=True)
+        tk.Label(
+            f,
+            text=self.t("settings.install_pubkey_dialog_hint"),
+            bg=self.color_surface,
+            fg=self.color_text,
+            wraplength=480,
+            justify=tk.LEFT,
+        ).pack(anchor="w", pady=(0, 12))
+        bf = tk.Frame(f, bg=self.color_surface)
+        bf.pack(fill=tk.X)
+        self.create_modern_btn(
+            bf,
+            self.t("settings.install_pubkey_btn_ugreen"),
+            lambda: (w.destroy(), self._settings_install_pubkey_to_ugreen()),
+            self.color_btn_blue,
+            width=28,
+        ).pack(fill=tk.X, pady=4)
+        self.create_modern_btn(
+            bf,
+            self.t("settings.install_pubkey_btn_second"),
+            lambda: (w.destroy(), self._settings_install_pubkey_to_second_nas()),
+            self.color_btn_secondary,
+            width=28,
+        ).pack(fill=tk.X, pady=4)
+        self.create_modern_btn(
+            bf,
+            self.t("settings.install_pubkey_btn_cancel"),
+            w.destroy,
+            getattr(self, "color_btn_dark", "#64748b"),
+            width=28,
+        ).pack(fill=tk.X, pady=(8, 0))
 
     def _save_connection_config_clicked(self):
         p = self._connection_config_path()
@@ -391,9 +721,13 @@ class MixinConfigTelegram:
                 "scripts_dir": "/volume1/scripts/",
                 "docker_compose_path": "/volume1/docker/docker-compose.yml",
                 "explorer_root": "/volume1",
+                "screenshot_dir": "",
             },
             "script_notifications": {
                 "rules": [],
+            },
+            "docker_update": {
+                "exclude_containers": [],
             },
             "second_nas_smb": {
                 "peer_label": "",
@@ -1131,7 +1465,7 @@ if __name__ == "__main__":
                     loaded = json.load(f)
                 if isinstance(loaded, dict):
                     raw = loaded
-                    for sec in ("telegram", "email", "paths", "second_nas_smb", "script_notifications"):
+                    for sec in ("telegram", "email", "paths", "second_nas_smb", "script_notifications", "docker_update"):
                         if isinstance(raw.get(sec), dict):
                             data[sec].update(raw[sec])
             except Exception:
@@ -1183,6 +1517,7 @@ if __name__ == "__main__":
                 "scripts_dir": self.entry_settings_path_scripts.get().strip() if hasattr(self, "entry_settings_path_scripts") else "/volume1/scripts/",
                 "docker_compose_path": self.entry_settings_path_compose.get().strip() if hasattr(self, "entry_settings_path_compose") else "/volume1/docker/docker-compose.yml",
                 "explorer_root": self.entry_settings_path_explorer_root.get().strip() if hasattr(self, "entry_settings_path_explorer_root") else "/volume1",
+                "screenshot_dir": self.entry_settings_path_screenshot_dir.get().strip() if hasattr(self, "entry_settings_path_screenshot_dir") else "",
             },
             "script_notifications": script_notify,
             "second_nas_smb": second_nas,
@@ -1481,6 +1816,9 @@ if __name__ == "__main__":
         if hasattr(self, "entry_settings_path_explorer_root"):
             self.entry_settings_path_explorer_root.delete(0, tk.END)
             self.entry_settings_path_explorer_root.insert(0, str(cfg["paths"].get("explorer_root") or "/volume1"))
+        if hasattr(self, "entry_settings_path_screenshot_dir"):
+            self.entry_settings_path_screenshot_dir.delete(0, tk.END)
+            self.entry_settings_path_screenshot_dir.insert(0, str(cfg["paths"].get("screenshot_dir") or ""))
         self._script_notify_rules = self._script_notify_rules_normalize(cfg)
         self._script_notify_rules_refresh_ui()
         self._script_notify_refresh_script_choices()
@@ -1546,6 +1884,11 @@ if __name__ == "__main__":
             self._update_settings_status_badges(cfg)
             if hasattr(self, "_n2n_refresh_peer_pane_title"):
                 self._n2n_refresh_peer_pane_title()
+            try:
+                if hasattr(self, "backup_refresh_sources"):
+                    self.backup_refresh_sources()
+            except Exception:
+                pass
         except Exception as e:
             messagebox.showerror(self.t("settings.title"), str(e))
 
@@ -1611,6 +1954,9 @@ if __name__ == "__main__":
         self.spin_telegram_temp.insert(0, str(int(c.get("temp_warn_c", 80))))
         self.spin_telegram_cooldown.delete(0, tk.END)
         self.spin_telegram_cooldown.insert(0, str(int(c.get("cooldown_sec", 3600))))
+        if hasattr(self, "spin_telegram_fan_min"):
+            self.spin_telegram_fan_min.delete(0, tk.END)
+            self.spin_telegram_fan_min.insert(0, str(int(c.get("fan_min_rpm", 200))))
         self._telegram_update_path_label()
 
     def telegram_collect_config_dict(self):
@@ -1624,6 +1970,11 @@ if __name__ == "__main__":
             "disk_crit_percent": max(1, min(100, int(self.spin_telegram_disk_crit.get() or 95))),
             "temp_warn_c": max(30, min(120, int(self.spin_telegram_temp.get() or 80))),
             "cooldown_sec": max(60, int(self.spin_telegram_cooldown.get() or 3600)),
+            "fan_min_rpm": (
+                max(0, min(50000, int(self.spin_telegram_fan_min.get() or 200)))
+                if hasattr(self, "spin_telegram_fan_min")
+                else 200
+            ),
         }
 
     def _telegram_update_path_label(self):
@@ -1795,6 +2146,21 @@ if __name__ == "__main__":
             mx = max(mx, float(v))
         return mx
 
+    def _telegram_parse_fan_rpm(self, text):
+        vals = []
+        for line in (text or "").splitlines():
+            s = (line or "").strip()
+            if not s:
+                continue
+            m = re.search(r"([A-Za-z0-9._-]+)\s+speed:(\d+)", s)
+            if m:
+                vals.append((m.group(1), int(m.group(2))))
+                continue
+            p = s.split()
+            if len(p) >= 2 and p[0].startswith("fan") and p[1].isdigit():
+                vals.append((p[0], int(p[1])))
+        return vals
+
     def _telegram_run_checks_once(self, ignore_cooldown=False, cfg_override=None):
         cfg = dict(cfg_override) if cfg_override else self._telegram_load_config()
         if not cfg.get("enabled") and not ignore_cooldown:
@@ -1806,6 +2172,7 @@ if __name__ == "__main__":
         crit = int(cfg.get("disk_crit_percent", 95))
         temp_max = float(cfg.get("temp_warn_c", 80))
         cool = int(cfg.get("cooldown_sec", 3600))
+        fan_min = max(0, min(50000, int(cfg.get("fan_min_rpm", 200))))
         host = "NAS"
         try:
             hn = self.run_ssh_cmd("hostname", True, update_status=False)
@@ -1840,6 +2207,29 @@ if __name__ == "__main__":
         tmax = self._telegram_max_temp_c(sens)
         if tmax >= temp_max and self._telegram_cooldown_ok("temp", cool, ignore_cooldown):
             self.telegram_send_raw(f"🟠 {host}\nTemperatur-Warnung: ca. {tmax:.1f}°C (Schwelle {temp_max:.0f}°C).", cfg)
+
+        fan_raw = self.run_ssh_cmd(
+            "sudo -n cat /proc/it86/fan 2>/dev/null || cat /proc/it86/fan 2>/dev/null || "
+            "for f in /sys/class/hwmon/hwmon*/fan*_input; do "
+            '[ -r "$f" ] && echo "$(basename "$f") $(cat "$f")"; done 2>/dev/null',
+            True,
+            update_status=False,
+        )
+        if "Fehler bei SSH" not in (fan_raw or ""):
+            rpms = self._telegram_parse_fan_rpm(fan_raw)
+            if not rpms:
+                if self._telegram_cooldown_ok("fan_unread", cool, ignore_cooldown):
+                    self.telegram_send_raw(
+                        f"🟠 {host}\nLüfter: RPM nicht lesbar (it86/hwmon).",
+                        cfg,
+                    )
+            elif fan_min > 0:
+                lowest = min(r for _n, r in rpms)
+                if lowest <= fan_min and self._telegram_cooldown_ok("fan_low", cool, ignore_cooldown):
+                    self.telegram_send_raw(
+                        f"🟠 {host}\nLüfter-Warnung: niedrigste Drehzahl {lowest} RPM (Schwelle {fan_min}).",
+                        cfg,
+                    )
 
     def telegram_run_checks_manual(self):
         if not self._danger_gate():

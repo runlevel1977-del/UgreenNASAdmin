@@ -96,7 +96,7 @@ class MixinEditorCron:
             return
             
         res = self.run_ssh_cmd(f"cat {shlex.quote(path)}", True)
-        self.notebook.select(0)
+        self.notebook.select(1)
         self.entry_filename.delete(0, tk.END)
         self.entry_filename.insert(0, os.path.basename(path))
         
@@ -166,6 +166,11 @@ class MixinEditorCron:
         if not ok:
             self.log(f"❌ Fehler beim Schreiben: {err}")
             return False
+        try:
+            if str(target_path or "").strip() == str(getattr(self, "stable_cron_path", "") or "").strip():
+                self._cron_postcheck_after_save()
+        except Exception:
+            pass
         return True
 
     def add_to_stable_cron(self):
@@ -197,6 +202,7 @@ class MixinEditorCron:
         
         if self.write_root_file(self.stable_cron_path, "\n".join(lines)):
             self.log(f"✅ Zeitplan (Host) gespeichert.")
+            self._cron_postcheck_after_save()
             self.root.after(500, lambda: self.sync_scheduler(fn))
 
     def add_to_docker_cron(self):
@@ -228,7 +234,22 @@ class MixinEditorCron:
         
         if self.write_root_file(self.stable_cron_path, "\n".join(lines)):
             self.log(f"✅ Zeitplan (Docker) Umgebung gespeichert.")
+            self._cron_postcheck_after_save()
             self.root.after(500, lambda: self.sync_scheduler(fn))
+
+    def _cron_postcheck_after_save(self) -> None:
+        """Schneller Check nach Cron-Save: cron-Dienst aktiv + Datei lesbar."""
+        cmd = (
+            "ACT=$(systemctl is-active cron 2>/dev/null || service cron status 2>/dev/null || echo unknown); "
+            f"OKF=$(test -r {shlex.quote(self.stable_cron_path)} && echo yes || echo no); "
+            f"echo '__UG_CRONCHK__ active='\"$ACT\"' file='\"$OKF\"; "
+            f"head -n 2 {shlex.quote(self.stable_cron_path)} 2>/dev/null || true"
+        )
+        out = str(self.run_ssh_cmd(cmd, True, update_status=False) or "").strip()
+        if "__UG_CRONCHK__" in out:
+            self.log(f"ℹ️ Cron-Postcheck: {out.splitlines()[0]}")
+        else:
+            self.log(f"⚠️ Cron-Postcheck unklar: {(out or 'keine Ausgabe')[:200]}")
 
     def _insert_script_template(self, text: str):
         if not hasattr(self, "text_editor"):

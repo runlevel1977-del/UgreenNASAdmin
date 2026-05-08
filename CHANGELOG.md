@@ -4,19 +4,91 @@
 
 _(noch nicht veröffentlicht)_
 
+## 23.6.0 — 2026-05-08
+
+Vergleichsbasis: **neueste öffentliche GitHub-Release `v23.5.2`**.
+
+### Deutsch (ausführlich)
+
+- **Settings / SSH-Workflow deutlich erweitert:**
+  - Neue Buttons im Verbindungsbereich:
+    - **`🔑 SSH-Key-Paar erstellen …`**
+    - **`📌 Öffentlichen Key auf NAS installieren …`**
+  - Direkter In-App-Flow für Key-basierte Authentifizierung:
+    - Schlüsselpaar lokal erzeugen (`ugreen_nas_admin` + `.pub`)
+    - optionaler Passphrase-Flow (kompatibel mit RSA/Ed25519-Strategie)
+    - Public-Key-Installation auf Zielsystem über einmalige Passwort-SSH-Session
+    - Zielauswahl **UGREEN** oder **zweites NAS/QNAP** inkl. SSH-Port-Abfrage für QNAP/Second-NAS.
+  - Zweck: reproduzierbare, zentral gesteuerte SSH-Key-Einrichtung ohne externe PowerShell-Schritte.
+
+- **Health/System-Bereich erweitert:**
+  - Neuer Health-Hauptbutton **`🗓️ Scheduler-Inventar`** zur schnellen Übersicht geplanter Jobs.
+  - UGOS-Service-Panel und zugehörige Texte/Erklärungen weiter ausgebaut.
+
+- **Dashboard deutlich erweitert (Live-Metriken + Visualisierung):**
+  - Dashboard-UI und Live-Loop ausgebaut (stabilere Aktualisierung und automatische Live-Synchronisation beim Tab-Wechsel).
+  - Sparkline-/Trenddarstellung für Kennzahlen (inkl. Disk/Netz-Visualisierung) als kompakter Verlauf statt reiner Textwerte.
+  - Verbesserte Erkennung NAS-relevanter Mounts (inkl. USB-/externer Mount-Hinweise) für die Dashboard-Storage-Sicht.
+
+- **Lüftersteuerung massiv ausgebaut (Dashboard):**
+  - Zwei Lüfter-Kacheln (System + CPU) mit RPM-Anzeige und Zustandszeile.
+  - Modus-Buttons je Kanal: **Silent**, **Standard**, **Max** sowie **Manuell (%)** mit Apply.
+  - Precheck vor Schreibzugriffen (hwmonitor/it86-Pfadprüfung) und robustere SSH-Fehlerbehandlung in der UI.
+  - Explizite Rückgabe an UGOS über **„UGOS-Steuerung zurückgeben“** (Auto-Betrieb wiederherstellen, Cron-/Boot-Block aufräumen).
+  - Persistenz-Flow für manuelle Lüfter-Profile über NAS-seitige Boot-Umgebung (`/volume1/scripts/ugreen_fan_boot_apply.sh`, `.env`) und Reboot-Integration.
+
+- **Internationalisierung (i18n) erweitert und bereinigt:**
+  - Neue SSH-/Settings-Texte in DE/EN plus Ergänzungen für zusätzliche Sprachen (u. a. hr/fr/es/it/pl/ru/tr/ko/zh) in den Supplement-Locales.
+  - Ergänzung neuer Health-Labels (`health.scheduler_inventory`) in den Zusatzsprachen.
+  - Ziel: konsistente UX ohne englische Resttexte in neu hinzugefügten Funktionen.
+
+- **Dokumentation stark ausgebaut (gegenüber `v23.5.2`):**
+  - Deutsches Handbuch **`HANDBUCH.md`** und englisches Handbuch **`HANDBOOK_EN.md`** mit vollständigen Settings-/SSH-Abschnitten:
+    - Knopf-für-Knopf-Erklärung
+    - Schritt-für-Schritt-Verfahren (UGREEN + QNAP/Second NAS)
+    - technische Wirkung (`authorized_keys`, Public/Private-Key-Trennung)
+    - Sicherheits- und Fehlerhinweise.
+  - Strukturierte Zusatzfassung **`HANDBUCH_STRUKTURIERT.md`** ergänzt.
+  - PDF-Generatoren für Handbücher vorhanden:
+    - `tools/build_handbuch_pdf.py`
+    - `tools/build_handbook_en_pdf.py`
+  - Ergebnisartefakte:
+    - `HANDBUCH.pdf`
+    - `HANDBOOK_EN.pdf`
+
+- **Projektregeln/Release-Disziplin geschärft:**
+  - In `.cursorrules` explizit verankert:
+    - Bei jeder neuen Funktion/Button müssen **Handbuch (DE/EN)**, **README** und **CHANGELOG** im selben Arbeitsgang aktualisiert werden.
+  - Ziel: keine Feature-Drift zwischen UI, Doku und Release-Notizen.
+
+- **Allgemeine Weiterentwicklung seit `v23.5.2` (bereits im Repo-Changelog dokumentiert):**
+  - Ausbau Netzwerkgeräte-/Dashboard-/Docker-/Webcam-/Backup-Flows.
+  - Größere i18n-Abdeckung.
+  - Verbesserungen an Theme/UI, Explorer, Storage/ACL/Snap, Settings-Tab und Dokumentations-Tooling.
+  - Siehe auch die bereits vorhandenen Einträge **23.3.0**, **23.4.0**, **23.5.x** für die chronologische Detailhistorie.
+
+### English (summary)
+
+- Compared to the latest public GitHub release **`v23.5.2`**, the current unreleased state adds a full **Settings SSH key workflow** (create key pair, install public key to UGREEN or second NAS/QNAP, one-time password install flow, key-based reuse afterwards).
+- Health adds **Scheduler inventory** and improved UGOS service visibility text.
+- Dashboard was expanded with richer live metrics and sparkline-style trend visualization (including storage/network rows).
+- Fan control in Dashboard was extended to dual-channel control (System/CPU) with preset modes (Silent/Standard/Max), manual percent apply, UGOS handover, and boot-profile persistence flow.
+- i18n was extended for new Settings/SSH/Health labels across DE/EN and supplemental locales.
+- Documentation now includes complete DE/EN manuals with step-by-step SSH procedures, plus PDF build scripts and generated handbook PDFs.
+- Project rules now explicitly require synchronized updates of **manuals + README + CHANGELOG** whenever features/buttons are added or changed.
+
 ## 23.5.2 — 2026-05-03
 
 ### Deutsch (ausführlich)
 
-- **Öffentliche GitHub-Doku / README:** Screenshot-Galerie komplett erneuert — Bilder nach **App-Bereichen** benannt und unter **`öffentlich/images/`** ohne Leerzeichen im Dateinamen abgelegt (u. a. `dashboard.png`, `scripts.png`, `task_scheduler.png`, `explorer.png`, `nas_to_nas.png`, `devices.png`, `storage.png`, `docker.png`, `users.png`, `snapshots.png`, `backup.png` / `backup_2.png` / `backup_3.png`, `system_health*.png`, `settings*.png`, `info.png`), damit **GitHub und ZIP** die Links zuverlässig auflösen.
-- **`tools/build_oeffentlich_readme.py`:** Pfade und **Bildunterschriften** an die neue Galerie angepasst; Kurzblöcke **„What’s new“** um **v23.5.2** ergänzt.
-- **`ugreen_app/nas_manager.py`:** **`__version__`** → **23.5.2** (öffentlicher Tree **`öffentlich/`** ebenfalls).
+- **Öffentliche GitHub-Doku / README:** Screenshot-Galerie komplett erneuert — Bilder nach **App-Bereichen** benannt und unter **`images/`** ohne Leerzeichen im Dateinamen (u. a. `dashboard.png`, `scripts.png`, `task_scheduler.png`, `explorer.png`, `nas_to_nas.png`, `devices.png`, `storage.png`, `docker.png`, `users.png`, `snapshots.png`, `backup.png` / `backup_2.png` / `backup_3.png`, `system_health*.png`, `settings*.png`, `info.png`), damit **GitHub und ZIP** die Links zuverlässig auflösen.
+- **`tools/build_oeffentlich_readme.py`** (privates Projekt): Pfade und Bildunterschriften an die neue Galerie angepasst; **„What’s new“** um **v23.5.2** ergänzt — nach `python tools/build_oeffentlich_readme.py` ist dieses **`README.md`** aktualisiert.
+- **`__version__`** → **23.5.2** in **`ugreen_app/nas_manager.py`**.
 
 ### English (summary)
 
-- **Public README / GitHub:** full **screenshot refresh** — area-based filenames under **`images/`** (URL-safe, no spaces); captions aligned with tabs (Dashboard, Scripts, scheduler, Explorer, NAS↔NAS, devices, storage, Docker, users, snapshots, backup, system health, settings, Info).
-- **`build_oeffentlich_readme.py`:** updated `<img>` paths and “What’s new” blurb for **v23.5.2**.
-- **Version bump** to **23.5.2** (private + `öffentlich/`).
+- **Public README / GitHub:** full **screenshot refresh** — area-based filenames under **`images/`** (URL-safe); captions aligned with major tabs.
+- **Version bump** to **23.5.2**.
 
 ## 23.5.1 — 2026-05-01
 

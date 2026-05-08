@@ -47,6 +47,20 @@ class MixinNasWatchDeploy:
         p = self._nas_watch_local_path()
         data = {
             "notify_channel": self.var_nw_channel.get(),
+            "check_disk": bool(self.var_nw_chk_disk.get()),
+            "check_raid": bool(self.var_nw_chk_raid.get()),
+            "check_network_ready": bool(self.var_nw_chk_network_ready.get()),
+            "check_temp": bool(self.var_nw_chk_temp.get()),
+            "check_fan": bool(self.var_nw_chk_fan.get()),
+            "fan_min_rpm": str(self.spin_nw_fan_min.get()).strip(),
+            "check_docker": bool(self.var_nw_chk_docker.get()),
+            "check_smart": bool(self.var_nw_chk_smart.get()),
+            "check_file_services": bool(self.var_nw_chk_file_services.get()),
+            "check_maintenance_timers": bool(self.var_nw_chk_maintenance_timers.get()),
+            "check_systemd_failed": bool(self.var_nw_chk_systemd.get()),
+            "check_login_failures": bool(self.var_nw_chk_login.get()),
+            "login_fail_window_min": str(self.spin_nw_login_win.get()).strip(),
+            "login_fail_min_count": str(self.spin_nw_login_min.get()).strip(),
             "require_containers": self.entry_nw_require.get().strip(),
             "docker_ignore": self.entry_nw_ignore.get().strip(),
             "docker_auto_restart": self.entry_nw_autorestart.get().strip(),
@@ -59,6 +73,23 @@ class MixinNasWatchDeploy:
         if ch not in ("telegram", "email", "both"):
             ch = "telegram"
         self.var_nw_channel.set(ch)
+        self.var_nw_chk_disk.set(bool(d.get("check_disk", True)))
+        self.var_nw_chk_raid.set(bool(d.get("check_raid", True)))
+        self.var_nw_chk_network_ready.set(bool(d.get("check_network_ready", True)))
+        self.var_nw_chk_temp.set(bool(d.get("check_temp", True)))
+        self.var_nw_chk_fan.set(bool(d.get("check_fan", True)))
+        self.var_nw_chk_docker.set(bool(d.get("check_docker", True)))
+        self.var_nw_chk_smart.set(bool(d.get("check_smart", True)))
+        self.var_nw_chk_file_services.set(bool(d.get("check_file_services", True)))
+        self.var_nw_chk_maintenance_timers.set(bool(d.get("check_maintenance_timers", True)))
+        self.var_nw_chk_systemd.set(bool(d.get("check_systemd_failed", False)))
+        self.var_nw_chk_login.set(bool(d.get("check_login_failures", False)))
+        self.spin_nw_fan_min.delete(0, tk.END)
+        self.spin_nw_fan_min.insert(0, str(d.get("fan_min_rpm", "200")))
+        self.spin_nw_login_win.delete(0, tk.END)
+        self.spin_nw_login_win.insert(0, str(d.get("login_fail_window_min", "30")))
+        self.spin_nw_login_min.delete(0, tk.END)
+        self.spin_nw_login_min.insert(0, str(d.get("login_fail_min_count", "3")))
         self.entry_nw_require.delete(0, tk.END)
         self.entry_nw_require.insert(0, d.get("require_containers") or "")
         self.entry_nw_ignore.delete(0, tk.END)
@@ -94,6 +125,7 @@ class MixinNasWatchDeploy:
             tc = max(30, min(120, int(self.spin_telegram_temp.get() or 80)))
             lwin = max(5, min(1440, int(self.spin_nw_login_win.get() or 30)))
             lmin = max(1, min(500, int(self.spin_nw_login_min.get() or 3)))
+            f_fm = max(0, min(50000, int(self.spin_nw_fan_min.get() or 200)))
         except (ValueError, tk.TclError):
             raise ValueError("thresholds")
         if dw >= dc:
@@ -137,8 +169,14 @@ class MixinNasWatchDeploy:
             "temp_warn_c": tc,
             "check_disk": bool(self.var_nw_chk_disk.get()),
             "check_raid": bool(self.var_nw_chk_raid.get()),
+            "check_network_ready": bool(self.var_nw_chk_network_ready.get()),
             "check_temp": bool(self.var_nw_chk_temp.get()),
+            "check_fan": bool(self.var_nw_chk_fan.get()),
+            "fan_min_rpm": f_fm,
             "check_docker": bool(self.var_nw_chk_docker.get()),
+            "check_smart": bool(self.var_nw_chk_smart.get()),
+            "check_file_services": bool(self.var_nw_chk_file_services.get()),
+            "check_maintenance_timers": bool(self.var_nw_chk_maintenance_timers.get()),
             "check_systemd_failed": bool(self.var_nw_chk_systemd.get()),
             "check_login_failures": bool(self.var_nw_chk_login.get()),
             "login_fail_window_min": lwin,
@@ -475,26 +513,26 @@ class MixinNasWatchDeploy:
         threading.Thread(target=work, daemon=True).start()
 
     def setup_daily_report_section(self, parent):
-        dfr = tk.Frame(parent, bg=self.color_surface_alt, highlightbackground=self.color_border, highlightthickness=1, padx=14, pady=12)
+        dfr = tk.Frame(parent, bg=self.color_surface, highlightbackground=self.color_border, highlightthickness=1, padx=14, pady=12)
         dfr.pack(fill=tk.X, pady=(0, 10))
-        tk.Label(dfr, text=self.t("daily_report.title"), bg=self.color_surface_alt, fg=self.color_text, font=self.font_head, anchor="w").pack(fill=tk.X, pady=(0, 4))
-        tk.Label(dfr, text=self.t("daily_report.hint"), bg=self.color_surface_alt, fg=self.color_text_muted, font=("Segoe UI", 8), anchor="w", wraplength=900, justify=tk.LEFT).pack(fill=tk.X, pady=(0, 10))
+        tk.Label(dfr, text=self.t("daily_report.title"), bg=self.color_surface, fg=self.color_text, font=self.font_head, anchor="w").pack(fill=tk.X, pady=(0, 4))
+        tk.Label(dfr, text=self.t("daily_report.hint"), bg=self.color_surface, fg=self.color_text_muted, font=("Segoe UI", 8), anchor="w", wraplength=900, justify=tk.LEFT).pack(fill=tk.X, pady=(0, 10))
 
-        r0 = tk.Frame(dfr, bg=self.color_surface_alt)
+        r0 = tk.Frame(dfr, bg=self.color_surface)
         r0.pack(fill=tk.X, pady=4)
         self.var_daily_enabled = tk.BooleanVar(value=False)
         tk.Checkbutton(
             r0,
             text=self.t("daily_report.enabled"),
             variable=self.var_daily_enabled,
-            bg=self.color_surface_alt,
+            bg=self.color_surface,
             fg=self.color_text,
             selectcolor=self.color_surface,
-            activebackground=self.color_surface_alt,
+            activebackground=self.color_surface,
             font=self.font_base,
         ).pack(side=tk.LEFT)
 
-        btn = tk.Frame(dfr, bg=self.color_surface_alt)
+        btn = tk.Frame(dfr, bg=self.color_surface)
         btn.pack(fill=tk.X, pady=(12, 4))
         self._register_danger_rounded(
             self.create_modern_btn(btn, self.t("daily_report.btn.save_local"), self.daily_report_save_panel, self.color_user)
@@ -511,7 +549,7 @@ class MixinNasWatchDeploy:
         tk.Label(
             dfr,
             text=self.t("daily_report.local_path", path=self._daily_report_local_path()),
-            bg=self.color_surface_alt,
+            bg=self.color_surface,
             fg=self.color_btn_blue,
             font=("Segoe UI", 8),
             anchor="w",
@@ -520,14 +558,14 @@ class MixinNasWatchDeploy:
         ).pack(fill=tk.X, pady=(8, 0))
 
     def setup_nas_central_watch_section(self, parent):
-        fr = tk.Frame(parent, bg=self.color_surface_alt, highlightbackground=self.color_border, highlightthickness=1, padx=14, pady=12)
+        fr = tk.Frame(parent, bg=self.color_surface, highlightbackground=self.color_border, highlightthickness=1, padx=14, pady=12)
         fr.pack(fill=tk.X, pady=(0, 10))
-        tk.Label(fr, text=self.t("nas_watch.title"), bg=self.color_surface_alt, fg=self.color_text, font=self.font_head, anchor="w").pack(fill=tk.X, pady=(0, 4))
-        tk.Label(fr, text=self.t("nas_watch.hint"), bg=self.color_surface_alt, fg=self.color_text_muted, font=("Segoe UI", 8), anchor="w", wraplength=900, justify=tk.LEFT).pack(fill=tk.X, pady=(0, 10))
+        tk.Label(fr, text=self.t("nas_watch.title"), bg=self.color_surface, fg=self.color_text, font=self.font_head, anchor="w").pack(fill=tk.X, pady=(0, 4))
+        tk.Label(fr, text=self.t("nas_watch.hint"), bg=self.color_surface, fg=self.color_text_muted, font=("Segoe UI", 8), anchor="w", wraplength=900, justify=tk.LEFT).pack(fill=tk.X, pady=(0, 10))
 
-        ch_fr = tk.Frame(fr, bg=self.color_surface_alt)
+        ch_fr = tk.Frame(fr, bg=self.color_surface)
         ch_fr.pack(fill=tk.X, pady=4)
-        tk.Label(ch_fr, text=self.t("nas_watch.channel"), bg=self.color_surface_alt, fg=self.color_text_muted, width=14, anchor="w").pack(side=tk.LEFT)
+        tk.Label(ch_fr, text=self.t("nas_watch.channel"), bg=self.color_surface, fg=self.color_text_muted, width=14, anchor="w").pack(side=tk.LEFT)
         self.var_nw_channel = tk.StringVar(value="telegram")
         for val, lab in (("telegram", self.t("nas_watch.ch.telegram")), ("email", self.t("nas_watch.ch.email")), ("both", self.t("nas_watch.ch.both"))):
             tk.Radiobutton(
@@ -535,17 +573,17 @@ class MixinNasWatchDeploy:
                 text=lab,
                 variable=self.var_nw_channel,
                 value=val,
-                bg=self.color_surface_alt,
+                bg=self.color_surface,
                 fg=self.color_text,
                 selectcolor=self.color_surface,
-                activebackground=self.color_surface_alt,
+                activebackground=self.color_surface,
                 font=self.font_base,
             ).pack(side=tk.LEFT, padx=(0, 12))
 
         tk.Label(
             fr,
             text=self.t("nas_watch.creds_from_settings"),
-            bg=self.color_surface_alt,
+            bg=self.color_surface,
             fg=self.color_text_muted,
             font=("Segoe UI", 8),
             anchor="w",
@@ -553,46 +591,72 @@ class MixinNasWatchDeploy:
             wraplength=900,
         ).pack(fill=tk.X, pady=(4, 8))
 
-        chk = tk.Frame(fr, bg=self.color_surface_alt)
+        chk = tk.Frame(fr, bg=self.color_surface)
         chk.pack(fill=tk.X, pady=(10, 4))
-        tk.Label(chk, text=self.t("nas_watch.checks"), bg=self.color_surface_alt, fg=self.color_text_muted, font=("Segoe UI", 9, "bold"), anchor="w").pack(anchor=tk.W)
-        rowc1 = tk.Frame(chk, bg=self.color_surface_alt)
+        tk.Label(chk, text=self.t("nas_watch.checks"), bg=self.color_surface, fg=self.color_text_muted, font=("Segoe UI", 9, "bold"), anchor="w").pack(anchor=tk.W)
+        rowc1 = tk.Frame(chk, bg=self.color_surface)
         rowc1.pack(fill=tk.X, pady=(4, 0))
         self.var_nw_chk_disk = tk.BooleanVar(value=True)
         self.var_nw_chk_raid = tk.BooleanVar(value=True)
         self.var_nw_chk_temp = tk.BooleanVar(value=True)
         self.var_nw_chk_docker = tk.BooleanVar(value=True)
         self.var_nw_chk_systemd = tk.BooleanVar(value=False)
+        self.var_nw_chk_network_ready = tk.BooleanVar(value=True)
+        self.var_nw_chk_smart = tk.BooleanVar(value=True)
+        self.var_nw_chk_file_services = tk.BooleanVar(value=True)
+        self.var_nw_chk_maintenance_timers = tk.BooleanVar(value=True)
         _cb_kw = dict(
-            bg=self.color_surface_alt,
+            bg=self.color_surface,
             fg=self.color_text,
             selectcolor=self.color_surface,
-            activebackground=self.color_surface_alt,
+            activebackground=self.color_surface,
             font=self.font_base,
         )
         for txt, var in (
             (self.t("nas_watch.chk.disk"), self.var_nw_chk_disk),
             (self.t("nas_watch.chk.raid"), self.var_nw_chk_raid),
+            (self.t("nas_watch.chk.net_ready"), self.var_nw_chk_network_ready),
             (self.t("nas_watch.chk.temp"), self.var_nw_chk_temp),
             (self.t("nas_watch.chk.docker"), self.var_nw_chk_docker),
+            (self.t("nas_watch.chk.smartd"), self.var_nw_chk_smart),
+            (self.t("nas_watch.chk.file_services"), self.var_nw_chk_file_services),
+            (self.t("nas_watch.chk.maintenance"), self.var_nw_chk_maintenance_timers),
             (self.t("nas_watch.chk.systemd"), self.var_nw_chk_systemd),
         ):
             tk.Checkbutton(rowc1, text=txt, variable=var, **_cb_kw).pack(side=tk.LEFT, padx=(0, 10))
 
-        rowc2 = tk.Frame(chk, bg=self.color_surface_alt)
+        rowc1b = tk.Frame(chk, bg=self.color_surface)
+        rowc1b.pack(fill=tk.X, pady=(6, 0))
+        self.var_nw_chk_fan = tk.BooleanVar(value=True)
+        _nw_fan_chk = (
+            "Lüfter (RPM) prüfen" if getattr(self, "ui_lang", "de") != "en" else "Check fan (RPM)"
+        )
+        tk.Checkbutton(rowc1b, text=_nw_fan_chk, variable=self.var_nw_chk_fan, **_cb_kw).pack(
+            side=tk.LEFT, padx=(0, 12)
+        )
+        _nw_fan_min_lbl = "min. RPM (Alarm):" if getattr(self, "ui_lang", "de") != "en" else "min RPM:"
+        tk.Label(rowc1b, text=_nw_fan_min_lbl, bg=self.color_surface, fg=self.color_text_muted, font=self.font_base).pack(
+            side=tk.LEFT, padx=(0, 6)
+        )
+        self.spin_nw_fan_min = tk.Spinbox(rowc1b, from_=0, to=50000, width=7, font=self.font_base)
+        self.spin_nw_fan_min.pack(side=tk.LEFT, padx=(0, 4))
+        self.spin_nw_fan_min.delete(0, tk.END)
+        self.spin_nw_fan_min.insert(0, "200")
+
+        rowc2 = tk.Frame(chk, bg=self.color_surface)
         rowc2.pack(fill=tk.X, pady=(6, 0))
         self.var_nw_chk_login = tk.BooleanVar(value=False)
         tk.Checkbutton(rowc2, text=self.t("nas_watch.chk.login"), variable=self.var_nw_chk_login, **_cb_kw).pack(
             side=tk.LEFT, padx=(0, 10)
         )
-        tk.Label(rowc2, text=self.t("nas_watch.login_window"), bg=self.color_surface_alt, fg=self.color_text_muted, font=self.font_base).pack(
+        tk.Label(rowc2, text=self.t("nas_watch.login_window"), bg=self.color_surface, fg=self.color_text_muted, font=self.font_base).pack(
             side=tk.LEFT, padx=(0, 4)
         )
         self.spin_nw_login_win = tk.Spinbox(rowc2, from_=5, to=1440, width=5, font=self.font_base)
         self.spin_nw_login_win.pack(side=tk.LEFT, padx=(0, 12))
         self.spin_nw_login_win.delete(0, tk.END)
         self.spin_nw_login_win.insert(0, "30")
-        tk.Label(rowc2, text=self.t("nas_watch.login_min"), bg=self.color_surface_alt, fg=self.color_text_muted, font=self.font_base).pack(
+        tk.Label(rowc2, text=self.t("nas_watch.login_min"), bg=self.color_surface, fg=self.color_text_muted, font=self.font_base).pack(
             side=tk.LEFT, padx=(0, 4)
         )
         self.spin_nw_login_min = tk.Spinbox(rowc2, from_=1, to=500, width=4, font=self.font_base)
@@ -603,13 +667,13 @@ class MixinNasWatchDeploy:
         _nw_lbl_wrap = 280
 
         def _nw_label_row(parent, text_key: str, entry_attr: str) -> None:
-            row = tk.Frame(parent, bg=self.color_surface_alt)
+            row = tk.Frame(parent, bg=self.color_surface)
             row.pack(fill=tk.X, pady=2)
             row.columnconfigure(1, weight=1)
             tk.Label(
                 row,
                 text=self.t(text_key),
-                bg=self.color_surface_alt,
+                bg=self.color_surface,
                 fg=self.color_text_muted,
                 anchor="nw",
                 justify="left",
@@ -632,7 +696,7 @@ class MixinNasWatchDeploy:
         _nw_label_row(fr, "nas_watch.ignore", "entry_nw_ignore")
         _nw_label_row(fr, "nas_watch.autorestart", "entry_nw_autorestart")
 
-        btn = tk.Frame(fr, bg=self.color_surface_alt)
+        btn = tk.Frame(fr, bg=self.color_surface)
         btn.pack(fill=tk.X, pady=(12, 4))
         self._register_danger_rounded(self.create_modern_btn(btn, self.t("nas_watch.btn.save_local"), self.nas_watch_save_panel, self.color_user)).pack(side=tk.LEFT, padx=4)
         self._register_danger_rounded(self.create_modern_btn(btn, self.t("nas_watch.btn.deploy"), self.nas_watch_deploy_remote, self.color_btn_blue)).pack(side=tk.LEFT, padx=4)
@@ -640,5 +704,5 @@ class MixinNasWatchDeploy:
 
         self._nas_watch_apply_local_to_ui(self._nas_watch_load_local())
 
-        lbl = tk.Label(fr, text=self.t("nas_watch.local_path", path=self._nas_watch_local_path()), bg=self.color_surface_alt, fg=self.color_btn_blue, font=("Segoe UI", 8), anchor="w", justify=tk.LEFT, wraplength=920)
+        lbl = tk.Label(fr, text=self.t("nas_watch.local_path", path=self._nas_watch_local_path()), bg=self.color_surface, fg=self.color_btn_blue, font=("Segoe UI", 8), anchor="w", justify=tk.LEFT, wraplength=920)
         lbl.pack(fill=tk.X, pady=(8, 0))

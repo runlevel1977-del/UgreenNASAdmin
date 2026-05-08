@@ -43,7 +43,7 @@ from ugreen_app.mixin_editor_cron import MixinEditorCron
 from ugreen_app.mixin_update_check import MixinUpdateCheck
 from ugreen_app.i18n import cron_mappings_for_lang, translate
 
-__version__ = "23.5.2"
+__version__ = "23.6.0"
 
 class NASManager(
     MixinSafetyLock,
@@ -100,13 +100,6 @@ class NASManager(
 
         self._init_danger_lock_state()
         self.setup_ui()
-        try:
-            from ugreen_app import debug_ui_trace
-
-            debug_ui_trace.try_install_click_trace(self.root)
-            debug_ui_trace.log_session_banner(self._app_version)
-        except Exception:
-            pass
         self._load_connection_config()
         self.root.protocol("WM_DELETE_WINDOW", self._on_app_close)
         self.root.after(1500, self.telegram_restart_monitor)

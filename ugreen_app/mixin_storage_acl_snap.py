@@ -189,20 +189,20 @@ class MixinStorageAclSnap:
             return
         dev = self._storage_selected_disk()
         if not dev:
-            messagebox.showwarning("Disk Image", "Bitte zuerst ein Laufwerk auswählen.")
+            messagebox.showwarning(self.t("storage.disk_image_title"), self.t("storage.disk_select_first"))
             return
         ts = time.strftime("%Y%m%d_%H%M%S")
         fn = filedialog.asksaveasfilename(
-            title="Disk-Image auf PC speichern",
+            title=self.t("storage.disk_image_save_pc_title"),
             defaultextension=".img",
             initialfile=f"nas_{dev.replace('/dev/','')}_{ts}.img",
-            filetypes=[("Disk image", "*.img"), ("All files", "*.*")],
+            filetypes=[(self.t("storage.disk_image_filetype"), "*.img"), (self.t("storage.all_files"), "*.*")],
         )
         if not fn:
             return
-        if not self._storage_confirm_sensitive_disk_action(dev, "Disk Image"):
+        if not self._storage_confirm_sensitive_disk_action(dev, self.t("storage.disk_image_title")):
             return
-        if not messagebox.askyesno("Disk Image", f"Image lesen von {dev} und lokal speichern?\n\n{fn}\n\nKann sehr groß werden."):
+        if not messagebox.askyesno(self.t("storage.disk_image_title"), self.t("storage.disk_image_confirm_pc", dev=dev, path=fn)):
             return
         size_b = self._storage_disk_size_bytes(dev)
         self._storage_log(f"🚀 Image-Export startet: {dev} -> {fn}")
@@ -213,6 +213,7 @@ class MixinStorageAclSnap:
             ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
             try:
                 ssh.connect(self.entry_ip.get().strip(), **self._ssh_connect_kwargs(timeout=40, banner_timeout=60, auth_timeout=60))
+                self._ssh_transport_keepalive(ssh)
                 cmd = f"dd if={shlex.quote(dev)} bs=4M status=none"
                 stdin, stdout, stderr = ssh.exec_command(cmd)
                 try:
@@ -234,9 +235,9 @@ class MixinStorageAclSnap:
                         if now - last_tick > 1.0:
                             if size_b > 0:
                                 pct = min(100.0, written * 100.0 / size_b)
-                                self.root.after(0, lambda p=pct: self.set_status(f"Image export {p:.1f}%"))
+                                self.root.after(0, lambda p=pct: self.set_status(self.t("storage.status_image_export_pct", pct=f"{p:.1f}")))
                             else:
-                                self.root.after(0, lambda b=written: self.set_status(f"Image export {b // (1024*1024)} MB"))
+                                self.root.after(0, lambda b=written: self.set_status(self.t("storage.status_image_export_mb", mb=str(b // (1024*1024)))))
                             last_tick = now
                 rc = stdout.channel.recv_exit_status()
                 err = stderr.read().decode("utf-8", errors="replace").strip()
@@ -244,7 +245,7 @@ class MixinStorageAclSnap:
                     self.root.after(0, lambda: self._storage_log(f"❌ Export fehlgeschlagen (rc={rc}): {err or 'unknown error'}"))
                 else:
                     self.root.after(0, lambda: self._storage_log(f"✅ Export fertig: {fn}"))
-                    self.root.after(0, lambda: self.set_status("Disk-Image exportiert"))
+                    self.root.after(0, lambda: self.set_status(self.t("storage.status_image_export_done")))
             except Exception as e:
                 self.root.after(0, lambda m=str(e): self._storage_log(f"❌ Export-Fehler: {m}"))
             finally:
@@ -260,17 +261,17 @@ class MixinStorageAclSnap:
             return
         dev = self._storage_selected_disk()
         if not dev:
-            messagebox.showwarning("Disk Image", "Bitte zuerst ein Laufwerk auswählen.")
+            messagebox.showwarning(self.t("storage.disk_image_title"), self.t("storage.disk_select_first"))
             return
         target = ""
         if hasattr(self, "entry_storage_image_remote"):
             target = self.entry_storage_image_remote.get().strip()
         if not target:
-            messagebox.showwarning("Disk Image", "Bitte Zielpfad auf NAS/Share eintragen.")
+            messagebox.showwarning(self.t("storage.disk_image_title"), self.t("storage.disk_target_path_missing"))
             return
-        if not self._storage_confirm_sensitive_disk_action(dev, "Disk Image"):
+        if not self._storage_confirm_sensitive_disk_action(dev, self.t("storage.disk_image_title")):
             return
-        if not messagebox.askyesno("Disk Image", f"Image von {dev} nach {target} schreiben?"):
+        if not messagebox.askyesno(self.t("storage.disk_image_title"), self.t("storage.disk_image_confirm_nas", dev=dev, target=target)):
             return
         self._storage_log(f"🚀 Image-Export auf NAS startet: {dev} -> {target}")
 
@@ -280,7 +281,7 @@ class MixinStorageAclSnap:
             cmd = f"mkdir -p $(dirname {qt}) 2>/dev/null; dd if={qd} of={qt} bs=4M status=progress conv=fsync 2>&1"
             out = self.run_ssh_cmd(cmd, True, update_status=False)
             self.root.after(0, lambda: self._storage_log(out or "(keine Ausgabe)"))
-            self.root.after(0, lambda: self.set_status("Disk-Image auf NAS abgeschlossen"))
+            self.root.after(0, lambda: self.set_status(self.t("storage.status_image_nas_done")))
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -289,19 +290,19 @@ class MixinStorageAclSnap:
             return
         dev = self._storage_selected_disk()
         if not dev:
-            messagebox.showwarning("Restore", "Bitte zuerst ein Ziel-Laufwerk auswählen.")
+            messagebox.showwarning(self.t("storage.restore_title"), self.t("storage.restore_select_target_first"))
             return
         src = filedialog.askopenfilename(
-            title="Image vom PC für Restore wählen",
-            filetypes=[("Disk image", "*.img"), ("All files", "*.*")],
+            title=self.t("storage.restore_pick_image_pc_title"),
+            filetypes=[(self.t("storage.disk_image_filetype"), "*.img"), (self.t("storage.all_files"), "*.*")],
         )
         if not src:
             return
-        if not self._storage_confirm_sensitive_disk_action(dev, "Restore"):
+        if not self._storage_confirm_sensitive_disk_action(dev, self.t("storage.restore_title")):
             return
-        if not messagebox.askyesno("RESTORE WARNUNG", f"Dieses Ziel wird komplett überschrieben:\n{dev}\n\nQuelle:\n{src}\n\nFortfahren?"):
+        if not messagebox.askyesno(self.t("storage.restore_warning_title"), self.t("storage.restore_warning_pc", dev=dev, src=src)):
             return
-        if not messagebox.askyesno("Letzte Bestätigung", f"Wirklich RESTORE auf {dev} starten?"):
+        if not messagebox.askyesno(self.t("storage.last_confirm_title"), self.t("storage.restore_last_confirm", dev=dev)):
             return
         total = 0
         try:
@@ -316,6 +317,7 @@ class MixinStorageAclSnap:
             ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
             try:
                 ssh.connect(self.entry_ip.get().strip(), **self._ssh_connect_kwargs(timeout=40, banner_timeout=60, auth_timeout=60))
+                self._ssh_transport_keepalive(ssh)
                 cmd = f"dd of={shlex.quote(dev)} bs=4M conv=fsync status=none"
                 stdin, stdout, stderr = ssh.exec_command(cmd)
                 sent = 0
@@ -331,9 +333,9 @@ class MixinStorageAclSnap:
                         if now - last_tick > 1.0:
                             if total > 0:
                                 pct = min(100.0, sent * 100.0 / total)
-                                self.root.after(0, lambda p=pct: self.set_status(f"Restore {p:.1f}%"))
+                                self.root.after(0, lambda p=pct: self.set_status(self.t("storage.status_restore_pct", pct=f"{p:.1f}")))
                             else:
-                                self.root.after(0, lambda b=sent: self.set_status(f"Restore {b // (1024*1024)} MB"))
+                                self.root.after(0, lambda b=sent: self.set_status(self.t("storage.status_restore_mb", mb=str(b // (1024*1024)))))
                             last_tick = now
                 stdin.channel.shutdown_write()
                 rc = stdout.channel.recv_exit_status()
@@ -342,7 +344,7 @@ class MixinStorageAclSnap:
                     self.root.after(0, lambda: self._storage_log(f"❌ Restore fehlgeschlagen (rc={rc}): {err or 'unknown error'}"))
                 else:
                     self.root.after(0, lambda: self._storage_log(f"✅ Restore fertig auf {dev}"))
-                    self.root.after(0, lambda: self.set_status("Disk-Restore abgeschlossen"))
+                    self.root.after(0, lambda: self.set_status(self.t("storage.status_restore_done")))
             except Exception as e:
                 self.root.after(0, lambda m=str(e): self._storage_log(f"❌ Restore-Fehler: {m}"))
             finally:
@@ -358,19 +360,19 @@ class MixinStorageAclSnap:
             return
         dev = self._storage_selected_disk()
         if not dev:
-            messagebox.showwarning("Restore", "Bitte zuerst ein Ziel-Laufwerk auswählen.")
+            messagebox.showwarning(self.t("storage.restore_title"), self.t("storage.restore_select_target_first"))
             return
         src = ""
         if hasattr(self, "entry_storage_image_remote"):
             src = self.entry_storage_image_remote.get().strip()
         if not src:
-            messagebox.showwarning("Restore", "Bitte Image-Pfad auf NAS/Share eintragen.")
+            messagebox.showwarning(self.t("storage.restore_title"), self.t("storage.restore_path_missing"))
             return
-        if not self._storage_confirm_sensitive_disk_action(dev, "Restore"):
+        if not self._storage_confirm_sensitive_disk_action(dev, self.t("storage.restore_title")):
             return
-        if not messagebox.askyesno("RESTORE WARNUNG", f"Dieses Ziel wird komplett überschrieben:\n{dev}\n\nQuelle auf NAS:\n{src}\n\nFortfahren?"):
+        if not messagebox.askyesno(self.t("storage.restore_warning_title"), self.t("storage.restore_warning_nas", dev=dev, src=src)):
             return
-        if not messagebox.askyesno("Letzte Bestätigung", f"Wirklich RESTORE auf {dev} starten?"):
+        if not messagebox.askyesno(self.t("storage.last_confirm_title"), self.t("storage.restore_last_confirm", dev=dev)):
             return
         self._storage_log(f"🚨 Restore startet (NAS): {src} -> {dev}")
 
@@ -389,7 +391,7 @@ class MixinStorageAclSnap:
                 cmd = f"dd if={qs} of={qd} bs=4M conv=fsync status=progress 2>&1"
             out = self.run_ssh_cmd(cmd, True, update_status=False)
             self.root.after(0, lambda: self._storage_log(out or "(keine Ausgabe)"))
-            self.root.after(0, lambda: self.set_status("Disk-Restore (NAS) abgeschlossen"))
+            self.root.after(0, lambda: self.set_status(self.t("storage.status_restore_nas_done")))
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -468,7 +470,7 @@ class MixinStorageAclSnap:
     def acl_show_stat(self):
         p = self._acl_target_path()
         if not p:
-            messagebox.showwarning("Rechte", "Bitte einen Pfad eingeben.")
+            messagebox.showwarning(self.t("acl.permissions_title"), self.t("acl.path_required"))
             return
         sq = self._shell_quote(p)
         out = self.run_ssh_cmd(f"stat -c 'Modus: %a  Besitzer: %U:%G  Größe: %s Bytes' {sq} 2>&1; ls -ldn {sq} 2>&1", True)
@@ -494,7 +496,7 @@ class MixinStorageAclSnap:
         p = self._acl_target_path()
         if not p:
             return
-        if not messagebox.askyesno("chmod 777", f"Rekursiv 777 auf setzen?\n\n{p}"):
+        if not messagebox.askyesno(self.t("acl.chmod777_title"), self.t("acl.chmod777_confirm", path=p)):
             return
         sq = self._shell_quote(p)
         out = self.run_ssh_cmd(f"chmod -R 777 {sq}", True)
@@ -510,7 +512,7 @@ class MixinStorageAclSnap:
             return
         mode = self.entry_acl_mode.get().strip()
         if not re.fullmatch(r"[0-7]{3,4}", mode):
-            messagebox.showerror("chmod", "Nur Oktal, z. B. 755 oder 2755.")
+            messagebox.showerror(self.t("acl.chmod_title"), self.t("acl.chmod_octal_only"))
             return
         sq = self._shell_quote(p)
         out = self.run_ssh_cmd(f"chmod {mode} {sq}", True)
@@ -526,7 +528,7 @@ class MixinStorageAclSnap:
             return
         ug = self.entry_acl_chown.get().strip()
         if not re.match(r"^[a-zA-Z0-9_.-]+:[a-zA-Z0-9_.-]+$", ug):
-            messagebox.showerror("chown", "Format: benutzer:gruppe (z. B. papa:users)")
+            messagebox.showerror(self.t("acl.chown_title"), self.t("acl.chown_format"))
             return
         sq = self._shell_quote(p)
         out = self.run_ssh_cmd(f"chown {ug} {sq}", True)
@@ -585,33 +587,33 @@ class MixinStorageAclSnap:
         if not self._danger_gate():
             return
         src = self.entry_snap_base.get().strip() or "/volume1"
-        dest = simpledialog.askstring("Btrfs Snapshot", "Zielpfad für neuen Snapshot (Subvolume),\nz. B. /volume1/.snapshots/manual_2026:\n(leer = Abbruch)", parent=self.root)
+        dest = simpledialog.askstring(self.t("snap.btrfs_dialog_title"), self.t("snap.btrfs_target_prompt"), parent=self.root)
         if not dest or not dest.strip():
             return
         s1, s2 = self._shell_quote(src.strip()), self._shell_quote(dest.strip())
-        if not messagebox.askyesno("Btrfs", f"Snapshot erstellen?\nQuelle: {src}\nZiel: {dest}"):
+        if not messagebox.askyesno(self.t("snap.btrfs_title"), self.t("snap.btrfs_create_confirm", src=src, dest=dest)):
             return
         out = self.run_ssh_cmd(f"mkdir -p $(dirname {s2}) 2>/dev/null; btrfs subvolume snapshot {s1} {s2}", True)
         self.snap_output.delete("1.0", tk.END)
         self.snap_output.insert(tk.END, out)
-        messagebox.showinfo("Btrfs", "Befehl ausgeführt (siehe Ausgabe).")
+        messagebox.showinfo(self.t("snap.btrfs_title"), self.t("snap.command_executed"))
 
     def snap_zfs_create(self):
         if not self._danger_gate():
             return
-        ds = simpledialog.askstring("ZFS Snapshot", "Dataset inkl. Pool, z. B. tank/volume1\n(leer = Abbruch)", parent=self.root)
+        ds = simpledialog.askstring(self.t("snap.zfs_dialog_title"), self.t("snap.zfs_dataset_prompt"), parent=self.root)
         if not ds or not ds.strip():
             return
-        tag = simpledialog.askstring("ZFS Snapshot", "Suffix nach @ (nur Buchstaben/Zahlen/_):", initialvalue=f"manual_{time.strftime('%Y%m%d_%H%M')}", parent=self.root)
+        tag = simpledialog.askstring(self.t("snap.zfs_dialog_title"), self.t("snap.zfs_suffix_prompt"), initialvalue=f"manual_{time.strftime('%Y%m%d_%H%M')}", parent=self.root)
         if not tag:
             return
         snap = f"{ds.strip()}@{tag.strip()}"
-        if not messagebox.askyesno("ZFS", f"Snapshot erstellen?\n{snap}"):
+        if not messagebox.askyesno(self.t("snap.zfs_title"), self.t("snap.zfs_create_confirm", snap=snap)):
             return
         out = self.run_ssh_cmd(f"zfs snapshot {snap}", True)
         self.snap_output.delete("1.0", tk.END)
         self.snap_output.insert(tk.END, out)
-        messagebox.showinfo("ZFS", "Befehl ausgeführt.")
+        messagebox.showinfo(self.t("snap.zfs_title"), self.t("snap.command_executed"))
 
     def snap_snapper_create(self):
         if not self._danger_gate():
@@ -620,9 +622,9 @@ class MixinStorageAclSnap:
         if "/" in cfg:
             cfg = "root"
         if not re.match(r"^[\w.-]+$", cfg):
-            messagebox.showerror("Snapper", "Config-Name nur Buchstaben, Zahlen, . _ - (kein /).")
+            messagebox.showerror(self.t("snap.snapper_title"), self.t("snap.snapper_cfg_invalid"))
             return
-        desc = simpledialog.askstring("Snapper", "Beschreibung für Snapshot:", initialvalue="NAS Admin manual", parent=self.root)
+        desc = simpledialog.askstring(self.t("snap.snapper_title"), self.t("snap.snapper_desc_prompt"), initialvalue="NAS Admin manual", parent=self.root)
         if desc is None:
             return
         out = self.run_ssh_cmd(f"snapper -c {cfg} create -d {self._shell_quote(desc)} --type single", True)
@@ -632,10 +634,10 @@ class MixinStorageAclSnap:
     def snap_btrfs_delete(self):
         if not self._danger_gate():
             return
-        p = simpledialog.askstring("Btrfs löschen", "Pfad des Subvolumes/Snapshots zum LÖSCHEN:", parent=self.root)
+        p = simpledialog.askstring(self.t("snap.btrfs_delete_title"), self.t("snap.btrfs_delete_prompt"), parent=self.root)
         if not p or not p.strip():
             return
-        if not messagebox.askyesno("Wirklich löschen?", f"Endgültig löschen:\n{p}"):
+        if not messagebox.askyesno(self.t("snap.delete_confirm_title"), self.t("snap.delete_confirm_path", path=p)):
             return
         sq = self._shell_quote(p.strip())
         out = self.run_ssh_cmd(f"btrfs subvolume delete {sq}", True)
@@ -645,10 +647,10 @@ class MixinStorageAclSnap:
     def snap_zfs_delete(self):
         if not self._danger_gate():
             return
-        name = simpledialog.askstring("ZFS löschen", "Vollständiger Snapshot-Name (pool/ds@tag):", parent=self.root)
+        name = simpledialog.askstring(self.t("snap.zfs_delete_title"), self.t("snap.zfs_delete_prompt"), parent=self.root)
         if not name or not name.strip():
             return
-        if not messagebox.askyesno("Wirklich löschen?", name):
+        if not messagebox.askyesno(self.t("snap.delete_confirm_title"), name):
             return
         out = self.run_ssh_cmd(f"zfs destroy {name.strip()}", True)
         self.snap_output.delete("1.0", tk.END)
@@ -660,11 +662,11 @@ class MixinStorageAclSnap:
         cfg = self.entry_snap_base.get().strip() or "root"
         if "/" in cfg or not re.match(r"^[\w.-]+$", cfg):
             cfg = "root"
-        nr = simpledialog.askstring("Snapper löschen", "Nummer aus „snapper list“ (Spalte #):", parent=self.root)
+        nr = simpledialog.askstring(self.t("snap.snapper_delete_title"), self.t("snap.snapper_delete_prompt"), parent=self.root)
         if not nr or not nr.strip().isdigit():
-            messagebox.showwarning("Snapper", "Gültige Nummer eingeben.")
+            messagebox.showwarning(self.t("snap.snapper_title"), self.t("snap.snapper_number_required"))
             return
-        if not messagebox.askyesno("Wirklich löschen?", f"snapper -c {cfg} delete {nr}"):
+        if not messagebox.askyesno(self.t("snap.delete_confirm_title"), f"snapper -c {cfg} delete {nr}"):
             return
         out = self.run_ssh_cmd(f"snapper -c {cfg} delete {nr.strip()}", True)
         self.snap_output.delete("1.0", tk.END)
@@ -695,20 +697,186 @@ class MixinStorageAclSnap:
         self._health_write(df_out.strip() if df_out.strip() else "Keine Daten")
         self._health_write("\n--- RAID ---")
         self._health_write(md_out.strip() if md_out.strip() else "Keine mdstat Daten")
+        self._health_write("\n--- RAID / MDCHECK ---")
+        mdcheck_cmd = (
+            "for s in mdcheck_start mdcheck_continue; do "
+            "A=$(systemctl is-active ${s}.service 2>/dev/null || echo unknown); "
+            "E=$(systemctl is-enabled ${s}.service 2>/dev/null || echo unknown); "
+            "printf '%s: active=%s enabled=%s\\n' \"$s\" \"$A\" \"$E\"; "
+            "done; "
+            "echo '---'; "
+            "mdadm --monitor --oneshot --scan 2>/dev/null | head -20"
+        )
+        mdcheck_out = self.run_ssh_cmd(mdcheck_cmd, True, update_status=False)
+        self._health_write((mdcheck_out or "").strip() if (mdcheck_out or "").strip() else "Keine mdcheck Daten")
+        self._health_write("\n--- UGOS CORE SERVICES ---")
+        svc_cmd = (
+            "for s in storage_serv snapshot_serv docker_serv ugbus syncbackup_serv; do "
+            "A=$(systemctl is-active ${s}.service 2>/dev/null || echo unknown); "
+            "E=$(systemctl is-enabled ${s}.service 2>/dev/null || echo unknown); "
+            "printf '%s: active=%s enabled=%s\\n' \"$s\" \"$A\" \"$E\"; "
+            "done"
+        )
+        svc_out = self.run_ssh_cmd(svc_cmd, True, update_status=False)
+        self._health_write((svc_out or "").strip() if (svc_out or "").strip() else "Keine Service-Daten")
+        lbl_svc = getattr(self, "lbl_health_ugos_services", None)
+        if lbl_svc is not None:
+            try:
+                pretty = (svc_out or "").strip() if (svc_out or "").strip() else self.t("health.ugos_services_placeholder")
+                lbl_svc.config(text=pretty)
+            except tk.TclError:
+                pass
+        self._health_write("\n--- UPS (NUT) ---")
+        ups_cmd = (
+            "for s in nut-monitor nut-server; do "
+            "A=$(systemctl is-active ${s}.service 2>/dev/null || echo unknown); "
+            "E=$(systemctl is-enabled ${s}.service 2>/dev/null || echo unknown); "
+            "printf '%s: active=%s enabled=%s\\n' \"$s\" \"$A\" \"$E\"; "
+            "done"
+        )
+        ups_out = self.run_ssh_cmd(ups_cmd, True, update_status=False)
+        self._health_write((ups_out or "").strip() if (ups_out or "").strip() else "Keine UPS-Daten")
+        self._health_write("\n--- NETWORK READY ---")
+        net_ready_cmd = (
+            "A=$(systemctl is-active systemd-networkd-wait-online.service 2>/dev/null || echo unknown); "
+            "E=$(systemctl is-enabled systemd-networkd-wait-online.service 2>/dev/null || echo unknown); "
+            "printf 'systemd-networkd-wait-online.service: active=%s enabled=%s\\n' \"$A\" \"$E\""
+        )
+        net_ready_out = self.run_ssh_cmd(net_ready_cmd, True, update_status=False)
+        self._health_write((net_ready_out or "").strip() if (net_ready_out or "").strip() else "Keine Network-Ready-Daten")
+        self._health_write("\n--- DOCKER RUNTIME ---")
+        docker_rt_cmd = (
+            "DA=$(systemctl is-active docker.service 2>/dev/null || echo unknown); "
+            "DE=$(systemctl is-enabled docker.service 2>/dev/null || echo unknown); "
+            "CA=$(systemctl is-active containerd.service 2>/dev/null || echo unknown); "
+            "CE=$(systemctl is-enabled containerd.service 2>/dev/null || echo unknown); "
+            "DV=$(docker version --format '{{.Server.Version}}' 2>/dev/null || true); "
+            "CV=$(containerd --version 2>/dev/null | head -1 || true); "
+            "printf 'dockerd: active=%s enabled=%s version=%s\\n' \"$DA\" \"$DE\" \"$DV\"; "
+            "printf 'containerd: active=%s enabled=%s version=%s\\n' \"$CA\" \"$CE\" \"$CV\""
+        )
+        docker_rt_out = self.run_ssh_cmd(docker_rt_cmd, True, update_status=False)
+        self._health_write((docker_rt_out or "").strip() if (docker_rt_out or "").strip() else "Keine Docker-Runtime-Daten")
+        self._health_write("\n--- SMART DAEMON ---")
+        smartd_cmd = (
+            "A=$(systemctl is-active smartmontools.service 2>/dev/null || echo unknown); "
+            "E=$(systemctl is-enabled smartmontools.service 2>/dev/null || echo unknown); "
+            "printf 'smartmontools.service: active=%s enabled=%s\\n' \"$A\" \"$E\""
+        )
+        smartd_out = self.run_ssh_cmd(smartd_cmd, True, update_status=False)
+        self._health_write((smartd_out or "").strip() if (smartd_out or "").strip() else "Keine SMART-Dienst-Daten")
+        self._health_write("\n--- FILE SERVICES (SMB/NFS) ---")
+        file_svc_cmd = (
+            "for s in smbd nfs-server wsdd2; do "
+            "A=$(systemctl is-active ${s}.service 2>/dev/null || echo unknown); "
+            "E=$(systemctl is-enabled ${s}.service 2>/dev/null || echo unknown); "
+            "printf '%s: active=%s enabled=%s\\n' \"$s\" \"$A\" \"$E\"; "
+            "done; "
+            "echo '--- exportfs -v ---'; "
+            "exportfs -v 2>/dev/null | head -20"
+        )
+        file_svc_out = self.run_ssh_cmd(file_svc_cmd, True, update_status=False)
+        self._health_write((file_svc_out or "").strip() if (file_svc_out or "").strip() else "Keine SMB/NFS-Daten")
+        self._health_write("\n--- MAINTENANCE TIMERS ---")
+        timers_cmd = (
+            "for t in fstrim.timer sysstat-collect.timer sysstat-summary.timer logrotate.timer dpkg-db-backup.timer pg_basebackup@.timer; do "
+            "A=$(systemctl is-active ${t} 2>/dev/null || echo unknown); "
+            "E=$(systemctl is-enabled ${t} 2>/dev/null || echo unknown); "
+            "printf '%s: active=%s enabled=%s\\n' \"$t\" \"$A\" \"$E\"; "
+            "done"
+        )
+        timers_out = self.run_ssh_cmd(timers_cmd, True, update_status=False)
+        self._health_write((timers_out or "").strip() if (timers_out or "").strip() else "Keine Timer-Daten")
+        self._health_write("\n--- STORAGE FABRICS (iSCSI/NVMe-oF) ---")
+        fabrics_cmd = (
+            "for s in iscsid.service open-iscsi.service nvmf-autoconnect.service nvmefc-boot-connections.service; do "
+            "A=$(systemctl is-active ${s} 2>/dev/null || echo unknown); "
+            "E=$(systemctl is-enabled ${s} 2>/dev/null || echo unknown); "
+            "printf '%s: active=%s enabled=%s\\n' \"$s\" \"$A\" \"$E\"; "
+            "done; "
+            "echo '--- iSCSI sessions ---'; "
+            "iscsiadm -m session 2>/dev/null | head -20 || echo 'iscsiadm nicht verfuegbar/keine Sessions'; "
+            "echo '--- NVMe subsystems ---'; "
+            "nvme list-subsys 2>/dev/null | head -30 || echo 'nvme-cli nicht verfuegbar/keine Subsystems'"
+        )
+        fabrics_out = self.run_ssh_cmd(fabrics_cmd, True, update_status=False)
+        self._health_write((fabrics_out or "").strip() if (fabrics_out or "").strip() else "Keine Fabrics-Daten")
+        self._health_write("\n--- SECURITY & RECOVERY ---")
+        sec_rec_cmd = (
+            "A=$(systemctl is-active rescue-ssh.target 2>/dev/null || echo unknown); "
+            "E=$(systemctl is-enabled rescue-ssh.target 2>/dev/null || echo unknown); "
+            "printf 'rescue-ssh.target: active=%s enabled=%s\\n' \"$A\" \"$E\"; "
+            "A2=$(systemctl is-active netfilter-persistent.service 2>/dev/null || echo unknown); "
+            "E2=$(systemctl is-enabled netfilter-persistent.service 2>/dev/null || echo unknown); "
+            "printf 'netfilter-persistent.service: active=%s enabled=%s\\n' \"$A2\" \"$E2\"; "
+            "A3=$(systemctl is-active nftables.service 2>/dev/null || echo unknown); "
+            "E3=$(systemctl is-enabled nftables.service 2>/dev/null || echo unknown); "
+            "printf 'nftables.service: active=%s enabled=%s\\n' \"$A3\" \"$E3\"; "
+            "echo '--- failed units (top 20) ---'; "
+            "systemctl --failed --no-pager --plain 2>/dev/null | head -20"
+        )
+        sec_rec_out = self.run_ssh_cmd(sec_rec_cmd, True, update_status=False)
+        self._health_write((sec_rec_out or "").strip() if (sec_rec_out or "").strip() else "Keine Security/Recovery-Daten")
+        self.health_check_scheduler_inventory(update_status=False)
         if update_status:
             self.set_status(
                 self.t("status.health_done"),
                 connected=("Fehler bei SSH-Verbindung" not in host),
             )
 
+    def acl_show_ugacl_status(self):
+        p = self.entry_acl_path.get().strip() if hasattr(self, "entry_acl_path") else ""
+        if not p:
+            messagebox.showwarning(self.t("acl.permissions_title"), self.t("acl.path_required"))
+            return
+        cmd = (
+            f"echo 'Path: {shlex.quote(p)}'; "
+            f"if command -v getfattr >/dev/null 2>&1; then "
+            f"getfattr -d -m trusted.ugacl_ {shlex.quote(p)} 2>/dev/null || echo 'no trusted.ugacl_* attrs'; "
+            "else "
+            "echo 'getfattr not installed'; "
+            "fi"
+        )
+        out = self.run_ssh_cmd(cmd, True)
+        if hasattr(self, "acl_output"):
+            self.acl_output.insert(tk.END, "\n--- UGACL STATUS ---\n")
+            self.acl_output.insert(tk.END, (out or "").strip() + "\n")
+            self.acl_output.see(tk.END)
+
     def health_check_storage(self):
         self._health_write("\n--- STORAGE ---")
         out = self.run_ssh_cmd("df -h | grep -E 'Filesystem|/volume|/dev/'", True)
         self._health_write(out.strip() if out.strip() else "Keine Daten")
 
+    def health_check_scheduler_inventory(self, update_status=True):
+        self._health_write("\n--- SCHEDULER INVENTORY (cron + systemd timers) ---")
+        cmd = (
+            "echo '--- /etc/cron.d (top) ---'; "
+            "for f in /etc/cron.d/*; do [ -f \"$f\" ] || continue; echo \"[$f]\"; sed -n '1,80p' \"$f\"; echo; done; "
+            "echo '--- systemd timers (all) ---'; "
+            "systemctl list-timers --all --no-pager --plain 2>/dev/null | head -120; "
+            "echo '--- cron service ---'; "
+            "A=$(systemctl is-active cron.service 2>/dev/null || echo unknown); "
+            "E=$(systemctl is-enabled cron.service 2>/dev/null || echo unknown); "
+            "printf 'cron.service: active=%s enabled=%s\\n' \"$A\" \"$E\""
+        )
+        out = self.run_ssh_cmd(cmd, True, update_status=update_status)
+        self._health_write((out or "").strip() if (out or "").strip() else "Keine Scheduler-Daten")
+
     def health_check_raid(self):
         self._health_write("\n--- RAID ---")
-        out = self.run_ssh_cmd("cat /proc/mdstat", True)
+        out = self.run_ssh_cmd(
+            "cat /proc/mdstat; "
+            "echo; echo '--- mdcheck ---'; "
+            "for s in mdcheck_start mdcheck_continue; do "
+            "A=$(systemctl is-active ${s}.service 2>/dev/null || echo unknown); "
+            "E=$(systemctl is-enabled ${s}.service 2>/dev/null || echo unknown); "
+            "echo \"$s active=$A enabled=$E\"; "
+            "done; "
+            "echo; echo '--- mdadm monitor ---'; "
+            "mdadm --monitor --oneshot --scan 2>/dev/null | head -20",
+            True,
+        )
         self._health_write(out.strip() if out.strip() else "Keine mdstat Daten")
 
     def health_reboot_nas(self):
@@ -739,6 +907,13 @@ class MixinStorageAclSnap:
 
     def health_check_smart(self):
         self._health_write("\n--- SMART ---")
+        smd = self.run_ssh_cmd(
+            "A=$(systemctl is-active smartmontools.service 2>/dev/null || echo unknown); "
+            "E=$(systemctl is-enabled smartmontools.service 2>/dev/null || echo unknown); "
+            "echo \"smartmontools.service active=$A enabled=$E\"",
+            True,
+        )
+        self._health_write((smd or "").strip())
         disks = self.run_ssh_cmd("lsblk -d -n -o NAME,TYPE 2>/dev/null | awk '$2==\"disk\"{print \"/dev/\"$1}'", True)
         disk_list = []
         for line in disks.splitlines():

@@ -341,6 +341,7 @@ class MixinTransfer:
                 self.entry_ip.get(),
                 **self._ssh_connect_kwargs(timeout=25, banner_timeout=40, auth_timeout=40),
             )
+            self._ssh_transport_keepalive(ssh)
             self._ssh_sudo_bash(ssh, inner_bash_script)
         finally:
             try:
@@ -431,6 +432,7 @@ class MixinTransfer:
                 compress=False,
             ),
         )
+        self._ssh_transport_keepalive(ssh)
         try:
             inner = f"cat > {shlex.quote(rp)}"
             cmd = "/bin/sh -c " + shlex.quote(inner)
@@ -832,7 +834,7 @@ class MixinTransfer:
         info_row.pack(fill=tk.X)
         lbl_left = tk.Label(info_row, text="0% (0 B / ?)", bg=self.color_surface_alt, fg=self.color_text, font=self.font_base, anchor="w")
         lbl_left.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        lbl_right = tk.Label(info_row, text="0 B/s • ETA --:--", bg=self.color_surface_alt, fg=self.color_text, font=self.font_base, anchor="e")
+        lbl_right = tk.Label(info_row, text=self.t("msg.transfer_eta_placeholder"), bg=self.color_surface_alt, fg=self.color_text, font=self.font_base, anchor="e")
         lbl_right.pack(side=tk.RIGHT)
 
         btn_row = tk.Frame(body, bg=self.color_surface_alt)
@@ -1091,7 +1093,7 @@ class MixinTransfer:
 
                         self.root.after(
                             0,
-                            lambda: lbl_file.config(text="Entpacke auf dem NAS…"),
+                            lambda: lbl_file.config(text=self.t("msg.transfer_unpacking_nas")),
                         )
                         try:
                             self._ssh_unzip_bundle_on_nas(remote_zip, rd_base)
@@ -1269,6 +1271,7 @@ class MixinTransfer:
                                     allow_agent=False,
                                 ),
                             )
+                            self._ssh_transport_keepalive(sshv)
                             try:
                                 for rp, exs in uploaded_meta:
                                     got = self._remote_file_size_via_ssh(sshv, rp)
@@ -1412,7 +1415,7 @@ class MixinTransfer:
         info_row.pack(fill=tk.X)
         lbl_left = tk.Label(info_row, text="0%", bg=self.color_surface_alt, fg=self.color_text, font=self.font_base, anchor="w")
         lbl_left.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        lbl_right = tk.Label(info_row, text="0 B/s • ETA --:--", bg=self.color_surface_alt, fg=self.color_text, font=self.font_base, anchor="e")
+        lbl_right = tk.Label(info_row, text=self.t("msg.transfer_eta_placeholder"), bg=self.color_surface_alt, fg=self.color_text, font=self.font_base, anchor="e")
         lbl_right.pack(side=tk.RIGHT)
 
         btn_row = tk.Frame(body, bg=self.color_surface_alt)

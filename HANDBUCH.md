@@ -1,0 +1,1936 @@
+# Ugreen NAS Admin – Komplettes Handbuch zur App und Benutzung
+
+Diese Ausgabe ist tab-zentriert aufgebaut: Pro Bereich stehen Beschreibung, Buttons, Bedienung, Workflows und Fehlerfälle direkt zusammen – ohne verstreute Nachträge am Ende.
+
+## 1. Zweck dieses Handbuchs
+
+### Aus dem Bereich: 1. Zweck dieses Handbuchs
+
+Dieses Handbuch ist als vollständige Bedienanleitung für die **aktuelle App-Version** geschrieben. Es erklärt die Bedienung **tab für tab**, inklusive Eingabefelder, Schaltflächen, typische Abläufe, Fehlerbilder und sinnvolle Vorgehensweisen im Alltag.  
+Es ist **keine Kurzbeschreibung** und kein Marketingtext, sondern eine Arbeitsanleitung für den echten Betrieb.
+
+Wichtig: Die App arbeitet in vielen Bereichen direkt auf deinem NAS. Änderungen sind nicht „simuliert“, sondern wirken direkt auf Dateien, Dienste, Container und Zeitpläne. Deshalb wird in diesem Handbuch immer beschrieben, **was ein Button konkret auslöst** und **wann du ihn besser nicht benutzen solltest**.
+
+---
+
+---
+
+## 2. App-Logik und Sicherheitsprinzip
+
+### Aus dem Bereich: 2. App-Logik und Sicherheitsprinzip
+
+Die App ist modular aufgebaut: Dashboard, Skripte, Explorer, NAS↔NAS, Geräte, Docker, Health, Storage, ACL, Snapshots, Backup, Settings.  
+Fast alle Funktionen greifen über SSH auf das NAS zu. Ohne gültige Verbindung sind viele Aktionen nicht sinnvoll.
+
+Ein zentraler Punkt ist der Schutzmodus:
+
+- Im eingeschränkten Modus sind riskante Aktionen blockiert.
+- Mit `Volle Rechte` werden kritische Schaltflächen freigegeben.
+- Mit `Einschränken` setzt du den Schutz wieder aktiv.
+
+Für produktive Umgebungen gilt als Standard:
+
+1. Im Normalmodus analysieren.
+2. Nur für konkrete Eingriffe Vollrechte aktivieren.
+3. Nach dem Eingriff wieder einschränken.
+
+---
+
+---
+
+## 3. Header komplett (alles an einem Ort)
+
+### Aus dem Bereich: 3. Kopfbereich (Header) – aktuelle Version
+
+Wichtig zur Einordnung: In der aktuellen UI liegen die umfangreichen Verbindungsfelder im `Settings`-Tab. Der Header enthält **nicht** mehr den alten großen Verbindungsblock.
+
+### 3.1 Header-Elemente und Wirkung
+
+- `⚠ Volle Rechte` / `🔒 Einschränken`  
+  Schaltet den Risikomodus um. Kritische Buttons in mehreren Tabs hängen davon ab.
+
+- Theme-Button (`☀ Light` / `🌙 Dark`)  
+  Wechselt das Farbschema der Oberfläche.
+
+- `ℹ Info`  
+  Öffnet den Info-Dialog mit Dokumentenbuttons (`README`, `Handbuch`, `CHANGELOG`) und Kontaktbereich.
+
+- `📸 Screenshot`  
+  Erstellt einen Screenshot der App. Zielordner kommt aus `Settings -> Pfade -> Screenshot-Pfad`.
+
+- `☕ Coffee`  
+  Öffnet den Support-Link.
+
+- SSH-Status-Badge  
+  Zeigt, ob die SSH-Verbindung aktiv ist.
+
+- Modellanzeige  
+  Zeigt das erkannte NAS-Modell, sobald per SSH auslesbar.
+
+### 3.2 Was du im Header nicht tun solltest
+
+- Keine kritischen Aktionen starten, wenn SSH-Badge nicht verbunden ist.
+- Nicht dauerhaft in Vollrechten arbeiten.
+
+---
+
+### Aus dem Bereich: 22. Vollständige Referenz: Header-Buttons (aktuelle UI)
+
+### 22.1 `Volle Rechte` / `Einschränken`
+
+**Zweck:** Sicherheitsfreigabe für kritische Aktionen.  
+**Voraussetzung:** bewusste Bestätigung.  
+**Wirkung:** Schaltet viele `danger`-markierte Buttons frei oder wieder zu.  
+**Typischer Fehler:** Dauerhaft freigelassen und später versehentliche Lösch-/Systemaktion.
+
+### 22.2 Theme-Button
+
+**Zweck:** Wechsel Light/Dark Theme.  
+**Wirkung:** rein visuell, keine NAS-Änderung.  
+**Typischer Fehler:** keiner, nur Darstellungspräferenz.
+
+### 22.3 `Info`
+
+**Zweck:** Doku- und Kontaktdialog öffnen.  
+**Wirkung:** Keine NAS-Aktion, nur UI-Dialog.
+
+### 22.4 `Screenshot`
+
+**Zweck:** aktuellen App-Bildschirm speichern.  
+**Voraussetzung:** Screenshot-Zielpfad in Settings sinnvoll gesetzt.  
+**Wirkung:** PNG-Datei im Zielordner.  
+**Typischer Fehler:** leerer/ungültiger Zielpfad.
+
+### 22.5 `Coffee`
+
+**Zweck:** Support-Link öffnen.  
+**Wirkung:** Browseraufruf.
+
+---
+
+### Aus dem Bereich: 64. Detailkatalog Header: jeder sichtbare Knopf im Kontext
+
+### 64.1 Coffee
+
+Leichtgewichtiger Aktionsknopf im Header.  
+Je nach App-Logik meist als Schnellausloeser oder Utility-Funktion eingebunden.
+
+### 64.2 Screenshot
+
+Erzeugt sofort eine Aufnahme der App-Oberflaeche.  
+Speicherort folgt dem in Settings gesetzten `screenshot_dir`.
+
+### 64.3 Info
+
+Oeffnet den Info-Dialog mit:
+
+- Dokumentlinks (README/Handbuch/Changelog),
+- Projekt-/Support-Links,
+- Versions-/Hinweistext.
+
+### 64.4 Theme / Sprache
+
+Aendern Darstellung und Texthintergrund.  
+Nach Sprachewechsel Dashboard-Sonderregel beachten (deutsch nur bei `de`, sonst englisch).
+
+### 64.5 Modellanzeige
+
+Wird beim verbundenen SSH-Status aktualisiert und zeigt das erkannte NAS-Modell an.
+
+---
+
+---
+
+## 4. Sidebar und Navigation komplett
+
+### Aus dem Bereich: 4. Sidebar und Navigation
+
+Links befindet sich die feste Navigation mit allen Haupttabs.
+
+### 4.1 Navigationspunkte
+
+- Dashboard
+- Scripts
+- Explorer
+- NAS ↔ NAS
+- Geräte
+- Docker
+- System Health
+- Speicher
+- Benutzer
+- Snapshots
+- Backup
+- Settings
+
+### 4.2 Tool-Buttons unten in der Sidebar
+
+- `Alles aktualisieren`  
+  Startet einen Gesamt-Refresh mehrerer Bereiche.
+
+- `Health Snapshot`  
+  Speichert den aktuellen Health-Zustand als Bericht.
+
+---
+
+### Aus dem Bereich: 41. Vollständige Navigationserklärung
+
+Die Sidebar ist nicht nur „Tabwechsel“, sondern ein Arbeitsfluss:
+
+1. `Settings` für Grundlagen.
+2. `Dashboard` für schnellen Ist-Blick.
+3. `Health` für Diagnose.
+4. `Docker` / `Scripts` / `Backup` für operative Änderungen.
+5. `Storage` / `ACL` / `Snapshots` für tiefe Datei- und Rechtearbeit.
+6. `NAS↔NAS` für Transfers.
+
+Unten:
+
+- `Alles aktualisieren`: synchronisiert mehrere Bereiche.
+- `Health Snapshot`: dokumentiert Zustand.
+
+Beide sind vor/nach Änderungen sehr wertvoll.
+
+---
+
+---
+
+## 5. Tab Settings komplett (Felder, Knöpfe, Einrichtung, Telegram, SMTP)
+
+### Aus dem Bereich: 23. Vollständige Referenz: Settings-Tab (Felder und Buttons)
+
+### 23.1 Hauptbuttons oben
+
+- **Laden:** setzt Formular auf gespeicherten Stand zurück.
+- **Auf aktuelle UI anwenden:** übernimmt Formulardaten direkt in laufende App.
+- **Speichern:** persistiert alle Settings.
+
+### 23.2 Sprachbereich
+
+- **Dropdown Sprache:** Auswahl der UI-Sprache.
+- **Sprache anwenden:** setzt ausgewählte Sprache aktiv.
+
+### 23.3 Verbindungsfelder
+
+- `NAS IP`, `Port`, `User`, `Passwort`
+- `SSH-Key nutzen`
+- `SSH-Key-Pfad`
+- `Passphrase`
+
+### 23.4 Verbindungsbuttons (inkl. neuer SSH-Funktionen)
+
+- **Verbindung speichern:** speichert alle Felder im Verbindungsbereich dauerhaft in der Konfiguration.
+- **PW Tresor:** speichert das aktuelle SSH-Passwort im System-Keyring (sicherer als Klartext im Formular).
+- **SSH-Key-Paar erstellen:** erstellt auf deinem PC ein neues Schluesselpaar (`ugreen_nas_admin` + `ugreen_nas_admin.pub`), kopiert den Public Key in die Zwischenablage und kann den privaten Key-Pfad direkt ins Formular uebernehmen.
+- **Oeffentlichen Key auf NAS installieren:** verbindet sich einmalig per Passwort-SSH mit dem gewaehlten Ziel und traegt den Public Key in `~/.ssh/authorized_keys` ein.
+- **Profil +/x:** Profil anlegen/loeschen.
+
+### 23.4.1 Warum der SSH-Key-Workflow wichtig ist
+
+- Mit Key-Login brauchst du im Alltag kein SSH-Passwort mehr bei jeder Aktion.
+- Derselbe private Key auf deinem PC kann fuer UGREEN, QNAP und weitere Linux-Systeme genutzt werden.
+- Automationen (z. B. Skript-Tests, Transfers, NAS↔NAS-Tools) werden stabiler und schneller.
+- Das Passwort wird nur noch fuer die initiale Key-Installation benoetigt.
+
+### 23.4.2 Exakte Schrittfolge (UGREEN + zweites NAS/QNAP)
+
+1. In `Settings -> Verbindung` zuerst Host/IP, Port, User und Passwort korrekt eintragen.
+2. `SSH-Key-Paar erstellen` klicken und Zielordner waehlen.
+3. Optional Passphrase vergeben:
+   - mit Passphrase: RSA 4096 (maximale Kompatibilitaet),
+   - ohne Passphrase: bevorzugt Ed25519 (modern/schnell).
+4. Bei Rueckfrage den privaten Key-Pfad ins Formular uebernehmen und `SSH-Key` aktivieren.
+5. `Verbindung speichern` klicken, damit Key-Pfad und Optionen persistiert sind.
+6. `Oeffentlichen Key auf NAS installieren` klicken und Ziel waehlen:
+   - **UGREEN:** nutzt die oberen Verbindungsfelder (IP/Port/User/Passwort),
+   - **Zweites NAS/QNAP:** nutzt das zweite NAS-Profil unten; SSH-Port wird abgefragt.
+7. Nach erfolgreicher Installation nutzt die App fuer spaetere SSH-Logins den privaten Key.
+
+### 23.4.3 Was technisch passiert
+
+- Die App installiert **nur den Public Key** auf dem Zielsystem.
+- Der private Key bleibt auf deinem PC und wird nie auf die NAS kopiert.
+- Bei der Installation wird absichtlich eine einmalige Passwort-SSH-Session ohne Key verwendet.
+- Auf dem Ziel wird genau eine Key-Zeile in `~/.ssh/authorized_keys` hinzugefuegt (oder als bereits vorhanden erkannt).
+
+### 23.4.4 Was man vermeiden sollte
+
+- Nicht den privaten Key weitergeben oder auf NAS/Cloud-Laufwerke kopieren.
+- Nach Key-Umstellung kein altes/falsches Passwort im Formular belassen.
+- Bei QNAP unbedingt den tatsaechlichen SSH-Port angeben (nicht immer 22).
+- Bei Problemen zuerst pruefen: SSH-Dienst aktiv, User korrekt, Home-Verzeichnis beschreibbar.
+
+### 23.5 SMB-Zweitprofil
+
+Felder:
+
+- Profilname
+- Host
+- User
+- Passwort
+- Passwort speichern (Checkbox)
+
+Buttons:
+
+- Profil hinzufügen
+- Profil löschen
+
+### 23.6 Telegram
+
+- Felder Token + Chat-ID
+- Button für Secret-Privacy (sichtbar/verdeckt)
+
+### 23.7 E-Mail
+
+- Felder Host, Port, User, Passwort, From, To
+- Checkboxen STARTTLS und SSL
+- Secret-Privacy-Button
+
+### 23.8 Pfade
+
+- Scripts-Pfad
+- Compose-Pfad
+- Explorer-Root
+- Screenshot-Zielpfad
+- `Ordner wählen` für Screenshot-Pfad
+
+### 23.9 Script-Notify
+
+Felder:
+
+- Skript
+- Kanal
+- Triggerzeitpunkt
+
+Buttons:
+
+- Refresh
+- Add
+- Delete
+- Sync
+
+### 23.10 SSH-Key erstellen und installieren (komplette Anleitung)
+
+Dieser Abschnitt erklaert die beiden neuen SSH-Buttons unter `Settings -> Verbindung` so, dass du den Ablauf ohne externe Tools komplett in der App durchfuehren kannst.
+
+**Knopf: `SSH-Key-Paar erstellen`**
+- Erstellt auf deinem PC ein neues SSH-Key-Paar (`ugreen_nas_admin` und `ugreen_nas_admin.pub`).
+- Fragt optional nach Passphrase:
+  - mit Passphrase: RSA 4096 (sehr kompatibel),
+  - ohne Passphrase: Ed25519 (modern, schnell).
+- Kopiert den Public Key in die Zwischenablage.
+- Kann den privaten Key-Pfad sofort in die Verbindungsfelder uebernehmen und `SSH-Key nutzen` aktivieren.
+
+**Knopf: `Oeffentlichen Key auf NAS installieren`**
+- Macht eine einmalige SSH-Anmeldung mit Passwort (bewusst ohne Key-Login fuer diesen Schritt).
+- Traegt den Public Key auf dem Ziel in `~/.ssh/authorized_keys` ein.
+- Bietet Zielauswahl:
+  - `UGREEN` ueber die oberen Felder (IP/Port/User/Passwort),
+  - `Zweites NAS / QNAP` ueber das SMB-Profil unten (mit separater SSH-Port-Abfrage).
+
+**Warum das wichtig ist**
+- Danach meldet sich die App per Key an, nicht mehr mit Passwort bei jedem Lauf.
+- Dasselbe Key-Paar kann fuer mehrere Systeme genutzt werden (UGREEN, QNAP, weitere Linux-Hosts).
+- Automationen wie Script-Tests, Transfers und NAS↔NAS laufen stabiler.
+
+**Empfohlenes Verfahren (exakt)**
+1. Unter `Settings -> Verbindung` Host/IP, Port, User und Passwort korrekt eintragen.
+2. `SSH-Key-Paar erstellen` klicken und Zielordner waehlen.
+3. Optional Passphrase setzen und Key-Erstellung bestaetigen.
+4. Bei Rueckfrage den privaten Key-Pfad in die UI uebernehmen.
+5. `Verbindung speichern` klicken.
+6. `Oeffentlichen Key auf NAS installieren` klicken und Zielsystem waehlen.
+7. Erfolgsdialog pruefen; danach werden spaetere SSH-Aktionen ueber den privaten Key ausgefuehrt.
+
+**Wichtige Regeln**
+- Niemals den privaten Key weitergeben oder auf NAS hochladen.
+- Nur der Public Key gehoert auf die Zielsysteme.
+- Bei QNAP unbedingt den echten SSH-Port angeben (nicht blind 22 annehmen).
+
+---
+
+### Aus dem Bereich: 39. Telegram komplett einrichten (von Null)
+
+Dieser Abschnitt erklärt die Telegram-Einrichtung vollständig, damit Watcher, Tests und Daily Report sauber funktionieren.
+
+### 39.1 Voraussetzungen
+
+Du brauchst:
+
+- ein Telegram-Konto auf dem Handy oder Desktop,
+- Internetzugang vom NAS (für ausgehende Verbindungen zur Telegram API),
+- Zugriff auf den Settings-Tab in der App.
+
+### 39.2 Bot mit BotFather erstellen
+
+1. Öffne Telegram und suche nach `@BotFather`.
+2. Starte den Chat und sende `/start`.
+3. Sende `/newbot`.
+4. Vergib einen Anzeigenamen für deinen Bot (frei wählbar).
+5. Vergib einen eindeutigen Username, der auf `bot` endet (z. B. `mein_nas_alarm_bot`).
+6. BotFather antwortet mit einem Token im Format `123456789:AA...`.
+
+Dieser Token ist dein API-Schlüssel. Ohne Token kein Versand.
+
+### 39.3 Chat-ID bestimmen (einfacher Weg)
+
+Variante A (Einzelchat):
+
+1. Öffne den Chat mit deinem neuen Bot.
+2. Sende ihm einmal eine Nachricht (z. B. `test`), damit der Chat existiert.
+3. Öffne im Browser:
+   `https://api.telegram.org/bot<TOKEN>/getUpdates`
+4. Suche in der JSON-Antwort nach `"chat":{"id":...}`.
+5. Diese Zahl ist die Chat-ID.
+
+Variante B (Gruppe):
+
+1. Erstelle oder nutze eine Gruppe.
+2. Füge den Bot zur Gruppe hinzu.
+3. Sende in die Gruppe eine Nachricht.
+4. Erneut `getUpdates` aufrufen.
+5. Gruppen-ID ist meist negativ (z. B. `-100...`).
+
+### 39.4 Token und Chat-ID in die App eintragen
+
+Settings -> Telegram:
+
+- `Bot Token`: Token von BotFather
+- `Chat ID`: aus `getUpdates`
+
+Danach `Speichern`.
+
+### 39.5 Telegram in Health testen
+
+Health-Tab -> Telegram-Bereich:
+
+- `Telegram-Test` drücken.
+- Im Zielchat prüfen, ob Testnachricht ankommt.
+
+Wenn keine Nachricht kommt:
+
+1. Token prüfen (Tippfehler? altes Token?).
+2. Chat-ID prüfen (richtiger Chat? Gruppe statt Einzelchat?).
+3. NAS-Internetzugang prüfen (DNS/Firewall).
+4. In Logs auf HTTP-Fehlertext achten.
+
+### 39.6 Typische Telegram-Fehler
+
+- **`chat not found`**  
+  Bot hat noch keine Nachricht vom Chat erhalten oder falsche Chat-ID.
+
+- **`Unauthorized`**  
+  Token falsch oder widerrufen.
+
+- **Nachricht kommt nur manchmal**  
+  Cooldown/Schwellenwerte im Watcher prüfen.
+
+- **Gruppenchat funktioniert nicht**  
+  Bot nicht in Gruppe oder fehlende Chat-ID der Gruppe.
+
+---
+
+### Aus dem Bereich: 40. E-Mail/SMTP komplett einrichten (von Null)
+
+### 40.1 Minimalwerte
+
+Settings -> E-Mail:
+
+- SMTP Host
+- Port
+- User
+- Passwort
+- From
+- To
+- STARTTLS oder SSL passend zum Provider
+
+### 40.2 Typische Provider-Logik
+
+- Port 587: meist STARTTLS
+- Port 465: meist SSL/SMTPS
+
+Nicht beide blind aktivieren. Immer zum Provider passend einstellen.
+
+### 40.3 Testen
+
+- Watcher-Test auf NAS ausführen (falls Kanal `email` oder `both`).
+- Daily-Report-Test senden.
+
+Wenn Versand fehlschlägt:
+
+1. DNS-Auflösung am NAS prüfen.
+2. SMTP-Credentials prüfen.
+3. Port/TLS/SSL-Kombination prüfen.
+4. Absenderadresse bei Provider erlaubt?
+
+---
+
+### Aus dem Bereich: 65. Detailkatalog Settings: jedes Feld erklaert
+
+### 65.1 Verbindungsblock
+
+- Host/IP: Zieladresse der NAS
+- Port: SSH-Port
+- User: SSH-Benutzer
+- Passwort/Key: Authentisierung
+- Sudo: noetig fuer privilegierte Aktionen
+
+### 65.2 Notification block
+
+- Telegram Token
+- Telegram Chat ID
+- SMTP Host/Port/User/Pass
+- Sender/Empfaenger
+- TLS/SSL Auswahl
+
+### 65.3 Pfad-/Tooling-Block
+
+- Screenshot-Verzeichnis
+- lokale Arbeitsverzeichnisse
+- optionale Toolpfade
+
+### 65.4 Zweites NAS Profil
+
+- Host
+- User
+- Passwort
+- Share/Path-Angaben
+
+Nutzen: Backupziel und NAS↔NAS.
+
+---
+
+---
+
+## 6. Tab Dashboard komplett (Anzeige, Lüfter, Bedienung)
+
+### Aus dem Bereich: 24. Vollständige Referenz: Dashboard-Tab
+
+### 24.1 Elemente
+
+- Dashboard-Titel
+- Live-Hinweis
+- Webcam-Button
+- Metrik-Kacheln
+- Lüftersteuerung
+- Docker-Live
+- geplante Skriptjobs
+
+### 24.2 Fan-Steuerbuttons
+
+- **Silent / Standard / Max / Manual**
+- **Übernehmen**
+- **UGOS-Steuerung zurückgeben**
+
+**Wichtiger Ablauf:** Modus wählen -> Übernehmen -> Verhalten beobachten -> ggf. zurückgeben.
+
+---
+
+### Aus dem Bereich: 42. Dashboard komplett: Alle sichtbaren Funktionen im Betrieb
+
+### 42.1 CPU/RAM-Karten
+
+Zweck: schnelle Lastdiagnose.
+
+Interpretation:
+
+- Kurzspitzen sind normal.
+- dauerhaft hohe Last + hoher RAM-Druck = tiefer prüfen in Docker/Health.
+
+### 42.2 Volume-Karten
+
+Zeigen Belegung und helfen früh bei „Platte voll“-Szenarien.
+
+Wenn Belegung steigt:
+
+1. Storage-Tab öffnen.
+2. Top-Verbrauch ermitteln.
+3. Backup-/Log-/Containerpfade prüfen.
+
+### 42.3 Netzwerk
+
+Durchsatzanzeige je Interface.  
+Nützlich bei Backupfenstern, NAS↔NAS-Transfers und Docker-Downloads.
+
+### 42.4 Docker-Kachel
+
+Zeigt laufende Container als Frühindikator.  
+Bei Abweichung in Docker-Tab wechseln und Liste/Logs prüfen.
+
+### 42.5 Script-Jobs-Kachel
+
+Zeigt geplante Jobs und laufende Aktivitäten.  
+Hilft bei Korrelation „Lastanstieg <-> Cronjobzeitpunkt“.
+
+### 42.6 Fan-Steuerbereich (komplett)
+
+Buttons/Modi:
+
+- Silent
+- Standard
+- Max
+- Manual %
+- Übernehmen
+- UGOS-Steuerung zurückgeben
+
+Empfohlener Ablauf:
+
+1. Modus wählen.
+2. Übernehmen.
+3. 1-2 Minuten beobachten.
+4. Bei Konflikten UGOS-Steuerung zurückgeben.
+
+---
+
+### Aus dem Bereich: 62. Praxisanleitung: Fansteuerung inklusive Rueckgabe an UGOS
+
+1. Dashboard oeffnen.
+2. Fanbereich lesen (System links, CPU rechts).
+3. Gewuenschten Modus waehlen.
+4. `Uebernehmen` klicken.
+5. 1-2 Minuten Beobachtung.
+6. Wenn manuelle Steuerung beendet werden soll: `UGOS-Steuerung zurueckgeben`.
+7. Optional in UGOS App Profil wechseln (Standard/Silent), um Uebergabe zu validieren.
+
+Fehlerfall „UGOS reagiert nicht“:
+
+- Rueckgabe-Button nochmal ausfuehren.
+- Health/Servicezustand pruefen.
+- kurze Wartezeit einplanen, da Regelung nicht immer sofort visuell springt.
+
+---
+
+---
+
+## 7. Tab Scripte komplett (Editor, Test, Bedienablauf)
+
+### Aus dem Bereich: 25. Vollständige Referenz: Scripts-Tab
+
+### 25.1 Linke Aktionsbuttons
+
+- Backup Scripts lokal
+- Aktualisieren
+- Test Host
+- Test Docker
+- Neue Datei
+- Löschen
+- Zeitpläne
+- PowerShell/SSH
+
+### 25.2 Editorbuttons
+
+- Template `rsync`
+- Template `restic`
+- Template `rclone`
+- Speichern (root)
+- Speichern (user)
+
+### 25.3 Felder
+
+- Dateiname
+- Editorinhalt
+
+### 25.4 Log
+
+- Laufzeit-/Fehlerausgabe zu Test und Save.
+
+---
+
+### Aus dem Bereich: 43. Scripts-Tab komplett: Jede Aktion im Detail
+
+### 43.1 `Backup` (Skripte lokal sichern)
+
+Zweck: lokale Kopie der NAS-Skripte.
+
+Nutzen:
+
+- Versionssicherung vor Änderungen.
+- schnelle Wiederherstellung.
+
+### 43.2 `Aktualisieren`
+
+Lädt Skriptliste neu vom NAS.
+
+Immer vor Bearbeitung drücken, wenn parallel Änderungen erfolgt sein könnten.
+
+### 43.3 `Testen (Host)`
+
+Führt ausgewähltes Skript direkt auf dem NAS aus.
+
+Nutzen:
+
+- realistische Laufprüfung ohne Cron.
+- schnellster Weg für Syntax-/Pfadfehler.
+
+### 43.4 `Testen (Docker)`
+
+Testet Skript im Docker-Testkontext.
+
+Sinnvoll wenn Skript später tatsächlich als Docker-Job laufen soll.
+
+### 43.5 `Neue Datei`
+
+Leert Bearbeitungszustand für neuen Skriptstart.
+
+### 43.6 `Löschen`
+
+Entfernt Skript. Kritisch.
+
+Vorher:
+
+1. Dateiname prüfen.
+2. ggf. lokales Backup machen.
+
+### 43.7 `Zeitpläne`
+
+Öffnet Scheduler-Drawer und übernimmt Zielskript.
+
+### 43.8 `PowerShell/SSH`
+
+Manueller Debug-/Adminzugang.
+
+### 43.9 Templates (`rsync`, `restic`, `rclone`)
+
+Schneller Start für typische Backup-Skripte.
+
+Nach Einfügen immer Parameter prüfen:
+
+- Quellpfad
+- Zielpfad
+- Credentials
+- Excludes
+
+### 43.10 Speichern (root/user)
+
+`root`:
+
+- für systemnahe Pfade, wenn Rechte nötig.
+
+`user`:
+
+- für weniger privilegierte Abläufe.
+
+Nie unklar speichern. Vorher Zielpfad und Rechtekontext verstehen.
+
+---
+
+---
+
+## 8. Scheduler komplett (alle Felder, Cron, Praxis)
+
+### Aus dem Bereich: 26. Vollständige Referenz: Scheduler-Drawer
+
+### 26.1 Eingabefelder
+
+- Minute
+- Stunde
+- Tag
+- Monat
+- Wochentag
+- Erste Woche (Checkbox)
+
+### 26.2 Ausführungsbuttons
+
+- Als Host-Job
+- Als Docker-Job
+
+### 26.3 Anzeige
+
+- Klartext-Zeitbeschreibung
+- Zielskript-Info
+
+---
+
+### Aus dem Bereich: 44. Scheduler komplett: Felder, Interpretation, Best Practice
+
+Cron-Felder:
+
+- Minute
+- Stunde
+- Tag
+- Monat
+- Wochentag
+
+Option:
+
+- erste Woche (für bestimmte Monatslogik)
+
+Buttons:
+
+- Host-Job
+- Docker-Job
+
+Best Practice:
+
+1. Zeit zuerst fachlich definieren („täglich 03:30“).
+2. Felder setzen.
+3. Klartextkontrolle im Drawer.
+4. Job schreiben.
+5. Cron-Postcheck beachten.
+
+---
+
+### Aus dem Bereich: 63. Praxisanleitung: Cronjob sauber erstellen und pruefen
+
+1. Scripts-Tab, Zielshellskript oeffnen.
+2. `Zeitplaene` oeffnen.
+3. Cronfelder setzen.
+4. Klartext lesen.
+5. `Host-Job` oder `Docker-Job` schreiben.
+6. Cron-Postcheck auswerten.
+7. Jobliste pruefen.
+8. Einmal manuell testen.
+
+Wenn Job nicht laeuft:
+
+- Pfadrechte pruefen.
+- Interpreter (`#!/bin/bash` oder `python3`) pruefen.
+- Umgebungsvariablen explizit setzen.
+
+---
+
+---
+
+## 9. Tab NAS Explorer komplett
+
+### Aus dem Bereich: 27. Vollständige Referenz: Explorer-Tab
+
+### 27.1 Toolbar
+
+- NAS scannen
+- Upload
+- Perms 755
+- NAS löschen
+- PC löschen
+- PC->NAS
+- NAS->PC
+- Suche
+
+### 27.2 NAS-Kontextmenü
+
+- In Editor laden
+- Perms 755
+- Pfad kopieren
+- Upload Dateien
+- Upload Ordner
+- Löschen
+
+### 27.3 PC-Kontextmenü
+
+- Im Explorer öffnen
+- Pfad kopieren
+- Löschen
+
+### 27.4 Zusätzliche PC-Buttons
+
+- Laufwerke
+- Hoch
+- Ordner wählen
+- Lokal aktualisieren
+
+---
+
+### Aus dem Bereich: 45. Explorer komplett: Sicher arbeiten
+
+### 45.1 `NAS scannen`
+
+Lädt NAS-Dateibaum neu.
+
+### 45.2 `Upload`
+
+Lädt lokale Dateien auf NAS.
+
+Vorher Zielordner links aktiv auswählen.
+
+### 45.3 `Perms 755`
+
+Setzt Rechte auf Zielpfad.
+
+Nur nutzen, wenn klar ist, warum.
+
+### 45.4 `NAS löschen`
+
+Löscht ausgewählte NAS-Objekte.
+
+Kritisch: Fokus und Auswahl doppelt prüfen.
+
+### 45.5 `PC löschen`
+
+Löscht ausgewählte lokale Dateien.
+
+### 45.6 `PC -> NAS` und `NAS -> PC`
+
+Transfer zwischen rechter und linker Seite.
+
+Vor Transfer immer beide Pfade visuell prüfen.
+
+### 45.7 Suche
+
+Sucht im aktuellen NAS-Kontext.
+
+### 45.8 Kontextmenüs
+
+Die Kontextmenüs sind gleichwertige Aktionsauslöser zu Toolbar-Buttons, nicht nur Anzeigen.
+
+---
+
+---
+
+## 10. Tab NAS↔NAS komplett
+
+### Aus dem Bereich: 28. Vollständige Referenz: NAS↔NAS-Tab
+
+### 28.1 Obere Buttons
+
+- Ugreen scannen
+- (Windows) SMB scan
+
+### 28.2 Profil-/Statusbereich
+
+- SMB-Profilcombo
+- SMB-Statuslabel
+
+### 28.3 Kontextmenüs
+
+- Upload zur Gegenseite
+- Löschen auf aktueller Seite
+
+---
+
+### Aus dem Bereich: 46. NAS↔NAS komplett: SMB-Workflow
+
+### 46.1 Voraussetzungen
+
+- Zweites NAS-Profil in Settings vollständig.
+- (Windows) SMB-Mechanismus verfügbar.
+
+### 46.2 Ablauf
+
+1. Ugreen scannen.
+2. SMB/Freigaben scannen.
+3. Zielpfade links/rechts auswählen.
+4. Transfer per Kontextmenü auslösen.
+5. Ergebnis/Fehler prüfen.
+
+### 46.3 typische Fehler
+
+- Host nicht erreichbar.
+- Auth falsch.
+- Share verborgen/nicht freigegeben.
+- Rechte für Zielpfad fehlen.
+
+---
+
+---
+
+## 11. Tab Netzwerkgeräte komplett
+
+### Aus dem Bereich: 29. Vollständige Referenz: Geräte-Tab
+
+### 29.1 Aktion
+
+- Geräte suchen
+
+### 29.2 Ergebnis
+
+- Tabelle mit Kind/Name/IP/Detail
+- Statuslabel (`scanning`, `empty`, Fehlertext)
+
+---
+
+### Aus dem Bereich: 47. Geräte-Tab komplett
+
+`Geräte suchen` startet Discovery über NAS-SSH.  
+Anzeige enthält LAN/USB-Informationen.
+
+Fehlerfall:
+
+- ohne SSH keine Daten.
+- bei Discovery-Fehler erscheint Statusausgabe.
+
+---
+
+---
+
+## 12. Tab Docker komplett (Knöpfe + Bedienung direkt zusammen)
+
+### Aus dem Bereich: 30. Vollständige Referenz: Docker-Tab
+
+### 30.1 Erstell-/Kataloggruppe
+
+- Docker erstellen
+- Docker Katalog
+- Neuer Docker
+- Docker Update
+
+### 30.2 Verwaltungsgruppe
+
+- Ausschlussliste
+- Liste
+- Alle Container stoppen
+- Start
+- Stop
+- Restart
+- Liste (zweite Position im Layout)
+
+### 30.3 Diagnosegruppe
+
+- Stats
+- Inspect
+- Löschen
+- Fix 777
+
+### 30.4 Log-/Compose-Bereich
+
+- Live Log Start
+- Live Log Stop
+- Compose config
+- Compose ps
+- Compose up -d
+
+### 30.5 Felder
+
+- Compose-Dateipfad
+- Container-Treeview-Auswahl
+
+---
+
+### Aus dem Bereich: 48. Docker komplett: Betrieb, Update, Diagnose
+
+### 48.1 Erstellen/Katalog
+
+- Docker erstellen
+- Docker Katalog
+- Neuer Docker
+
+Nutze Katalog für Image-Recherche, Erstellen für konkrete Definition.
+
+### 48.2 Update und Massenaktionen
+
+- Docker Update (selektiv)
+- Liste
+- Ausschlussliste
+- Stop all
+
+Selektive Updates sind produktionssicherer als global.
+
+### 48.3 Laufzeitsteuerung
+
+- Start
+- Stop
+- Restart
+
+Immer mit frischer Liste arbeiten.
+
+### 48.4 Diagnose
+
+- Stats (Ressourcen)
+- Inspect (Struktur)
+- Logs (historisch/live)
+
+### 48.5 Compose
+
+- Compose-Datei eintragen
+- config prüfen
+- ps prüfen
+- up -d ausführen
+
+Vor `up -d` immer config gegenprüfen.
+
+### 48.6 Kritische Aktion `Löschen`
+
+Vorher klären:
+
+- persistente Daten liegen wo?
+- Wiederherstellungspfad vorhanden?
+- abhängige Dienste betroffen?
+
+---
+
+### Aus dem Bereich: 60. Praxisanleitung: Docker Service sicher aktualisieren
+
+Ziel: Ein vorhandener Container soll aktualisiert werden, ohne unkontrollierte Seiteneffekte.
+
+1. Docker-Tab oeffnen.
+2. `Liste` klicken.
+3. Zielcontainer markieren.
+4. `Inspect` aufrufen und kritische Angaben notieren (Volumes, Ports, Env).
+5. `Logs` oeffnen und Baseline notieren.
+6. `Docker Update` ausfuehren.
+7. Zustand erneut mit `Liste` und `Inspect` pruefen.
+8. Funktionstest aus Anwendungssicht durchfuehren.
+9. Bei Fehlern: Container stoppen/starten; wenn noetig auf vorheriges Image zurueck.
+
+Warum diese Reihenfolge wichtig ist:
+
+Ohne Baseline aus Inspect/Logs ist spaeter oft unklar, ob der Fehler aus dem Update stammt oder vorher schon vorhanden war.
+
+---
+
+---
+
+## 13. Tab System & Health komplett
+
+### Aus dem Bereich: 31. Vollständige Referenz: Health-Tab
+
+### 31.1 Hauptbuttons
+
+- Refresh Health
+- RAID prüfen
+- SMART prüfen
+- Storage
+- Scheduler-Inventar
+- Report speichern
+- Neustart
+- Herunterfahren
+
+### 31.2 UGOS-Panel
+
+- Titel + Refresh
+- Service-Statuslabel
+
+Hinweis:
+
+- `UGOS-Services aktualisieren` liest den aktuellen Status zentraler NAS-Dienste neu ein.
+- Das Panel hilft, Fehler schneller einzugrenzen (z. B. ob ein Kernservice ausgefallen ist), bevor man in Docker/Skripte tiefer einsteigt.
+
+### 31.3 Telegram-Block
+
+Felder:
+
+- Enabled
+- Intervall
+- Disk warn/crit
+- Temp
+- Cooldown
+- Fan min
+
+Buttons:
+
+- Telegram-Test
+- Manuelle Prüfung
+
+### 31.4 Watcher-Block
+
+Kanal:
+
+- Telegram / Email / Both
+
+Checkboxen:
+
+- Disk
+- RAID
+- Netzwerk bereit
+- Temp
+- Docker
+- SMART Dienst
+- SMB/NFS Dienste
+- Wartungstimer
+- systemd failed
+- Fan
+- Login failures
+
+Felder:
+
+- Fan min
+- Login window
+- Login min
+- Require containers
+- Ignore patterns
+- Auto restart names
+
+Buttons:
+
+- Lokal speichern
+- Auf NAS installieren
+- Test auf NAS
+
+### 31.5 Daily-Report-Block
+
+- Enabled Checkbox
+- Lokal speichern
+- Auf NAS installieren
+- Test
+
+---
+
+### Aus dem Bereich: 49. Health komplett: Alle Blöcke im Zusammenspiel
+
+Health ist Diagnosezentrale, nicht nur Anzeige.
+
+### 49.1 Hauptbuttons
+
+- Refresh = Gesamtzustand
+- RAID/SMART/Storage = Teilanalyse
+- Scheduler-Inventar = listet geplante Jobs und deren Zustand als Schnellcheck
+- Report speichern = Dokumentation
+
+### 49.2 Systembuttons
+
+- Neustart
+- Herunterfahren
+
+Nur im geplanten Wartungsfenster.
+
+### 49.3 UGOS-Dashboard
+
+Schneller Blick auf Kernservices.
+
+### 49.4 Telegram-Sofortmonitor
+
+Nützlich für lokalen Test ohne vollständigen Watcher-Deploy.
+
+### 49.5 NAS-Watcher
+
+Konfiguration + Deploy + Test im selben Bereich.
+
+### 49.6 Daily Report
+
+Täglicher Statusbericht (nicht Alarmersatz, sondern Verlauf).
+
+---
+
+### Aus dem Bereich: 59. Praxisanleitung: Telegram Alarmierung wirklich robust
+
+Viele Setups scheitern nicht am Bot, sondern an Randbedingungen. Diese komplette Sequenz sorgt fuer ein robustes Ergebnis:
+
+1. Bot erstellen (`@BotFather`, `/newbot`).
+2. Token sichern (nicht in Screenshots posten).
+3. Zielchat definieren (Einzelchat oder Gruppe).
+4. Chat-ID ueber `getUpdates` ermitteln.
+5. Token/Chat-ID in Settings eintragen.
+6. Speichern.
+7. Telegram-Test im Health-Tab ausfuehren.
+8. Testnachricht bestaetigen.
+9. NAS Watcher deployen.
+10. Watcher-Test senden.
+11. Daily Report Test senden.
+12. In den naechsten 24h pruefen, ob periodische Meldungen ankommen.
+
+Wenn einzelne Schritte fehlschlagen, nie sofort alles neu machen. Immer den letzten funktionierenden Stand als Referenz behalten.
+
+---
+
+### Aus dem Bereich: 66. Detailkatalog Health-Watcher Schalter
+
+Jeder Schalter definiert, ob ein konkreter Check im Watcher aktiv sein soll.
+
+- UPS check: NUT-Status
+- UGOS core services: Kernservices
+- SMART daemon: smartd aktiv/enabled
+- Network ready: wait-online Dienst
+- File services: SMB/NFS/wsdd2
+- Maintenance timers: trim/sysstat/logrotate/backups
+- RAID checks: mdstat/mdcheck
+- Docker runtime checks
+
+Empfehlung:
+
+Aktiviere zunaechst die sicherheits- und verfuegbarkeitskritischen Checks. Danach schrittweise erweitern, um Alarmflut zu vermeiden.
+
+---
+
+---
+
+## 14. Tab Speicher & Freigaben komplett
+
+### Aus dem Bereich: 32. Vollständige Referenz: Storage-Tab
+
+Buttons:
+
+- Volumes/df
+- Shares
+- Refresh all
+- Top20
+- Disk scan
+- Image to PC
+- Image to NAS
+- Restore from PC
+- Restore from NAS
+
+Felder:
+
+- Top-Path
+- Device-Combo
+- Remote-Image-Path
+
+---
+
+### Aus dem Bereich: 50. Storage komplett
+
+### 50.1 Volumes/Shares
+
+Buttonreihe für Zustandserfassung.
+
+### 50.2 Top20
+
+Pfadbasiert die größten Verzeichnisse finden.
+
+### 50.3 Disk-Image-Operationen
+
+Starkes Werkzeug für Spezialfälle.
+
+Vor jeder Image-/Restore-Aktion:
+
+1. Device eindeutig wählen.
+2. Zielpfad prüfen.
+3. genügend Speicher/zeit einplanen.
+
+---
+
+---
+
+## 15. Tab ACL komplett
+
+### Aus dem Bereich: 33. Vollständige Referenz: ACL-Tab
+
+Buttons:
+
+- Anzeigen (stat)
+- UGACL-Info
+- chmod 755
+- chmod 777 rec
+- chmod anwenden
+- chown anwenden
+- Users
+- Groups
+
+Felder:
+
+- Zielpfad
+- chmod-Modus
+- chown-Wert
+
+---
+
+### Aus dem Bereich: 51. ACL komplett
+
+### 51.1 Diagnose zuerst
+
+- Anzeigen
+- UGACL-Info
+
+### 51.2 Änderungen danach
+
+- chmod 755 / 777 rec / custom
+- chown apply
+
+Regel:
+
+- erst klein testen, dann groß ausrollen.
+
+---
+
+---
+
+## 16. Tab Snapshots komplett
+
+### Aus dem Bereich: 34. Vollständige Referenz: Snapshots-Tab
+
+Buttons:
+
+- detect backend
+- btrfs list
+- zfs list
+- snapper list
+- btrfs create
+- zfs create
+- snapper create
+- btrfs delete
+- zfs delete
+- snapper delete
+
+Feld:
+
+- Basispfad
+
+---
+
+### Aus dem Bereich: 52. Snapshots komplett
+
+### 52.1 Backend erkennen
+
+Nötig um passende Befehle zu wählen.
+
+### 52.2 Listen und Erstellen
+
+Vor Erstellen:
+
+- Basispfad prüfen.
+
+### 52.3 Löschen
+
+Nur mit klarer Identifikation des Snapshots und Rückfallplan.
+
+---
+
+---
+
+## 17. Tab Backup komplett (Backup + Restore + Schedules zusammen)
+
+### Aus dem Bereich: 35. Vollständige Referenz: Backup-Tab
+
+### 35.1 Backup-Block Buttons
+
+- Docker+Scripts Backup
+- User Data Backup
+- All Data Backup
+- Refresh Lists
+
+### 35.2 Backup-Felder
+
+- Scope combo
+- Volume combo
+- User combo
+- Dest mode combo
+- NAS profile combo
+- PC path
+- USB combo
+- optional remove-on-copy checkbox
+
+### 35.3 Restore-Block
+
+Felder:
+
+- Source mode (`nas`/`pc`)
+- Archive path
+- Target path
+
+Buttons:
+
+- Datei wählen
+- Wiederherstellen starten
+
+### 35.4 Scheduled Backup
+
+Buttons:
+
+- Von NAS laden
+- Auf NAS speichern
+- Entfernen
+- Erstellen/Aktualisieren
+
+Felder:
+
+- Joblabel
+- Jobtyp
+- Cron-Felder
+- Zusatzoptionen
+
+---
+
+### Aus dem Bereich: 53. Backup komplett
+
+### 53.1 Scope/Volume/User
+
+Steuert was gesichert wird.
+
+### 53.2 Zielmodus
+
+- NAS
+- PC
+- USB
+- zweites NAS-Profil
+
+### 53.3 Backupbuttons
+
+- Docker+Scripts
+- User Data
+- All Data
+
+### 53.4 Restore
+
+Felder:
+
+- source mode
+- source archive
+- target path
+
+Buttons:
+
+- file picker
+- restore start
+
+### 53.5 Scheduled Backup
+
+Komplette Jobverwaltung mit Cronlogik.
+
+---
+
+### Aus dem Bereich: 61. Praxisanleitung: Backup und Restore mit Verifikation
+
+### 61.1 Vollbackup erstellen
+
+1. Backup-Tab oeffnen.
+2. Scope/Volume/User filtern.
+3. Zielmodus setzen (NAS/PC/USB/zweites NAS).
+4. Passenden Backupbutton waehlen.
+5. Lauf pruefen.
+6. Archivpfad dokumentieren.
+
+### 61.2 Restore durchfuehren
+
+1. Source Mode setzen.
+2. Source Archive auswaehlen.
+3. Target Path festlegen.
+4. `Wiederherstellen starten` klicken.
+5. Ergebnispruefung:
+   - existieren Dateien?
+   - stimmen Rechte?
+   - sind Dienste wieder lauffaehig?
+
+### 61.3 Nachkontrolle
+
+- Health Refresh
+- betroffene App/Container testen
+- optional Snapshot fuer neuen stabilen Stand
+
+---
+
+### Aus dem Bereich: 67. Detailkatalog Backup-Restore Felder
+
+### 67.1 Source Mode
+
+Definiert, aus welchem Kontext die Archivquelle kommt:
+
+- NAS-Dateisystem
+- lokales Dateisystem
+- USB Medium
+
+### 67.2 Source Archive
+
+Pfad zur konkreten Sicherungsdatei (z. B. tar.gz).  
+Muss fuer den gewaehlten Source Mode erreichbar sein.
+
+### 67.3 Target Path
+
+Wiederherstellungsziel auf NAS.
+
+Wichtig:
+
+- Rechte vorhanden?
+- genug Platz?
+- Ziel leer/ueberschreibbar?
+
+---
+
+### Aus dem Bereich: 76. Vollworkflow D: Backup-Strategie fuer mehrere Ziele
+
+Ziel ist, nicht nur ein Backup zu haben, sondern ein nutzbares Wiederherstellungskonzept.
+
+Strategie:
+
+1. Primaerziel NAS intern (schnell).
+2. Sekundaerziel zweites NAS (Risikotrennung).
+3. Optional USB/offline fuer Notfall.
+
+Umsetzung in der App:
+
+1. Settings mit zweitem NAS vervollstaendigen.
+2. Backup-Tab Zielmodus je Lauf waehlen.
+3. Taegliche/wöchentliche Jobs im Scheduler setzen.
+4. Monatlich Restore-Test auf Testpfad.
+
+Regel fuer echte Sicherheit:
+
+Ein Backup gilt erst dann als verlässlich, wenn ein Restore erfolgreich getestet wurde.
+
+---
+
+## 18. Info-Dialog komplett
+
+### Aus dem Bereich: 54. Info-Dialog komplett
+
+Dokumentenbuttons:
+
+- README
+- Handbuch
+- CHANGELOG
+
+Weitere Elemente:
+
+- YouTube
+- Supportlink
+- E-Mail-Kontakt
+- About-Text
+
+---
+
+---
+
+## 19. Gesamtbetrieb, Checklisten, Troubleshooting
+
+### Aus dem Bereich: 19. Vollständige Betriebsreihenfolge (empfohlen)
+
+1. Settings vollständig.
+2. Verbindung prüfen.
+3. Dashboard + Health.
+4. Docker-Dienste aufbauen.
+5. Skripte testen, dann Scheduler.
+6. Backupziele setzen.
+7. Restore-Test in Testpfad.
+8. Watcher und Daily deployen.
+
+---
+
+### Aus dem Bereich: 20. Fehlerbehebung nach Bereich
+
+### 20.1 Verbindung
+
+- SSH-Badge rot: IP/Port/User/Auth prüfen.
+- Key aktiv, aber Passwort im Feld: Auth-Weg vereinheitlichen.
+
+### 20.2 Docker
+
+- Liste leer trotz erwarteter Container: zuerst `Liste`.
+- Start schlägt fehl: Inspect + Logs + Runtime im Health prüfen.
+
+### 20.3 Backup/Restore
+
+- Zielprofil fehlt: Settings-Zweitprofil prüfen.
+- Restore ohne Wirkung: Archivpfad/Modus/Zielpfad kontrollieren.
+
+### 20.4 Watcher/Daily
+
+- Deploy ok, aber keine Meldungen: Kanal-Credentials und Trigger prüfen.
+- Zu viele Meldungen: Schwellwerte/Checkboxen anpassen.
+
+### 20.5 ACL/Explorer
+
+- Unerwartete Rechteeffekte: zuerst Stat/UGACL lesen, dann gezielt ändern.
+- Löschfehler: Fokusbaum und Pfad prüfen.
+
+---
+
+### Aus dem Bereich: 55. Checklisten (operativ)
+
+### 55.1 Vor kritischer Änderung
+
+1. Health Refresh
+2. Snapshot/Backup
+3. Einzeländerung
+4. Logs/Status prüfen
+5. ggf. nächste Änderung
+
+### 55.2 Vor Docker-Update
+
+1. Liste aktuell
+2. Auswahl prüfen
+3. Logs baseline
+4. Update
+5. Funktionstest
+
+### 55.3 Vor Restore
+
+1. Archiv prüfen
+2. Zielpfad prüfen
+3. Vorzustand sichern
+4. Restore
+5. Integrität prüfen
+
+---
+
+### Aus dem Bereich: 56. Große Fehlerbilder und saubere Reaktion
+
+### 56.1 „Alles wirkt kaputt“
+
+Nicht überall klicken. Reihenfolge:
+
+1. SSH
+2. Health Refresh
+3. Core Services
+4. Storage
+5. Docker Runtime
+
+### 56.2 „Nur ein Dienst kaputt“
+
+1. betroffenen Tab öffnen
+2. Liste/Status aktualisieren
+3. Logs/Inspect
+4. gezielte Korrektur
+
+### 56.3 „Benachrichtigungen kommen nicht“
+
+1. Settings Credentials
+2. Kanalwahl
+3. Testbuttons
+4. NAS-Netzwerk
+
+---
+
+### Aus dem Bereich: 58. Praxisanleitung: Erste Inbetriebnahme ohne Luecken
+
+Diese Anleitung fuehrt dich vom ersten Start bis zur stabilen Grundkonfiguration, ohne dass ein Bereich uebersprungen wird.
+
+1. App starten und Theme/Sprache waehlen, damit du die Oberflaeche sofort in deinem Arbeitskontext siehst.
+2. Settings oeffnen und die Verbindungsdaten zur UGREEN NAS eintragen.
+3. SSH-Verbindung testen, damit klar ist, dass die Basis steht.
+4. Screenshot-Verzeichnis setzen, damit du bei Bedarf sofort Dokumentation erzeugen kannst.
+5. Telegram und/oder SMTP eintragen und mit Test pruefen.
+6. Zweites NAS-Profil eintragen, falls du NAS-zu-NAS-Transfers oder Zweitziele fuer Backups nutzen willst.
+7. Speichern und direkt danach die relevanten Tabs aktualisieren.
+8. Health-Tab oeffnen und einmal vollstaendig `Refresh` laufen lassen.
+9. Dashboard pruefen: Last, Volumes, Docker, Fanstatus.
+10. Scripts-Tab oeffnen und Backup einer bestehenden Skriptbasis machen.
+
+Wenn diese zehn Punkte sauber durchlaufen wurden, ist die App in der Regel betriebsbereit fuer Alltag und Wartung.
+
+---
+
+### Aus dem Bereich: 68. Sicherheitsregeln fuer produktiven Betrieb
+
+1. Vor grossen Aenderungen immer Health Snapshot.
+2. Vor Loesch-/Restore-Aktionen immer Backup/Snapshot.
+3. Nie gleichzeitig mehrere kritische Bereiche anfassen (z. B. Docker + ACL + Storage in einem Schritt).
+4. Aenderungen sequenziell und pruefbar durchfuehren.
+5. Bei Unsicherheit zuerst in kleinerem Scope testen.
+
+Diese Regeln reduzieren Ausfallzeit und machen Fehlerquellen nachvollziehbar.
+
+---
+
+### Aus dem Bereich: 69. Vollstaendige Troubleshooting-Matrix
+
+### 69.1 SSH verbindet nicht
+
+Symptom:
+
+- Keine Daten in Dashboard/Health.
+
+Pruefung:
+
+- Host/Port korrekt?
+- Netzwerk erreichbar?
+- User/Pass korrekt?
+- SSH auf NAS aktiv?
+
+### 69.2 Docker zeigt nichts
+
+Symptom:
+
+- Leere Liste oder Fehlertext.
+
+Pruefung:
+
+- Docker Dienst laeuft?
+- User hat noetige Rechte?
+- Hostkommunikation stabil?
+
+### 69.3 Backup auf zweites NAS fehlt
+
+Symptom:
+
+- Kein Profil in Auswahl.
+
+Pruefung:
+
+- Settings fuer zweites NAS gespeichert?
+- Felder vollstaendig?
+- Backup-Quellen aktualisiert?
+
+### 69.4 Telegram meldet nicht
+
+Symptom:
+
+- Keine Nachricht bei Test.
+
+Pruefung:
+
+- Token/Chat-ID
+- Netzwerk outbound
+- Kanalwahl im Watcher/Daily
+
+### 69.5 Fanprofil reagiert unerwartet
+
+Symptom:
+
+- RPM springt nicht wie erwartet.
+
+Pruefung:
+
+- gewaehlter Modus korrekt?
+- Uebernehmen gedrueckt?
+- UGOS Rueckgabe ausgefuehrt, falls Konflikt?
+
+---
+
+### Aus dem Bereich: 70. Wartungsplan fuer stabile Langzeitnutzung
+
+Taeglich:
+
+- Dashboard Schnellcheck
+- Alerts lesen
+
+Woechentlich:
+
+- Health Vollrefresh
+- Docker/Storage Auffaelligkeiten pruefen
+
+Monatlich:
+
+- Backup-Restore Test in kleinem Scope
+- Cronjobs und Scriptversionen reviewen
+- Notification-Kanaele testweise pruefen
+
+Quartalsweise:
+
+- Rechte/ACL-Konzept aufraeumen
+- Snapshot-/Backup-Strategie aktualisieren
+- Dokumentation mit Ist-Stand abgleichen
+
+---
+
+### Aus dem Bereich: 71. Glossar in Betriebssprache
+
+- **UGOS**: Betriebssystem der UGREEN NAS.
+- **Watcher**: Laufender Pruefprozess mit Alarmausgabe.
+- **Daily Report**: Tägliche Zusammenfassung.
+- **Cron**: Zeitgesteuerte Jobausfuehrung.
+- **SMART**: Laufwerksdiagnose.
+- **mdcheck**: RAID-Pruefmechanismus.
+- **NUT**: UPS-Managementdienst.
+- **SMB/NFS**: Dateifreigabeprotokolle.
+- **Inspect**: Detaillierte Containerkonfiguration.
+- **Snapshot**: Momentaufnahme des Dateisystemzustands.
+
+---
+
+### Aus dem Bereich: 73. Vollworkflow A: Neue NAS komplett aufsetzen
+
+Dieser Workflow beschreibt eine komplette Erstinbetriebnahme inklusive Monitoring und Backup.
+
+Phase 1 - Verbindung:
+
+1. Settings ausfuellen (SSH, User, Auth, Sudo).
+2. Verbindung testen.
+3. Speichern.
+
+Phase 2 - Sichtbarkeit:
+
+1. Dashboard laden.
+2. Health Refresh.
+3. Modellanzeige kontrollieren.
+
+Phase 3 - Benachrichtigung:
+
+1. Telegram einrichten (Token/Chat-ID).
+2. SMTP einrichten (optional zusaetzlich).
+3. Test aus Health senden.
+
+Phase 4 - Betriebsfunktionen:
+
+1. Scripts sichern.
+2. Scheduler-Testjob anlegen.
+3. Docker-Liste pruefen.
+4. Storage/ACL Snapshot erfassen.
+
+Phase 5 - Datensicherung:
+
+1. Backupziel festlegen.
+2. Erstbackup starten.
+3. Restore im kleinen Scope pruefen.
+
+Phase 6 - Dauerbetrieb:
+
+1. Watcher deployen.
+2. Daily Report aktivieren.
+3. Wartungsplan nach Kapitel 70 anwenden.
+
+---
+
+### Aus dem Bereich: 74. Vollworkflow B: Stoerung in Produktion strukturiert beheben
+
+Beispiel: Dienste reagieren verzoegert, Last steigt, User melden Ausfaelle.
+
+Schritt 1 - Lagebild:
+
+- Dashboard lesen (CPU, RAM, Netzwerk, Volumes).
+- Health Refresh.
+
+Schritt 2 - Eingrenzung:
+
+- Docker Runtime Zustand pruefen.
+- Kernservices pruefen.
+- RAID/SMART pruefen.
+
+Schritt 3 - Verifikation:
+
+- Bei Dockerproblemen: Logs + Inspect.
+- Bei Storageproblemen: Top20 + Volumes + Shares.
+- Bei Skriptproblemen: letzte Cronjobs, Testlauf manuell.
+
+Schritt 4 - Korrektur:
+
+- Nur eine Aenderung gleichzeitig.
+- Nach jeder Aenderung direkte Wirkung pruefen.
+
+Schritt 5 - Absicherung:
+
+- Snapshot/Backup nach Stabilisierung.
+- Ursache kurz dokumentieren (intern oder im Changelog).
+
+Dieser Ablauf verhindert Aktionismus und reduziert Sekundaerfehler.
+
+---
+
+### Aus dem Bereich: 75. Vollworkflow C: Geplante Wartung ohne Ausfallueberraschung
+
+Vorbereitung:
+
+1. Wartungsfenster definieren.
+2. Betroffene Dienste/Container erfassen.
+3. Backup/Snapshot erstellen.
+
+Durchfuehrung:
+
+1. Docker selektiv aktualisieren.
+2. Scripts/Cronjobs pruefen.
+3. Rechteanpassungen nur gezielt.
+4. Health nach jedem grossen Schritt aktualisieren.
+
+Abnahme:
+
+1. Kernfunktionstest (Usersicht).
+2. Telegram/E-Mail Testnachricht.
+3. Performance baseline gegenchecken.
+
+Nacharbeit:
+
+1. offene Punkte notieren.
+2. naechstes Wartungsfenster vorbereiten.
+
+---
+
+---
+
+## 20. Abschluss
+
+### Aus dem Bereich: 21. Schluss
+
+Dieses Handbuch ist als vollständige Bediengrundlage für die aktuelle App gedacht.  
+Wenn du die beschriebenen Reihenfolgen nutzt und pro Bereich mit den jeweiligen Sicherheitsregeln arbeitest, kannst du die App stabil und kontrolliert produktiv einsetzen.
+
+---
+
+### Aus dem Bereich: 38. Endhinweis
+
+Diese Referenz ist absichtlich vollständig und pro Bereich konkret formuliert.  
+Wenn du sie als Arbeitsablauf verwendest, lässt sich die App stabil und reproduzierbar betreiben.
+
+---
+
+### Aus dem Bereich: 57. Abschluss
+
+Dieses Handbuch bildet die aktuelle UI und Funktionslogik ab und beschreibt die App als vollständigen Betriebsworkflow.  
+Nutze es als Referenz beim Arbeiten, nicht nur im Fehlerfall. So bleiben Bedienung und Änderungen nachvollziehbar und stabil.
+
+---
+
+### Aus dem Bereich: 72. Schlusswort
+
+Die App ist als Betriebszentrale konzipiert: konfigurieren, pruefen, aendern, verifizieren.  
+Dieses Handbuch ist deshalb nicht kurz gehalten, sondern als vollstaendige Arbeitsreferenz geschrieben.  
+Wenn du die beschriebenen Ablaeufe konsequent anwendest, bekommst du reproduzierbare Ergebnisse, weniger Ausfaelle und deutlich schnellere Fehlersuche.
+
+---
+
+---

@@ -38,8 +38,57 @@ from ugreen_app.scroll_helpers import (
 )
 
 class MixinExplorer:
+    def _tree_collect_all_iids(self, tree, parent=""):
+        out = []
+        for iid in tree.get_children(parent):
+            out.append(iid)
+            out.extend(self._tree_collect_all_iids(tree, iid))
+        return out
+
+    def _tree_select_all(self, tree):
+        try:
+            ids = self._tree_collect_all_iids(tree)
+            if ids:
+                tree.selection_set(ids)
+                tree.focus(ids[0])
+        except Exception:
+            pass
+        return "break"
+
+    def _tree_toggle_multiselect_click(self, tree, event):
+        """Einfachklick toggelt Auswahl, ohne bestehende Selektion zu verlieren."""
+        try:
+            item = tree.identify_row(event.y)
+            if not item:
+                return None
+            # Expander-Pfeil normal lassen (Open/Close nicht kaputtmachen).
+            elem = str(tree.identify_element(event.x, event.y) or "")
+            if "indicator" in elem:
+                return None
+            # Bei Ctrl/Shift Standardverhalten beibehalten.
+            state = int(getattr(event, "state", 0) or 0)
+            if (state & 0x0004) or (state & 0x0001):
+                return None
+            sel = set(tree.selection())
+            if item in sel and len(sel) > 1:
+                tree.selection_remove(item)
+            else:
+                tree.selection_add(item)
+                tree.focus(item)
+            return "break"
+        except Exception:
+            return None
+
     def _explorer_type(self, kind):
         return self.t(f"explorer.type.{kind}")
+
+    def _explorer_fmt_mtime_ts(self, ts: float | None) -> str:
+        if ts is None:
+            return "—"
+        try:
+            return time.strftime("%Y-%m-%d %H:%M", time.localtime(float(ts)))
+        except Exception:
+            return "—"
 
     def scan_nas(self):
         self._nas_explorer_scan_tree(self.tree, getattr(self, "lbl_explorer_path", None))
@@ -47,7 +96,7 @@ class MixinExplorer:
     def _nas_explorer_scan_tree(self, tree, path_label):
         tree.delete(*tree.get_children())
         for v in ["volume1", "volume2"]:
-            n = tree.insert("", tk.END, text=f"  🖴 {v}", values=(self._explorer_type("drive"), "—"), open=False)
+            n = tree.insert("", tk.END, text=f"  🖴 {v}", values=(self._explorer_type("drive"), "—", "—"), open=False)
             tree.insert(n, tk.END, text=self.t("explorer.loading"))
         if path_label is not None:
             path_label.config(text="/")
@@ -91,7 +140,8 @@ class MixinExplorer:
                     rp = self.get_full_path_for_tree(tree, iid)
                     sz = self._nas_dir_size_cache.get(rp)
                     if sz is not None:
-                        tree.item(iid, values=(self._explorer_type("folder"), self._fmt_bytes(sz)))
+                        mt = vals[2] if len(vals) > 2 else "—"
+                        tree.item(iid, values=(self._explorer_type("folder"), self._fmt_bytes(sz), mt))
                 walk(iid)
 
         try:
@@ -172,7 +222,8 @@ class MixinExplorer:
                 sz = self._local_dir_size_cache.get(os.path.normpath(p))
                 if sz is None:
                     continue
-                self.tree_local.item(iid, values=(self._explorer_type("folder"), self._fmt_bytes(sz)))
+                mt = vals[2] if len(vals) > 2 else "—"
+                self.tree_local.item(iid, values=(self._explorer_type("folder"), self._fmt_bytes(sz), mt))
         except Exception:
             pass
 
@@ -206,12 +257,17 @@ class MixinExplorer:
                     parsed = self._explorer_parse_ls_long_line(line)
                     if not parsed:
                         continue
-                    name, is_dir, size_b = parsed
+                    name, is_dir, size_b, mtime_s = parsed
                     if is_dir:
                         dir_path = self._normalize_nas_tree_path(f"{p.rstrip('/')}/{name}")
                         cached = self._nas_dir_size_cache.get(dir_path)
                         size_txt = self._fmt_bytes(cached) if cached is not None else "…"
-                        x = tree.insert(item, tk.END, text=f"  📁 {name}", values=(self._explorer_type("folder"), size_txt))
+                        x = tree.insert(
+                            item,
+                            tk.END,
+                            text=f"  📁 {name}",
+                            values=(self._explorer_type("folder"), size_txt, mtime_s or "—"),
+                        )
                         tree.insert(x, tk.END, text=self.t("explorer.loading"))
                         folder_paths.append(dir_path)
                     else:
@@ -219,7 +275,7 @@ class MixinExplorer:
                             item,
                             tk.END,
                             text=f"  📄 {name}",
-                            values=(self._explorer_type("file"), self._fmt_bytes(size_b)),
+                            values=(self._explorer_type("file"), self._fmt_bytes(size_b), mtime_s or "—"),
                         )
                 self._explorer_update_breadcrumb_for_tree(tree, path_label)
                 if folder_paths:
@@ -745,7 +801,7 @@ class MixinExplorer:
             show="tree headings",
             selectmode="browse",
         )
-        tree.heading("#0", text="Image")
+        tree.heading("#0", text=self.t("docker.col_image"))
         tree.heading("stars", text=self.t("docker.catalog_col_stars"))
         tree.heading("pulls", text=self.t("docker.catalog_col_pulls"))
         tree.heading("kind", text=self.t("docker.catalog_col_kind"))
@@ -1484,18 +1540,30 @@ class MixinExplorer:
             self.tree_local.delete(x)
         dirs = sorted([x for x in entries if x[1]], key=lambda s: s[0].lower())
         files = sorted([x for x in entries if not x[1]], key=lambda s: s[0].lower())
-        for n, _isd, sz in dirs:
+        for n, _isd, _sz, mtime_ts in dirs:
             p = os.path.join(cwd, n)
             iid = self._local_next_iid()
             self._local_item_paths[iid] = p
             cached = self._local_dir_size_cache.get(os.path.normpath(p))
             size_txt = self._fmt_bytes(cached) if cached is not None else "…"
-            self.tree_local.insert("", tk.END, iid=iid, text=f"  📁 {n}", values=(self._explorer_type("folder"), size_txt))
-        for n, _isd, sz in files:
+            self.tree_local.insert(
+                "",
+                tk.END,
+                iid=iid,
+                text=f"  📁 {n}",
+                values=(self._explorer_type("folder"), size_txt, self._explorer_fmt_mtime_ts(mtime_ts)),
+            )
+        for n, _isd, sz, mtime_ts in files:
             p = os.path.join(cwd, n)
             iid = self._local_next_iid()
             self._local_item_paths[iid] = p
-            self.tree_local.insert("", tk.END, iid=iid, text=f"  📄 {n}", values=(self._explorer_type("file"), self._fmt_bytes(sz)))
+            self.tree_local.insert(
+                "",
+                tk.END,
+                iid=iid,
+                text=f"  📄 {n}",
+                values=(self._explorer_type("file"), self._fmt_bytes(sz), self._explorer_fmt_mtime_ts(mtime_ts)),
+            )
         if hasattr(self, "lbl_explorer_path_local"):
             self.lbl_explorer_path_local.config(text=cwd)
         self._refresh_visible_local_size_cells()
@@ -1523,11 +1591,11 @@ class MixinExplorer:
                     iid = self._local_next_iid()
                     self._local_item_paths[iid] = root
                     letter = root.rstrip("\\")
-                    self.tree_local.insert("", tk.END, iid=iid, text=f"  💿 {letter}", values=(self._explorer_type("drive"), "—"))
+                    self.tree_local.insert("", tk.END, iid=iid, text=f"  💿 {letter}", values=(self._explorer_type("drive"), "—", "—"))
             else:
                 iid = self._local_next_iid()
                 self._local_item_paths[iid] = "/"
-                self.tree_local.insert("", tk.END, iid=iid, text="  📁 /", values=(self._explorer_type("folder"), "—"))
+                self.tree_local.insert("", tk.END, iid=iid, text="  📁 /", values=(self._explorer_type("folder"), "—", "—"))
             if hasattr(self, "lbl_explorer_path_local"):
                 self.lbl_explorer_path_local.config(text=self.t("explorer.pc_root_hint"))
             return
@@ -1549,12 +1617,15 @@ class MixinExplorer:
                         try:
                             is_dir = e.is_dir(follow_symlinks=False)
                             size_b = 0
-                            if not is_dir:
-                                try:
-                                    size_b = int(e.stat(follow_symlinks=False).st_size)
-                                except OSError:
-                                    size_b = 0
-                            entries.append((e.name, is_dir, size_b))
+                            mtime_ts = None
+                            try:
+                                st = e.stat(follow_symlinks=False)
+                                mtime_ts = float(st.st_mtime)
+                                if not is_dir:
+                                    size_b = int(st.st_size)
+                            except OSError:
+                                pass
+                            entries.append((e.name, is_dir, size_b, mtime_ts))
                         except OSError:
                             continue
             except OSError as err:

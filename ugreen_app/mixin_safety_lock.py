@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Eingeschränkter Modus: gefährliche UI-Elemente bis zur Bestätigung deaktiviert."""
+"""Optional „eingeschränkter Modus“: Über den Kopf‑Button aktivieren („Einschränken“ nach Freigabe).
+
+Standard: keine Einschränkung beim Start — volle Nutzbarkeit ohne Hinweisdialoge.
+"""
 
 from __future__ import annotations
 
@@ -9,7 +12,7 @@ from tkinter import messagebox
 
 class MixinSafetyLock:
     def _init_danger_lock_state(self) -> None:
-        self.danger_functions_unlocked = False
+        self.danger_functions_unlocked = True
         self._reset_danger_widget_registry()
 
     def _reset_danger_widget_registry(self) -> None:
@@ -35,13 +38,7 @@ class MixinSafetyLock:
             self._danger_tk_buttons.append(w)
 
     def _danger_gate(self) -> bool:
-        if getattr(self, "danger_functions_unlocked", False):
-            return True
-        try:
-            messagebox.showinfo(self.t("safety.need_unlock_title"), self.t("safety.need_unlock_msg"))
-        except Exception:
-            pass
-        return False
+        return bool(getattr(self, "danger_functions_unlocked", True))
 
     def _update_danger_header_button(self) -> None:
         btn = getattr(self, "btn_danger_power", None)

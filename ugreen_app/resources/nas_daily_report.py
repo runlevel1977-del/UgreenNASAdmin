@@ -108,21 +108,131 @@ def build_report_text(cfg: dict[str, Any]) -> str:
         15,
     )
     lines.append(_block(cfg, "🌐", "IPv4 Interfaces", "IPv4 interfaces", ip_d))
+    _, net_ready = _run(
+        "A=$(systemctl is-active systemd-networkd-wait-online.service 2>/dev/null || echo unknown); "
+        "E=$(systemctl is-enabled systemd-networkd-wait-online.service 2>/dev/null || echo unknown); "
+        "printf 'systemd-networkd-wait-online.service active=%s enabled=%s\\n' \"$A\" \"$E\"",
+        15,
+    )
+    lines.append(_block(cfg, "🛜", "Netzwerk-Ready", "Network ready", net_ready))
 
     _, md = _run("cat /proc/mdstat 2>/dev/null | head -35", 10)
-    lines.append(_block(cfg, "💽", "RAID (mdstat, Auszug)", "RAID (mdstat excerpt)", md))
+    _, mdadm = _run("mdadm --monitor --oneshot --scan 2>/dev/null | head -20", 15)
+    _, mdchk = _run(
+        "for s in mdcheck_start mdcheck_continue; do "
+        "A=$(systemctl is-active ${s}.service 2>/dev/null || echo unknown); "
+        "E=$(systemctl is-enabled ${s}.service 2>/dev/null || echo unknown); "
+        "echo \"$s active=$A enabled=$E\"; "
+        "done",
+        20,
+    )
+    raid_body = "\n".join(
+        x
+        for x in (
+            (md or "").strip(),
+            "--- mdadm --monitor --oneshot --scan ---",
+            (mdadm or "").strip() or _tr(cfg, "(keine Ausgabe)", "(no output)"),
+            "--- mdcheck services ---",
+            (mdchk or "").strip(),
+        )
+        if x
+    )
+    lines.append(_block(cfg, "💽", "RAID (mdstat + mdcheck)", "RAID (mdstat + mdcheck)", raid_body))
+
+    _, fan = _run(
+        "sudo -n cat /proc/it86/fan 2>/dev/null || cat /proc/it86/fan 2>/dev/null || "
+        "for f in /sys/class/hwmon/hwmon*/fan*_input; do "
+        '[ -r "$f" ] && echo "$(basename "$f") $(cat "$f")"; done 2>/dev/null',
+        12,
+    )
+    lines.append(_block(cfg, "🌀", "Lüfter (RPM)", "Fan (RPM)", fan))
 
     _, dcnt = _run("docker ps -q 2>/dev/null | wc -l", 15)
     _, dver = _run("docker version --format '{{.Server.Version}}' 2>/dev/null", 15)
+    _, dockerd_state = _run("systemctl is-active docker.service 2>/dev/null || echo unknown", 10)
+    _, contd_state = _run("systemctl is-active containerd.service 2>/dev/null || echo unknown", 10)
+    _, contd_ver = _run("containerd --version 2>/dev/null | head -1", 10)
     lc = _tr(cfg, "Laufende Container", "Running containers")
     sv = _tr(cfg, "Server-Version", "Server version")
-    dinfo = f"{lc}: {(dcnt or '').strip()}\n{sv}: {(dver or '').strip()}".strip()
+    dinfo = (
+        f"{lc}: {(dcnt or '').strip()}\n"
+        f"{sv}: {(dver or '').strip()}\n"
+        f"dockerd: {(dockerd_state or '').strip()}\n"
+        f"containerd: {(contd_state or '').strip()}\n"
+        f"containerd-version: {(contd_ver or '').strip()}"
+    ).strip()
     lines.append(_block(cfg, "🐳", "Docker", "Docker", dinfo))
+
+    _, smartd = _run("systemctl is-active smartmontools.service 2>/dev/null || echo unknown", 10)
+    _, smartd_en = _run("systemctl is-enabled smartmontools.service 2>/dev/null || echo unknown", 10)
+    smartd_body = f"smartmontools.service active={(smartd or '').strip()} enabled={(smartd_en or '').strip()}"
+    lines.append(_block(cfg, "🧠", "SMART-Dienst", "SMART daemon", smartd_body))
+
+    _, file_svc = _run(
+        "for s in smbd nfs-server wsdd2; do "
+        "A=$(systemctl is-active ${s}.service 2>/dev/null || echo unknown); "
+        "E=$(systemctl is-enabled ${s}.service 2>/dev/null || echo unknown); "
+        "echo \"$s active=$A enabled=$E\"; "
+        "done",
+        20,
+    )
+    _, nfs_exports = _run("exportfs -v 2>/dev/null | head -20", 15)
+    fs_body = "\n".join(
+        x
+        for x in (
+            (file_svc or "").strip(),
+            "--- exportfs -v ---",
+            (nfs_exports or "").strip() or _tr(cfg, "(keine Exports)", "(no exports)"),
+        )
+        if x
+    )
+    lines.append(_block(cfg, "📂", "Dateidienste (SMB/NFS)", "File services (SMB/NFS)", fs_body))
+
+    _, timers = _run(
+        "for t in fstrim.timer sysstat-collect.timer sysstat-summary.timer logrotate.timer dpkg-db-backup.timer pg_basebackup@.timer; do "
+        "A=$(systemctl is-active ${t} 2>/dev/null || echo unknown); "
+        "E=$(systemctl is-enabled ${t} 2>/dev/null || echo unknown); "
+        "echo \"$t active=$A enabled=$E\"; "
+        "done",
+        20,
+    )
+    lines.append(_block(cfg, "🕒", "Wartungs-Timer", "Maintenance timers", timers))
+
+    _, recovery = _run(
+        "A=$(systemctl is-active rescue-ssh.target 2>/dev/null || echo unknown); "
+        "E=$(systemctl is-enabled rescue-ssh.target 2>/dev/null || echo unknown); "
+        "printf 'rescue-ssh.target active=%s enabled=%s\\n' \"$A\" \"$E\"; "
+        "A2=$(systemctl is-active netfilter-persistent.service 2>/dev/null || echo unknown); "
+        "E2=$(systemctl is-enabled netfilter-persistent.service 2>/dev/null || echo unknown); "
+        "printf 'netfilter-persistent.service active=%s enabled=%s\\n' \"$A2\" \"$E2\"",
+        20,
+    )
+    lines.append(_block(cfg, "🛟", "Recovery Readiness", "Recovery readiness", recovery))
 
     _, failed = _run("systemctl --failed --no-pager 2>/dev/null | tail -5", 15)
     lines.append(
         _block(cfg, "⚙️", "systemd (Ende --failed)", "systemd (--failed tail)", failed)
     )
+
+    _, ugsvc = _run(
+        "for s in storage_serv snapshot_serv docker_serv ugbus syncbackup_serv; do "
+        "A=$(systemctl is-active ${s}.service 2>/dev/null || echo unknown); "
+        "E=$(systemctl is-enabled ${s}.service 2>/dev/null || echo unknown); "
+        "echo \"$s active=$A enabled=$E\"; "
+        "done",
+        20,
+    )
+    lines.append(_block(cfg, "🧩", "UGOS Kern-Services", "UGOS core services", ugsvc))
+
+    _, ups = _run(
+        "for s in nut-monitor nut-server; do "
+        "A=$(systemctl is-active ${s}.service 2>/dev/null || echo unknown); "
+        "E=$(systemctl is-enabled ${s}.service 2>/dev/null || echo unknown); "
+        "echo \"$s active=$A enabled=$E\"; "
+        "done",
+        20,
+    )
+    lines.append(_block(cfg, "🔋", "UPS (NUT)", "UPS (NUT)", ups))
 
     return "\n".join(lines)
 

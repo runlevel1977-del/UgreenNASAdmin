@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import base64
 import io
+import os
 import posixpath
 import shlex
 import threading
@@ -100,6 +101,13 @@ class SSHManager:
             if ssh_key_passphrase:
                 conn_kwargs["passphrase"] = ssh_key_passphrase
         ssh.connect(host.strip(), **conn_kwargs)
+        try:
+            tr = ssh.get_transport()
+            if tr is not None:
+                # SSH-Idle-Timeouts vermeiden ⇒ weniger neue Sitzungen (= oft weniger NAS-„Login“-Meldungen).
+                tr.set_keepalive(45)
+        except Exception:
+            pass
         self._client = ssh
         self._last_key = key
 
@@ -171,6 +179,85 @@ class SSHManager:
                 if set_status:
                     set_status(fail_msg, connected=False)
                 return err_fmt.format(err=str(e))
+
+    def pull_remote_file_via_exec(
+        self,
+        host: str,
+        user: str,
+        password: str,
+        remote_posix_path: str,
+        local_dest_path: str,
+        *,
+        ssh_port: int = 22,
+        ssh_use_key: bool = False,
+        ssh_key_path: str = "",
+        ssh_key_passphrase: str = "",
+        chunk_bytes: int = 1024 * 1024,
+    ) -> None:
+        """Datei ohne SFTP ziehen: gleiche Rechte wie Shell-SSH.
+
+        Bei manchen NAS-Umgebungen ist SFTP chroot-gekoppelt; dann können Pfade unter
+        /volume1 über SFTP fehlen oder leer wirken — `exec`/cat nutzt denselben
+        Namensraum wie `run_ssh_cmd` / tar.
+        """
+        rp = str(remote_posix_path or "").strip()
+        lp = os.path.abspath(str(local_dest_path or "").strip())
+        if not rp:
+            raise ValueError("remote_posix_path missing")
+        if not lp:
+            raise ValueError("local_dest_path missing")
+        os.makedirs(os.path.dirname(lp) or ".", exist_ok=True)
+
+        remote_cmd = f"/bin/cat {shlex.quote(rp)}"
+
+        def _unlink_quiet(path: str) -> None:
+            try:
+                if path and os.path.isfile(path):
+                    os.unlink(path)
+            except OSError:
+                pass
+
+        with self._lock:
+            self._ensure_client(
+                host,
+                user,
+                password,
+                ssh_port=ssh_port,
+                ssh_use_key=ssh_use_key,
+                ssh_key_path=ssh_key_path,
+                ssh_key_passphrase=ssh_key_passphrase,
+            )
+            stdin, stdout, stderr = self._client.exec_command(remote_cmd)
+            try:
+                stdin.close()
+            except Exception:
+                pass
+            cb = max(8192, int(chunk_bytes))
+            tmp_path = lp + ".part"
+            _unlink_quiet(tmp_path)
+            try:
+                with open(tmp_path, "wb") as out_f:
+                    while True:
+                        chunk = stdout.read(cb)
+                        if not chunk:
+                            break
+                        out_f.write(chunk)
+                err_msg = stderr.read() or b""
+                code = stdout.channel.recv_exit_status()
+                if code != 0:
+                    snippet = err_msg.strip().decode("utf-8", errors="replace")[:900]
+                    _unlink_quiet(tmp_path)
+                    raise RuntimeError(
+                        snippet or f"pull exit {code}"
+                    )
+            except Exception:
+                _unlink_quiet(tmp_path)
+                raise
+            if os.path.isfile(lp):
+                os.unlink(lp)
+            os.replace(tmp_path, lp)
+            if os.path.getsize(lp) <= 0:
+                raise RuntimeError("Downloaded file is empty (remote path inaccessible via exec?).")
 
     def _remote_home_for_sftp(self, login_user: str) -> str:
         """HOME per SSH (ohne sudo). Fallback /home/<user> bzw. /root — für SFTP-Chroots ohne /tmp."""
