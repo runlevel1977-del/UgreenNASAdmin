@@ -34,6 +34,9 @@ import nas_utils
 from ugreen_app._paramiko import _paramiko
 from ugreen_app import keyring_helper
 
+_INSTALLER_SELECTED_UI_LANG_FILENAME = "installer_selected_ui_lang.txt"
+
+
 class MixinConfigTelegram:
     @staticmethod
     def _directory_is_user_writable(d: str) -> bool:
@@ -290,6 +293,28 @@ class MixinConfigTelegram:
         except Exception:
             pass
 
+    def _consume_installer_ui_lang_marker_file(self) -> str | None:
+        """SETUP schreibt %LocalAppData%\\UgreenNASAdmin\\… (ein ISO-Code pro Zeile). Datei immer verbrauchen."""
+        p = os.path.join(self._app_data_dir(), _INSTALLER_SELECTED_UI_LANG_FILENAME)
+        if not os.path.isfile(p):
+            return None
+        code: str | None = None
+        try:
+            with open(p, encoding="utf-8") as f:
+                text = (f.read() or "").strip()
+            if text:
+                line = text.splitlines()[0].strip().lower()
+                code = line or None
+        except Exception:
+            code = None
+        finally:
+            try:
+                if os.path.isfile(p):
+                    os.remove(p)
+            except OSError:
+                pass
+        return code or None
+
     def _read_installer_ui_lang_from_windows_registry(self) -> str | None:
         """Nach Setup: Inno schreibt HKCU …\\InstallerUiLang (ISO-Code). Nur Windows."""
         if sys.platform != "win32":
@@ -328,23 +353,41 @@ class MixinConfigTelegram:
         except OSError:
             pass
 
+    def _remove_installer_ui_lang_marker_best_effort(self) -> None:
+        try:
+            p = os.path.join(self._app_data_dir(), _INSTALLER_SELECTED_UI_LANG_FILENAME)
+            if os.path.isfile(p):
+                os.remove(p)
+        except OSError:
+            pass
+
     def _load_ui_lang_from_disk(self):
         from ugreen_app.i18n import normalize_lang
 
         self._pending_installer_ui_lang_persist = False
+
+        installer_raw = self._consume_installer_ui_lang_marker_file()
+        if installer_raw is None:
+            installer_raw = self._read_installer_ui_lang_from_windows_registry()
+
+        saved_code: str | None = None
         try:
             p = self._connection_config_path()
             if os.path.isfile(p):
                 with open(p, encoding="utf-8") as f:
                     data = json.load(f)
                 if isinstance(data, dict) and "ui_lang" in data:
-                    return normalize_lang(data.get("ui_lang"), default="de")
+                    saved_code = normalize_lang(data.get("ui_lang"), default="de")
         except Exception:
-            pass
-        installer = self._read_installer_ui_lang_from_windows_registry()
-        if installer:
+            saved_code = None
+
+        # Installer-/Setup-Hinweis schlägt Connection-JSON: ältere/migrierte Dateien können sonst immer "de" erzwingen.
+        if installer_raw:
             self._pending_installer_ui_lang_persist = True
-            return normalize_lang(installer, default="de")
+            return normalize_lang(installer_raw, default=saved_code or "de")
+
+        if saved_code is not None:
+            return saved_code
         return "de"
 
     def _finalize_installer_ui_lang_hint(self) -> None:
@@ -355,6 +398,7 @@ class MixinConfigTelegram:
             self._persist_ui_lang()
         finally:
             self._clear_installer_ui_lang_windows_registry()
+            self._remove_installer_ui_lang_marker_best_effort()
             self._pending_installer_ui_lang_persist = False
 
     def _persist_ui_lang(self):

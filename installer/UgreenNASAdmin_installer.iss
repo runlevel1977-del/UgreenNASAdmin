@@ -77,9 +77,15 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   Code: string;
+  LangId: string;
+  DataDir: string;
+  MarkerPath: string;
 begin
   if CurStep <> ssPostInstall then Exit;
-  case ActiveLanguage of
+  { ActiveLanguage entspricht [Languages] »Name«; Groß/Kleinschreibung sicher klein.}
+  LangId := LowerCase(ActiveLanguage);
+
+  case LangId of
     'german': Code := 'de';
     'english': Code := 'en';
     'croatian': Code := 'hr';
@@ -94,5 +100,14 @@ begin
   else
     Code := 'en';
   end;
+
   RegWriteStringValue(HKCU, 'Software\UgreenNASAdmin', 'InstallerUiLang', Code);
+
+  { Zusätzlich Datei unter %LocalAppData% — schlägt bei migrierter Connection-JSON (ui_lang erzwungen »de«).}
+  DataDir := ExpandConstant('{localappdata}') + '\UgreenNASAdmin';
+  MarkerPath := DataDir + '\installer_selected_ui_lang.txt';
+  if not DirExists(DataDir) then
+    ForceDirectories(DataDir); { erstellt fehlende Teile unter localappdata }
+
+  SaveStringToFile(MarkerPath, Code + #13#10, False);
 end;
