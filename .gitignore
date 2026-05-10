@@ -4,6 +4,9 @@ tools/ugreen_dump/
 # Cursor-Arbeitskopie (privat/lokal)
 .cursor/
 
+# Windows-Installer-Ausgabe (lokal, nicht ins Repo)
+/installer/output/
+
 # Build-Artefakte (lokal)
 /build/
 /dist/

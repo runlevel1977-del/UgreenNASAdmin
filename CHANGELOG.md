@@ -4,6 +4,10 @@
 
 _(noch nicht veröffentlicht)_
 
+- **Tab „NAS-Verwaltung“:** Vollständige Übersetzung der **NAS-Admin-Oberfläche** für **alle eingebauten UI-Sprachen** (`hr`, `fr`, `es`, `it`, `pl`, `ru`, `tr`, `ko`, `zh` über `NAS_ADMIN_SUPPLEMENT` + Locale-Module; **nicht** nur DE/EN-Fallback). **Service-Bestätigungsdialog** nutzt lokalisierte Aktion („Start/Stopp/…“); Übersetzungs-Fallback: für fehlende Schlüssel zuerst **EN**, dann **DE**.
+- **Windows (installation unter `Program Files`):** Wenn das EXE-Verzeichnis **nicht beschreibbar** ist, liegt die lokale Konfiguration unter **`%LocalAppData%\UgreenNASAdmin`** (bei schreibbarem Pfad weiterhin **neben der EXE**, z. B. `dist\`). Bekannte JSON/State-Dateien werden **einmalig** vom Installationsordner übernommen, falls dort vorhanden. **`nas_watch_local.json`** / **`nas_daily_report_local.json`** nutzen denselben Speicherort.
+- **Repository:** **`.gitignore`** ergänzt um **`/installer/output/`** (nur die gebaute Setup-EXE bleibt lokal).
+
 ## 23.8.0 — 2026-05-09
 
 ### Deutsch

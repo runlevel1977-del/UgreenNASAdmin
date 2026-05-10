@@ -85,6 +85,7 @@ def _merge(*dicts) -> dict:
 
 from ugreen_app.i18n_backup_locales import BACKUP_TRANSLATIONS_SUPPLEMENT
 from ugreen_app.i18n_supplement_devices_telegram import SUPPLEMENT_DEVICES_TELEGRAM
+from ugreen_app.i18n_supplement_nas_admin import NAS_ADMIN_SUPPLEMENT
 
 # --- Übersetzungen (Schlüssel = stabil, Werte = UI-Text) ---
 TRANSLATIONS_DE = _merge(
@@ -382,7 +383,10 @@ TRANSLATIONS_DE = _merge(
         "nas_admin.confirm_smb_wizard_b": "Name „{name}“, Pfad „{path}“ an smb.conf anhängen und smbd neu laden?",
         "nas_admin.msg_svc_unit": "Bitte eine Unit angeben (z. B. storage_serv.service).",
         "nas_admin.confirm_svc_t": "Dienst-Aktion bestätigen",
-        "nas_admin.confirm_svc_b": "{action} — Unit:\n{unit}",
+        "nas_admin.confirm_svc_b": "{action}\nEinheit:\n{unit}",
+        "nas_admin.svc_act_start": "Start",
+        "nas_admin.svc_act_stop": "Stopp",
+        "nas_admin.svc_act_restart": "Neustart",
         "nas_admin.nginx_recover_title": "NGINX Recovery",
         "nas_admin.nginx_recover_prompt": "Zur Bestätigung genau RESTORE eingeben (stellt /rom/etc/nginx nach /etc/nginx wieder her):",
         "nas_admin.nginx_recover_t2": "NGINX-Recovery ausführen?",
@@ -1248,7 +1252,10 @@ TRANSLATIONS_EN = _merge(
         "nas_admin.confirm_smb_wizard_b": "Append share “{name}” at “{path}” to smb.conf and reload smbd?",
         "nas_admin.msg_svc_unit": "Enter a unit (e.g. storage_serv.service).",
         "nas_admin.confirm_svc_t": "Confirm service action",
-        "nas_admin.confirm_svc_b": "{action} — unit:\n{unit}",
+        "nas_admin.confirm_svc_b": "{action}\nUnit:\n{unit}",
+        "nas_admin.svc_act_start": "Start",
+        "nas_admin.svc_act_stop": "Stop",
+        "nas_admin.svc_act_restart": "Restart",
         "nas_admin.nginx_recover_title": "NGINX recovery",
         "nas_admin.nginx_recover_prompt": "Type RESTORE exactly to confirm (restore /rom/etc/nginx into /etc/nginx):",
         "nas_admin.nginx_recover_t2": "Run NGINX recovery?",
@@ -8997,46 +9004,55 @@ TRANSLATIONS = {
         TRANSLATIONS_HR,
         BACKUP_TRANSLATIONS_SUPPLEMENT.get("hr", {}),
         SUPPLEMENT_DEVICES_TELEGRAM.get("hr", {}),
+        NAS_ADMIN_SUPPLEMENT.get("hr", {}),
     ),
     "fr": _merge(
         TRANSLATIONS_FR,
         BACKUP_TRANSLATIONS_SUPPLEMENT.get("fr", {}),
         SUPPLEMENT_DEVICES_TELEGRAM.get("fr", {}),
+        NAS_ADMIN_SUPPLEMENT.get("fr", {}),
     ),
     "es": _merge(
         TRANSLATIONS_ES,
         BACKUP_TRANSLATIONS_SUPPLEMENT.get("es", {}),
         SUPPLEMENT_DEVICES_TELEGRAM.get("es", {}),
+        NAS_ADMIN_SUPPLEMENT.get("es", {}),
     ),
     "it": _merge(
         TRANSLATIONS_IT,
         BACKUP_TRANSLATIONS_SUPPLEMENT.get("it", {}),
         SUPPLEMENT_DEVICES_TELEGRAM.get("it", {}),
+        NAS_ADMIN_SUPPLEMENT.get("it", {}),
     ),
     "pl": _merge(
         TRANSLATIONS_PL,
         BACKUP_TRANSLATIONS_SUPPLEMENT.get("pl", {}),
         SUPPLEMENT_DEVICES_TELEGRAM.get("pl", {}),
+        NAS_ADMIN_SUPPLEMENT.get("pl", {}),
     ),
     "ru": _merge(
         TRANSLATIONS_RU,
         BACKUP_TRANSLATIONS_SUPPLEMENT.get("ru", {}),
         SUPPLEMENT_DEVICES_TELEGRAM.get("ru", {}),
+        NAS_ADMIN_SUPPLEMENT.get("ru", {}),
     ),
     "tr": _merge(
         TRANSLATIONS_TR,
         BACKUP_TRANSLATIONS_SUPPLEMENT.get("tr", {}),
         SUPPLEMENT_DEVICES_TELEGRAM.get("tr", {}),
+        NAS_ADMIN_SUPPLEMENT.get("tr", {}),
     ),
     "ko": _merge(
         TRANSLATIONS_KO,
         BACKUP_TRANSLATIONS_SUPPLEMENT.get("ko", {}),
         SUPPLEMENT_DEVICES_TELEGRAM.get("ko", {}),
+        NAS_ADMIN_SUPPLEMENT.get("ko", {}),
     ),
     "zh": _merge(
         TRANSLATIONS_ZH,
         BACKUP_TRANSLATIONS_SUPPLEMENT.get("zh", {}),
         SUPPLEMENT_DEVICES_TELEGRAM.get("zh", {}),
+        NAS_ADMIN_SUPPLEMENT.get("zh", {}),
     ),
 }
 
@@ -9045,7 +9061,14 @@ def _translate_plain(lang_code: str, key: str) -> str:
     d = TRANSLATIONS.get(lang_code) or TRANSLATIONS["de"]
     s = d.get(key)
     if s is None:
-        s = TRANSLATIONS["de"].get(key) or TRANSLATIONS["en"].get(key) or key
+        if lang_code != "de":
+            s = TRANSLATIONS["en"].get(key)
+        if s is None:
+            s = TRANSLATIONS["de"].get(key)
+        if s is None:
+            s = TRANSLATIONS["en"].get(key)
+        if s is None:
+            s = key
     return s
 
 

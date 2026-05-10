@@ -1,0 +1,153 @@
+# -*- coding: utf-8 -*-
+"""NAS-Verwaltung — 简体中文 (zh)."""
+
+NAS_ADMIN_ZH: dict[str, str] = {
+    "nas_admin.title": "NAS 管理（操作）",
+    "nas_admin.subtitle": (
+        "通过 SSH（sudo）在 NAS 上执行特权维护：安全弹出 USB、SMART 自检、"
+        "RAID 检查及系统维护（fstrim/e2scrub）、短暂闪烁盘位指示灯、蜂鸣器测试。"
+        "需要在顶部启用「完全访问」，且 SSH 用户具备可用的 sudo。"
+    ),
+    "nas_admin.section_usb": "USB",
+    "nas_admin.section_smart": "SMART 自检",
+    "nas_admin.section_maintenance": "RAID 与文件系统维护",
+    "nas_admin.section_hw": "指示灯与蜂鸣器",
+    "nas_admin.usb_mount": "挂载点：",
+    "nas_admin.disk": "磁盘：",
+    "nas_admin.test_type": "类型：",
+    "nas_admin.led_slot": "盘位指示灯：",
+    "nas_admin.smart_short": "短测试",
+    "nas_admin.smart_long": "长测试",
+    "nas_admin.smart_conv": "传输（conveyance）",
+    "nas_admin.btn_usb_refresh": "刷新 USB 列表",
+    "nas_admin.btn_usb_eject": "安全弹出",
+    "nas_admin.btn_disk_refresh": "刷新磁盘列表",
+    "nas_admin.btn_smart_start": "开始 SMART 测试",
+    "nas_admin.btn_mdcheck": "开始 RAID 检查",
+    "nas_admin.btn_mdcheck_status": "RAID 检查状态",
+    "nas_admin.btn_fstrim": "立即执行 TRIM（fstrim）",
+    "nas_admin.btn_e2scrub": "ext4 巡检（e2scrub_all）",
+    "nas_admin.btn_led_refresh": "刷新指示灯槽位",
+    "nas_admin.btn_led_blink": "指示灯识别（闪烁 12 秒）",
+    "nas_admin.btn_beep": "蜂鸣器测试（ugbeep）",
+    "nas_admin.log_usb_done": "[USB] 检测到 {n} 个挂载点。",
+    "nas_admin.log_disk_done": "[磁盘] 找到 {n} 个块设备。",
+    "nas_admin.log_led_done": "[LED] 在 /sys/class/leds 下找到 {n} 个槽位。",
+    "nas_admin.msg_need_usb": "无 USB 挂载",
+    "nas_admin.msg_need_usb_body": "请先点击 «刷新 USB 列表» 并选择一个检测到的挂载点（常见路径 /mnt/@usb/…）。",
+    "nas_admin.msg_need_disk": "未选择磁盘",
+    "nas_admin.msg_need_disk_body": "点击 «刷新磁盘列表»，然后选择一个 /dev 设备。",
+    "nas_admin.msg_need_led": "无指示灯槽位",
+    "nas_admin.msg_need_led_body": (
+        "/sys/class/leds 下不存在 diskN — 请点击 «刷新指示灯槽位»；某些型号可能不提供盘位灯。"
+    ),
+    "nas_admin.confirm_eject_t": "弹出 USB？",
+    "nas_admin.confirm_eject_b": "卸载/弹出：\n{path}\n\n请确认设备上无写入操作。",
+    "nas_admin.confirm_smart_t": "开始 SMART 测试？",
+    "nas_admin.confirm_smart_b": "目标：{disk}\n类型：{kind}\n\n注意：长测试耗时长且会增加磁盘负载。",
+    "nas_admin.confirm_maint_t": "NAS 维护操作",
+    "nas_admin.confirm_mdcheck_b": (
+        "立即启动 mdcheck_start.service？\n\n"
+        "触发计划中的 RAID 检查/洗刷流程（取决于 UGOS/mdadm 配置）。"
+    ),
+    "nas_admin.confirm_fstrim_b": (
+        "立即启动 fstrim.service？\n\n"
+        "对已挂载且支持的文件系统执行 TRIM — 可能出现短暂 IO 峰值。"
+    ),
+    "nas_admin.confirm_e2scrub_b": (
+        "立即启动 e2scrub_all.service？\n\n"
+        "在线检查 ext4 元数据 — 可能带来 IO 压力。"
+    ),
+    "nas_admin.confirm_led_t": "指示灯识别？",
+    "nas_admin.confirm_led_b": (
+        "盘位 {slot}：指示灯闪烁约 12 秒（定时），随后恢复原触发模式。\n\n"
+        "仅用于机箱识别 — 不更改 RAID 或数据。"
+    ),
+    "nas_admin.confirm_beep_t": "测试蜂鸣器？",
+    "nas_admin.confirm_beep_b": "调用 /usr/sbin/ugbeep（或退回 beep）— 短时鸣叫。",
+    "nas_admin.subtitle_extended": (
+        "扩展管理：电源/WoL、每日定时关机、UGOS USB 弹出、SMART、"
+        "RAID/文件系统维护、带自动回滚的 SSH drop-in、UGOS 核心服务、NGINX、earlyOOM、Samba、指示灯与蜂鸣器。"
+        "需要完全访问与 sudo。"
+    ),
+    "nas_admin.section_power": "电源与网络唤醒（WoL）",
+    "nas_admin.power_boot": "断电后策略（电源按钮）：",
+    "nas_admin.wake_on": "网络唤醒（WoL）：",
+    "nas_admin.btn_power_read": "读取 power.conf",
+    "nas_admin.btn_power_save": "保存 power.conf",
+    "nas_admin.btn_wol_apply": "写入 WoL 到 power.conf",
+    "nas_admin.section_sched_shutdown": "每日定时关机（cron.d）",
+    "nas_admin.sched_enable": "启用每日",
+    "nas_admin.sched_daily_time": "时间（HH:MM，24 小时）",
+    "nas_admin.btn_sched_read": "读取 cron",
+    "nas_admin.btn_sched_write": "写入 cron",
+    "nas_admin.btn_usb_ugos_eject": "UGOS 弹出（USBDiskStop）",
+    "nas_admin.btn_smart_log": "自检日志",
+    "nas_admin.btn_mdcheck_progress": "进度",
+    "nas_admin.section_ssh": "SSH（drop-in）",
+    "nas_admin.ssh_profile": "配置文件",
+    "nas_admin.btn_ssh_apply": "应用配置",
+    "nas_admin.btn_ssh_confirm": "确认 SSH 正常",
+    "nas_admin.btn_ssh_rollback": "回滚",
+    "nas_admin.section_services": "UGOS 核心服务",
+    "nas_admin.service_name": "单元（*.service）",
+    "nas_admin.btn_svc_start": "启动",
+    "nas_admin.btn_svc_stop": "停止",
+    "nas_admin.btn_svc_restart": "重启",
+    "nas_admin.btn_svc_log": "日志",
+    "nas_admin.section_nginx": "NGINX",
+    "nas_admin.btn_nginx_reload": "重载（ugnginx）",
+    "nas_admin.btn_nginx_recovery": "配置恢复（ROM/备份）",
+    "nas_admin.section_earlyoom": "earlyOOM",
+    "nas_admin.btn_earlyoom_read": "加载文件",
+    "nas_admin.btn_earlyoom_save": "保存并重启服务",
+    "nas_admin.section_samba": "Samba",
+    "nas_admin.smb_share": "共享：",
+    "nas_admin.btn_smb_refresh": "刷新共享列表",
+    "nas_admin.btn_smb_recycle_empty": "清空回收站文件夹",
+    "nas_admin.btn_smb_wizard": "快速共享",
+    "nas_admin.msg_invalid": "无效输入",
+    "nas_admin.msg_power_invalid": "请检查 powerbutton / wakeonlan 取值。",
+    "nas_admin.confirm_power_t": "保存 power.conf？",
+    "nas_admin.confirm_power_b": "断电后策略：{pb}\n网络唤醒：{wo}\n\n写入 /etc/power.conf（sudo）。",
+    "nas_admin.confirm_wol_t": "将 WoL 写入 power.conf？",
+    "nas_admin.confirm_wol_b": "把当前 WoL 选择写入 /etc/power.conf。",
+    "nas_admin.msg_sched_time": "时间无效 — 请使用 HH:MM（24 小时）。",
+    "nas_admin.confirm_sched_t": "设置定时关机？",
+    "nas_admin.confirm_sched_b": "每天 {h}:{m} — 写入 /etc/cron.d/nas_admin_timed_shutdown。",
+    "nas_admin.confirm_sched_disable_t": "移除定时关机？",
+    "nas_admin.confirm_sched_disable_b": "删除定时关机对应的 cron 文件。",
+    "nas_admin.usb_busy_t": "USB 可能正在使用",
+    "nas_admin.usb_busy_b": "lsof/fuser 检测到活动，仍要继续吗？",
+    "nas_admin.confirm_ugos_usb": "执行 UGOS USB 弹出？\n{path}\n\n将调用 USBDiskStop、sync、卸载。",
+    "nas_admin.confirm_earlyoom_t": "保存 earlyOOM？",
+    "nas_admin.confirm_earlyoom_b": "覆盖 /etc/default/earlyoom 并重启 earlyoom.service。",
+    "nas_admin.log_smb_shares": "[Samba] {n} 个共享。",
+    "nas_admin.log_smb_path_missing": "[Samba] 找不到路径 — 请检查 testparm / 共享名。",
+    "nas_admin.msg_smb_share": "请选择一个共享（不要选择「global」）。",
+    "nas_admin.confirm_recycle_t": "清空回收文件夹？",
+    "nas_admin.confirm_recycle_b": "共享 «{share}»：常见回收文件夹将被清空（可能造成 IO 压力）。",
+    "nas_admin.smb_wizard_name": "共享名",
+    "nas_admin.smb_wizard_name_p": "简短名称（A–Z、0‑9、. _ -）",
+    "nas_admin.smb_wizard_path": "NAS 上的路径",
+    "nas_admin.smb_wizard_path_p": "绝对路径，例如 /volume1/folder",
+    "nas_admin.msg_smb_path": "路径必须位于 UGOS 存储卷（如 /volume1/…）。",
+    "nas_admin.confirm_smb_wizard_t": "创建 Samba 共享？",
+    "nas_admin.confirm_smb_wizard_b": "将共享 «{name}» 以路径 «{path}» 追加到 smb.conf 并重载 smbd？",
+    "nas_admin.msg_svc_unit": "请输入单元名（如 storage_serv.service）。",
+    "nas_admin.confirm_svc_t": "确认服务操作",
+    "nas_admin.confirm_svc_b": "{action}\n单元：\n{unit}",
+    "nas_admin.svc_act_start": "启动",
+    "nas_admin.svc_act_stop": "停止",
+    "nas_admin.svc_act_restart": "重启",
+    "nas_admin.nginx_recover_title": "NGINX 恢复",
+    "nas_admin.nginx_recover_prompt": "输入完整单词 RESTORE 以确认（将 /rom/etc/nginx 恢复到 /etc/nginx）：",
+    "nas_admin.nginx_recover_t2": "执行 NGINX 恢复？",
+    "nas_admin.nginx_recover_b2": "从 ROM/备份恢复 NGINX 配置 — 可能出现短暂中断。",
+    "nas_admin.confirm_ssh_t": "应用 SSH 加固配置？",
+    "nas_admin.confirm_ssh_b": (
+        "以 drop-in 方式应用 «{profile}»。重载后请测试登录；若未确认，约 4 分钟后通过 at 自动回滚。"
+    ),
+    "nas_admin.confirm_ssh_rollback_t": "回滚 SSH 配置？",
+    "nas_admin.confirm_ssh_rollback_b": "恢复备份的 drop-in 或删除该文件。",
+}

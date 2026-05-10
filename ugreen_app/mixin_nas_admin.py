@@ -1069,7 +1069,8 @@ class MixinNasAdmin:
             return
         if action not in ("start", "stop", "restart"):
             return
-        if not messagebox.askyesno(self.t("nas_admin.confirm_svc_t"), self.t("nas_admin.confirm_svc_b", action=action, unit=unit)):
+        alabel = self.t(f"nas_admin.svc_act_{action}")
+        if not messagebox.askyesno(self.t("nas_admin.confirm_svc_t"), self.t("nas_admin.confirm_svc_b", action=alabel, unit=unit)):
             return
 
         def work():

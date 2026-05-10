@@ -35,11 +35,68 @@ from ugreen_app._paramiko import _paramiko
 from ugreen_app import keyring_helper
 
 class MixinConfigTelegram:
+    @staticmethod
+    def _directory_is_user_writable(d: str) -> bool:
+        try:
+            os.makedirs(d, exist_ok=True)
+            probe = os.path.join(d, ".ugreen_app_write_probe")
+            with open(probe, "w", encoding="utf-8") as f:
+                f.write("ok")
+            os.remove(probe)
+            return True
+        except OSError:
+            return False
+
+    def _migrate_configs_from_exe_dir(self, exe_dir: str, target_dir: str) -> None:
+        """Nach Installation unter Program Files: Kopien sind nur dort lesbar — übernehmen in target_dir."""
+        if os.path.normcase(os.path.normpath(exe_dir)) == os.path.normcase(os.path.normpath(target_dir)):
+            return
+        names = (
+            "nas_admin_connection.json",
+            "app_settings.json",
+            "telegram_notify.json",
+            "qnap_smb_prefs.json",
+            "nas_watch_local.json",
+            "nas_daily_report_local.json",
+            "last_github_update_prompt.txt",
+            "last_github_update_check.txt",
+        )
+        for name in names:
+            src = os.path.join(exe_dir, name)
+            dst = os.path.join(target_dir, name)
+            if os.path.isfile(src) and not os.path.isfile(dst):
+                try:
+                    shutil.copy2(src, dst)
+                except OSError:
+                    pass
+
     def _app_data_dir(self):
-        """Konfiguration & lokale Dateien: PyInstaller → Ordner der .exe; sonst Ordner des .py."""
-        if getattr(sys, "frozen", False):
-            return os.path.dirname(os.path.abspath(sys.executable))
-        return os.path.dirname(os.path.abspath(__file__))
+        """Konfiguration: PyInstaller neben EXE wenn beschreibbar, sonst per-User Ort (Windows: LocalAppData)."""
+        cached = getattr(self, "_cached_app_data_dir", None)
+        if cached is not None:
+            return cached
+        if not getattr(sys, "frozen", False):
+            root = os.path.dirname(os.path.abspath(__file__))
+            self._cached_app_data_dir = root
+            return root
+        exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+        if self._directory_is_user_writable(exe_dir):
+            self._cached_app_data_dir = exe_dir
+            return exe_dir
+        if sys.platform == "win32":
+            local = os.environ.get("LOCALAPPDATA") or ""
+            if not local:
+                local = os.path.join(os.path.expanduser("~"), "AppData", "Local")
+            data = os.path.join(local, "UgreenNASAdmin")
+        elif sys.platform == "darwin":
+            data = os.path.join(os.path.expanduser("~"), "Library", "Application Support", "UgreenNASAdmin")
+        else:
+            xdg = os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share")
+            data = os.path.join(xdg, "UgreenNASAdmin")
+        os.makedirs(data, exist_ok=True)
+        self._migrate_configs_from_exe_dir(exe_dir, data)
+        self._cached_app_data_dir = data
+        return data
 
     def _connection_config_path(self):
         return os.path.join(self._app_data_dir(), "nas_admin_connection.json")

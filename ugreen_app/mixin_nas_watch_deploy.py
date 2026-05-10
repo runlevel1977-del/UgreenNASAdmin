@@ -18,10 +18,7 @@ class MixinNasWatchDeploy:
     REMOTE_DAILY_CONFIG = "/volume1/scripts/ugreen_daily_report_config.json"
 
     def _nas_watch_local_path(self) -> str:
-        base = os.path.dirname(os.path.abspath(__file__))
-        if getattr(sys, "frozen", False):
-            base = os.path.dirname(os.path.abspath(sys.executable))
-        return os.path.join(base, "nas_watch_local.json")
+        return os.path.join(self._app_data_dir(), "nas_watch_local.json")
 
     def _nas_watch_script_bytes(self) -> bytes:
         if getattr(sys, "frozen", False):
@@ -323,10 +320,7 @@ class MixinNasWatchDeploy:
         threading.Thread(target=work, daemon=True).start()
 
     def _daily_report_local_path(self) -> str:
-        base = os.path.dirname(os.path.abspath(__file__))
-        if getattr(sys, "frozen", False):
-            base = os.path.dirname(os.path.abspath(sys.executable))
-        return os.path.join(base, "nas_daily_report_local.json")
+        return os.path.join(self._app_data_dir(), "nas_daily_report_local.json")
 
     def _daily_report_script_bytes(self) -> bytes:
         if getattr(sys, "frozen", False):
