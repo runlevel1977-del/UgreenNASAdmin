@@ -30,6 +30,11 @@ def _decode_out(data: bytes) -> str:
     return data.decode("utf-8", errors="replace")
 
 
+def quote_remote_bash_lc(script: str) -> str:
+    """Einfachquoting für bash -lc auf dem *Linux-NAS* — unabhängig vom Client-OS (Windows-shlex.quote ist für cmd.exe und zerstört sudo-Pipelines)."""
+    return "'" + script.replace("'", "'\"'\"'") + "'"
+
+
 class SSHManager:
     """Eine SSH-Verbindung pro Auth-Kontext, serialisiert mit Lock."""
 
@@ -148,7 +153,7 @@ class SSHManager:
                     set_status(ok_msg, connected=connected_flag)
                 if use_sudo:
                     inner = cmd
-                    full = f"sudo -S bash -lc {shlex.quote(inner)}"
+                    full = f"sudo -S bash -lc {quote_remote_bash_lc(inner)}"
                     stdin, stdout, stderr = self._client.exec_command(full)
                     stdin.write((password or "") + "\n")
                     stdin.flush()
@@ -388,7 +393,7 @@ class SSHManager:
                     f"mv {shlex.quote(tmp_abs)} {shlex.quote(rp_final)} "
                     f"&& chmod {shlex.quote(str(chmod_mode))} {shlex.quote(rp_final)}"
                 )
-                full = f"sudo -S bash -lc {shlex.quote(inner)}"
+                full = f"sudo -S bash -lc {quote_remote_bash_lc(inner)}"
                 stdin, stdout, stderr = self._client.exec_command(full)
                 stdin.write((password or "") + "\n")
                 stdin.flush()

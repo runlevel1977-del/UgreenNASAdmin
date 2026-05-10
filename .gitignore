@@ -1,3 +1,9 @@
+# Lokale NAS-Dumps (können echte Geräteinformationen enthalten — niemals committen)
+tools/ugreen_dump/
+
+# Cursor-Arbeitskopie (privat/lokal)
+.cursor/
+
 # Build-Artefakte (lokal)
 /build/
 /dist/

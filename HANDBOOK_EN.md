@@ -1,5 +1,7 @@
 # Ugreen NAS Admin – Complete manual for the app and usage
 
+> **“NAS management” tab:** Its own chapter **`## 14. NAS management tab complete`** in this manual (blue heading in the PDF like other tabs). Not in `HANDBUCH_STRUKTURIERT.md`. **ℹ Info → Manual** opens **`HANDBOOK_EN.pdf`** — rebuild with `python tools/build_handbook_en_pdf.py`, or newer chapters will be missing.
+
 This edition is tab-centered: Description, buttons, operation, workflows and error cases are directly together for each area - without scattered addendums at the end.
 
 ## 1. Purpose of this manual
@@ -19,7 +21,7 @@ Important: The app works directly on your NAS in many areas. Changes are not “
 
 ### From the area: 2. App logic and security principle
 
-The app has a modular structure: Dashboard, Scripts, Explorer, NAS↔NAS, Devices, Docker, Health, Storage, ACL, Snapshots, Backup, Settings.
+The app has a modular structure: Dashboard, Scripts, Explorer, NAS↔NAS, Devices, Docker, Health, **NAS management**, Storage, ACL, Snapshots, Backup, Settings.
 Almost all functions access the NAS via SSH. Without a valid connection, many actions are meaningless.
 
 A central point is the protection mode:
@@ -510,18 +512,32 @@ Benefits: Backup destination and NAS↔NAS.
 - Dashboard title
 - Live notice
 - Webcam button
-- Metric tiles
-- Fan control
+- Metric tiles (including Network with **current interface configuration**, filter, and edit controls — see **42.3**)
+- **Fans:** toolbar line **“Probe & map fans…”** (opens the probe/mapping dialog) plus two fan control tiles
 - Docker Live
 - scheduled script jobs
 
-### 24.2 Fan control buttons
+### 24.2 Fan control and mapping
 
-- **Silent / Standard / Max / Manual**
-- **Take over**
-- **Return UGOS control**
+**Buttons per tile (system left, CPU right):**
 
-**Important process:** Select mode -> Apply -> Observe behavior -> return if necessary.
+- **Silent / Standard / Max / Manual (%)**
+- **Apply** (includes optional boot profile as before — see **42.6**)
+- **Return UGOS control** (on the left tile only — shared handback to UGOS)
+
+**“Probe & map fans…”**
+
+- **SSH** required (same as the rest of the Dashboard); writes still use **sudo** with your stored password/usual privileges.
+- The app scans e.g. **`/proc/it86/fan`** and **`/sys/class/hwmon/.../fan*_input`** and shows a **plain-text report**.
+- Per tile you choose:
+  - **PWM channel:** **Channel 1** (UGOS-typical `set` / `cpu`) vs **channel 2** (`set2` / `cpu2` / `fan2`) — which hardware path actually supports PWM depends on **model/driver**.
+  - **RPM display:** **“Automatic…”** (system vs CPU heuristics as before) or a **specific sensor line** from the scan when several exist.
+- **Save** writes locally under **`app_settings.json` → `dashboard`:** **`fan_slot0_use_pwm_secondary`**, **`fan_slot1_use_pwm_secondary`**, **`fan_slot0_rpm_key`**, **`fan_slot1_rpm_key`** (RPM choice lower-case; empty = automatic).
+- The existing NAS **boot script** uses the same mapping via **`SLOT0_USE2`** / **`SLOT1_USE2`** in **`ugreen_fan_boot.env`**.
+
+**Only one physical fan:** If the NAS exposes **one** tach source only, the **right** tile stays **without a second RPM** (“not readable”) — **no mirrored duplicate** on both sides.
+
+**Control flow:** choose mode → **Apply** → observe → **Return UGOS control** if needed.
 
 ---
 
@@ -548,8 +564,37 @@ When occupancy increases:
 
 ### 42.3 Network
 
-Throughput display per interface.
-Useful for backup windows, NAS↔NAS transfers and Docker downloads.
+**Throughput (sparklines)**  
+Below the configuration block: per physical NIC **estimated RX/TX rates** (from `/proc/net/dev`, from the second measurement onward). Useful for backup windows, NAS↔NAS transfers, and Docker pulls.
+
+**Current configuration (from the NAS)**  
+While the Dashboard tab is active and SSH works, the app runs **`ip -j addr`** and **`ip -j route`** on the NAS and shows for the selected interface, among other things:
+
+- operational state, MAC (if reported by `ip`),
+- **IPv4** and **prefix length**,
+- whether the address appears **DHCP/dynamic** (JSON `dynamic` field) or typically **static**,
+- whether this interface carries the **default IPv4 route** and which **gateway** applies.
+
+This is the **live state at sample time** — it may differ from what UGOS stores persistently (the NAS UI may use its own DB/files).
+
+**Choose interface**  
+The **Interface** dropdown selects which NIC is described in the **Current configuration** text. The choice is saved **locally** in **`app_settings.json`** as **`dashboard.net_detail_iface`**.
+
+**Limit sparklines to selected NICs**  
+The field under the hint **“Sparklines: empty = all; or e.g. eth0,eth1”** only filters the **green throughput sparklines** — not what exists on the NAS. **Empty** = all physical interfaces as before. **Comma-separated names** (semicolon allowed) = only those interfaces in the sparklines, if present. **Save filter** writes **`dashboard.net_monitor_filter`** in **`app_settings.json`**.
+
+**Changing values (advanced)**  
+Fields: **IPv4**, **prefix** (e.g. `24`), **gateway**, **mode**:
+
+- **Static (ip):** applies **runtime** settings with `ip -4 addr` / `ip -4 route` (via **sudo**). After reboot, UGOS or a service may override again.
+- **DHCP renew:** on the NAS runs **`dhclient`** or **`dhcpcd`** for the chosen interface when available.
+
+**Load from NAS** fills IPv4, prefix, gateway, and mode from the **last received live sample** for the currently selected interface (fills the fields only — nothing is changed until **Apply**).
+
+**Apply (sudo)** needs **Full access** in the header (same danger gate as other risky actions) and shows **confirmation dialogs**. **Wrong IP or gateway can drop your SSH session** — use only in maintenance windows; keep serial/KVM/console in mind.
+
+**Settings and `app_settings.json`**  
+When you **Save** in **Settings**, **`dashboard`** and **`docker_update`** are **preserved** in the file so Dashboard preferences are not wiped — including **`net_detail_iface`**, **`net_monitor_filter`**, and **fan mapping** (**`fan_slot0_use_pwm_secondary`**, **`fan_slot1_use_pwm_secondary`**, **`fan_slot0_rpm_key`**, **`fan_slot1_rpm_key`**).
 
 ### 42.4 Docker tile
 
@@ -563,33 +608,37 @@ Helps with correlation “load increase <-> cron job time”.
 
 ### 42.6 Fan control area (complete)
 
-Buttons/Modes:
+Above both tiles: **“Probe & map fans…”** → dialog with **scan log** and **Save** options for **PWM channel** and **RPM line** per tile (details **24.2**). Without a second tach source the **CPU** tile shows **no second RPM** (single-fan NAS).
+
+Buttons/modes **per tile:**
 
 - Silent
-- standard
+- Standard
 - Max
 - manual %
-- Take over
-- Return UGOS control
+- Apply
+- Return UGOS control (link on the **left** tile; same shared handback to UGOS as before)
 
 Recommended process:
 
-1. Select mode.
-2. Take over.
-3. Observe for 1-2 minutes.
-4. Return UGOS control in case of conflicts.
+1. On a **new model** / odd layout: run **“Probe & map fans…”** once and save sensible channel/display choices.
+2. Select mode.
+3. Apply.
+4. Observe for 1–2 minutes.
+5. **Return UGOS control** if there are conflicts.
 
 ---
 
 ### From the area: 62. Practical instructions: Fan control including return to UGOS
 
-1. Open dashboard.
-2. Read fan area (system on the left, CPU on the right).
-3. Select the desired mode.
-4. Click “Apply”.
-5. 1-2 minutes observation.
-6. If manual control is to be ended: `Return UGOS control`.
-7. Optionally switch to the UGOS app profile (standard/silent) to validate the handover.
+1. Open the Dashboard tab.
+2. Optional: **“Probe & map fans…”** — read the scan, set **PWM channel** and **RPM display** per tile, **Save**.
+3. Read the fan area (system left, CPU right — with one physical fan the right tach may stay empty).
+4. Select the desired mode.
+5. Click **Apply**.
+6. Observe for 1–2 minutes.
+7. To end manual control: **Return UGOS control**.
+8. Optionally switch the UGOS UI profile (standard/silent) to validate handover.
 
 Error case “UGOS does not respond”:
 
@@ -1153,6 +1202,112 @@ Buttons:
 
 ---
 
+## 14. NAS management tab complete (actions over SSH/sudo)
+
+A dedicated tab **between** “System & Health” and “Storage & Shares”. This tab is for **actions** on the NAS, not passive diagnostics. Commands run over SSH with **sudo**.
+
+### 14.1 Layout, scrolling, and window size
+
+- **Two columns:** All controls on the **left**, a **log** on the **right** showing SSH output for each action.
+- **Scrolling (left):** The left column is **taller than the viewport** — scroll vertically with the **mouse wheel** while the pointer is **over the left column** (fields and buttons). The **scrollbar** on the right edge of the left column still works (drag or click track). Scrolling should feel **smooth** (scroll region updates with each wheel step).
+- **Log width:** A **sash** (splitter) sits between the two panes. **Drag** it to balance width. On tab open, **~85%** goes to the **left pane**; buttons don’t share one “uniform” width per row, so long German labels cannot force an entire row to overflow. Start narrow on the log if you need more reading space.
+
+### 14.2 Prerequisites and “Full access”
+
+- **Writes or risky actions** (change files, reload services, maintenance, USB eject, SSH profiles, Samba, earlyOOM, NGINX recovery, …): **Full access** in the header and an SSH user with **sudo** (same idea as reboot/shutdown in Health).
+- **Read-only / lists / status only:** e.g. USB list, disk list, LED slots, share list, read cron, read `power.conf`, **RAID check status** — often works **without** unlocking danger actions, as long as **SSH is connected**.
+- **Always** read the **log** for errors; when unsure, do **read-only** steps first.
+
+### 14.3 Recommended workflow
+
+1. Read the short intro at the top of the tab.
+2. **Refresh lists** (USB, disks, shares, …), then pick an item in the dropdown.
+3. Read confirmation dialogs before any **write**.
+4. After each action, check the **log** (`systemctl`, `smartctl`, `testparm`, etc.).
+
+### 14.4 Areas at a glance
+
+| Area | Purpose (short) | Typical NAS targets |
+|------|-----------------|---------------------|
+| Power & WoL | After power loss / Wake-on-LAN | `/etc/power.conf` (via `crudini`) |
+| Scheduled shutdown | Daily shutdown at fixed time | `/etc/cron.d/nas_admin_timed_shutdown` |
+| USB | Safe eject (UGOS) | `USBDiskStop`, `umount`, mounts under e.g. `/mnt/@usb/…` |
+| SMART | Self-tests and log | `/dev/sd…`, `smartctl` |
+| RAID & filesystem maintenance | RAID scrub, TRIM, ext4 scrub | `mdcheck`, `fstrim`, `e2scrub_all` (systemd) |
+| SSH (drop-in) | Extra `sshd` rules with rollback | `/etc/ssh/sshd_config.d/60-ugreen-nas-admin.conf` |
+| UGOS core services | Start/stop/restart/log | `*_serv.service` |
+| NGINX | Reload or restore ROM config | `ugnginx-reload`, `/rom/etc/nginx`, … |
+| earlyOOM | Tune low-memory killer | `/etc/default/earlyoom` |
+| Samba | Shares, empty recycle, quick add | `smb.conf`, `testparm` |
+| LED & beeper | Chassis identification | `/sys/class/leds/diskN`, `ugbeep` |
+
+### 14.5 Power & Wake-on-LAN
+
+- **Read:** Reads `power_boot` and `wake_on` from `/etc/power.conf` and fills the combos; may show raw lines in the log.
+- **Save:** Writes selected values (usually `true`/`false`) with **sudo**. Only change what you understand (UGOS / NAS docs).
+- **Write WoL to power.conf:** Writes the **current Wake-on-LAN** selection only (shortcut if you only adjust WoL).
+
+### 14.6 Scheduled daily shutdown
+
+- **App-managed file:** **Write cron** creates/updates only **`/etc/cron.d/nas_admin_timed_shutdown`**. If you never used that button, the file may be missing even though UGOS shuts down daily — the schedule might live in **another** `/etc/cron.d/*` file, **root’s crontab**, under **`/var/spool/cron/...`**, or **`/etc/crontab`** (often the **stock NAS UI** does **not** use the app file).
+- **Read cron** prints several blocks: the app file (if present), **listing `/etc/cron.d/`**, **grep** for shutdown/poweroff/halt/**TimedShutdown** (UGOS often uses **`/sbin/TimedShutdown`** in the **root crontab**, not under `/etc/cron.d`), **direct reads of spool files** (when `crontab -l` is empty over SSH), **`/etc/crontab`**, and **systemd timers**. If everything is empty or only generic timers appear, the schedule may exist **only in the UGOS GUI** or another mechanism — check there. **SSH must be connected** (otherwise you only see “Not connected”). The first cron line with a shutdown-related keyword (including **TimedShutdown**) updates the **time fields** (checkbox on) when minute/hour can be parsed (if multiple weekday lines exist, this reflects the first matching line in the output).
+- **Enable via this app:** **HH:MM** (24 h), then **Write cron** as above. **Real shutdown** — plan maintenance windows.
+- **Disable here:** Removes only the **app file** (with confirmation) — a schedule configured elsewhere on the NAS may **continue** until changed there.
+
+### 14.7 USB (UGOS)
+
+1. **Refresh USB list** — finds typical USB mount paths.
+2. Pick a mount, **UGOS eject:** shows **lsof/fuser**; warns if activity is seen; then **`USBDiskStop`** (if present), **`sync`**, **`umount`**. Close apps using the disk first.
+
+### 14.8 SMART
+
+- **Disks:** Refresh list, select a block device.
+- **Test:** *short* (minutes), *long* (very long, heavy), *conveyance* — depends on disk/firmware.
+- **Self-test log:** Prints recent SMART / test history from logs or `smartctl` as available on the system.
+
+### 14.9 RAID & filesystem maintenance
+
+- **Start RAID check:** Starts the systemd unit used for the scheduled RAID check flow (`mdcheck_start`), as UGOS defines it.
+- **Status / Progress:** Read-only — shows current progress / md-related info.
+- **fstrim / e2scrub_all:** Starts those **systemd** units — can cause **noticeable IO**; use during quiet periods.
+
+### 14.10 SSH hardening (drop-in)
+
+- **Profile** (*high* / *middle* / *low*): Writes a **drop-in** under `sshd_config.d`, runs **`sshd -t`** and **`systemctl reload ssh`** (or restart).
+- **Auto-rollback:** If `at` exists on the NAS, schedules **delayed rollback** unless you confirm in time.
+- **Confirm SSH OK:** Creates a **flag file** on the NAS and **removes** the planned `at` job — only click after a **second** SSH session succeeds.
+- **Rollback:** Restores the **backup** of the old file or removes the drop-in if you get locked out.
+
+**Important:** For *high*, verify all clients support the chosen algorithms.
+
+### 14.11 UGOS core services
+
+- Dropdown of typical `*_serv` units (storage, docker, gateway, …).
+- **Start / Stop / Restart:** `systemctl` — may briefly interrupt services.
+- **Journal:** Recent journal lines for the selected unit.
+
+### 14.12 NGINX
+
+- **Reload:** Runs UGOS **reload** (or `systemctl reload nginx`) and shows short status.
+- **Config recovery:** After typing **`RESTORE`** in the dialog — copies **ROM/default nginx** into `/etc/nginx` and overwrites live config there. **Custom edits can be lost** — have backups.
+
+### 14.13 earlyOOM
+
+- **Load / Save:** Edits `/etc/default/earlyoom` and restarts the service. Parameter syntax matters — wrong settings can worsen OOM behavior.
+
+### 14.14 Samba
+
+1. **Refresh shares** — fills list from `testparm` / `smb.conf` (not `global` as target).
+2. **Empty recycle:** Resolves share path and deletes contents of common **recycle** folders — **irreversible** for those files.
+3. **Quick share:** Appends a simple block to `smb.conf`, validates with `testparm`, reloads **`smbd`**. Path must match a **UGOS volume** (e.g. `/volume1/…`).
+
+### 14.15 LED & beeper
+
+- **Refresh LED slots**, pick `diskN`, **Identify:** ~12 s blink to match bay to disk.
+- **Beeper:** Short test tone via UGOS tool (model-dependent).
+
+---
+
 ### From the area: 49. Health complete: All blocks working together
 
 Health is a diagnostic center, not just a display.
@@ -1231,7 +1386,7 @@ First activate the security and availability critical checks. Then expand gradua
 
 ---
 
-## 14. Tab Storage & Sharing complete
+## 15. Tab Storage & Sharing complete
 
 ### From range: 32. Full reference: Storage tab
 
@@ -1279,7 +1434,7 @@ Before each image/restore action:
 
 ---
 
-## 15. Tab ACL complete
+## 16. Tab ACL complete
 
 ### From range: 33. Full reference: ACL tab
 
@@ -1322,7 +1477,7 @@ Rule:
 
 ---
 
-## 16. Snapshots tab complete
+## 17. Snapshots tab complete
 
 ### From range: 34. Full reference: Snapshots tab
 
@@ -1365,7 +1520,7 @@ Only with clear identification of the snapshot and fallback plan.
 
 ---
 
-## 17. Tab Backup complete (Backup + Restore + Schedules together)
+## 18. Tab Backup complete (Backup + Restore + Schedules together)
 
 ### From Range: 35. Full Reference: Backup Tab
 
@@ -1536,7 +1691,7 @@ A backup is only considered reliable once a restore has been tested successfully
 
 ---
 
-## 18. Info dialog complete
+## 19. Info dialog complete
 
 ### From the area: 54. Info dialog complete
 
@@ -1557,7 +1712,7 @@ Other elements:
 
 ---
 
-## 19. Overall operations, checklists, troubleshooting
+## 20. Overall operations, checklists, troubleshooting
 
 ### From the range: 19. Complete operation order (recommended)
 
@@ -1902,7 +2057,7 @@ Rework:
 
 ---
 
-## 20. Graduation
+## 21. Graduation
 
 ### From the area: 21. End
 

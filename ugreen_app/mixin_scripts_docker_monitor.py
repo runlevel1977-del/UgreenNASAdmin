@@ -956,6 +956,301 @@ class MixinScriptsDockerMonitor:
             out[iface] = (rx_b, tx_b)
         return dict(sorted(out.items(), key=lambda kv: kv[0].lower()))
 
+    @staticmethod
+    def _dash_parse_ip_j_addr_forifaces(ipj_blob: str, physical_ifaces: dict[str, tuple[int, int]]) -> dict[str, dict[str, object]]:
+        """JSON von `ip -j addr` auf physische NICs (Schlüssel wie in /proc/net/dev) abbilden."""
+        out: dict[str, dict[str, object]] = {}
+        for n in physical_ifaces.keys():
+            out[str(n)] = {
+                "operstate": "",
+                "mac": "",
+                "ipv4": "",
+                "prefixlen": 24,
+                "dynamic": False,
+                "default_gw": "",
+                "is_default_route_dev": False,
+            }
+        try:
+            data = json.loads((ipj_blob or "").strip() or "[]")
+        except json.JSONDecodeError:
+            return out
+        if not isinstance(data, list):
+            return out
+        for ent in data:
+            if not isinstance(ent, dict):
+                continue
+            ifname = str(ent.get("ifname") or "")
+            if not ifname or ifname not in out:
+                continue
+            row = out[ifname]
+            row["operstate"] = str(ent.get("operstate") or "")
+            row["mac"] = str(ent.get("address") or "")
+            ipv4 = ""
+            pfx = 24
+            dyn = False
+            best_global: tuple[str, int, bool] | None = None
+            best_any: tuple[str, int, bool] | None = None
+            for ai in ent.get("addr_info") or []:
+                if not isinstance(ai, dict) or ai.get("family") != "inet":
+                    continue
+                loc = str(ai.get("local") or "")
+                if not loc:
+                    continue
+                try:
+                    pli = int(ai.get("prefixlen", 24))
+                except (TypeError, ValueError):
+                    pli = 24
+                ddy = bool(ai.get("dynamic"))
+                scope = str(ai.get("scope") or "")
+                tup = (loc, pli, ddy)
+                if scope == "global":
+                    best_global = tup
+                    break
+                if best_any is None:
+                    best_any = tup
+            pick = best_global or best_any
+            if pick:
+                ipv4, pfx, dyn = pick[0], pick[1], pick[2]
+            row["ipv4"] = ipv4
+            row["prefixlen"] = pfx
+            row["dynamic"] = dyn
+        return out
+
+    @staticmethod
+    def _dash_parse_ip_j_route_default(rt_blob: str) -> tuple[str, str]:
+        """Erste IPv4-Standardroute: (gateway, dev)."""
+        try:
+            data = json.loads((rt_blob or "").strip() or "[]")
+        except json.JSONDecodeError:
+            return "", ""
+        if not isinstance(data, list):
+            return "", ""
+        for ent in data:
+            if not isinstance(ent, dict):
+                continue
+            dst = str(ent.get("dst") or "")
+            if dst not in ("default", "0.0.0.0"):
+                continue
+            fam = ent.get("family")
+            if fam is not None and str(fam) not in ("inet", ""):
+                continue
+            g = ent.get("gateway") or ent.get("nexthop")
+            d = ent.get("dev")
+            if g and d:
+                gs = str(g)
+                if ":" in gs:
+                    continue
+                return gs, str(d)
+        return "", ""
+
+    @staticmethod
+    def _dash_merge_default_route_into_iface_info(info_by_if: dict[str, dict[str, object]], rt_blob: str) -> None:
+        gw, dev = MixinScriptsDockerMonitor._dash_parse_ip_j_route_default(rt_blob)
+        if dev and dev in info_by_if:
+            info_by_if[dev]["default_gw"] = gw
+            info_by_if[dev]["is_default_route_dev"] = True
+
+    def _dash_net_settings_dashboard_dict(self) -> dict[str, str]:
+        cfg = self._load_app_settings()
+        dash = dict(cfg.get("dashboard") or {})
+        return {
+            "net_detail_iface": str(dash.get("net_detail_iface") or "").strip(),
+            "net_monitor_filter": str(dash.get("net_monitor_filter") or "").strip(),
+        }
+
+    def _dash_net_save_dashboard_partial(self, **updates: str) -> None:
+        try:
+            cfg = self._load_app_settings()
+            sec = dict(cfg.get("dashboard") or {})
+            for k, v in updates.items():
+                sec[k] = v
+            cfg["dashboard"] = sec
+            with open(self._app_settings_path(), "w", encoding="utf-8") as f:
+                json.dump(cfg, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+
+    def _dash_net_monitor_filter_ifaces(self) -> frozenset[str] | None:
+        s = self._dash_net_settings_dashboard_dict().get("net_monitor_filter") or ""
+        if not s.strip():
+            return None
+        parts = {x.strip() for x in s.replace(";", ",").split(",") if x.strip()}
+        return frozenset(parts) if parts else None
+
+    def _dash_net_format_live_config(self, ifn: str, row: dict[str, object] | None) -> str:
+        if not row:
+            return f"{ifn}\n—"
+        ipv4 = str(row.get("ipv4") or "")
+        pfx = row.get("prefixlen", "")
+        st = str(row.get("operstate") or "")
+        mac = str(row.get("mac") or "")
+        dyn = bool(row.get("dynamic"))
+        mode = "DHCP" if dyn else "statisch"
+        if getattr(self, "ui_lang", "de") != "de":
+            mode = "DHCP" if dyn else "static"
+        gw = str(row.get("default_gw") or "")
+        def_dev = bool(row.get("is_default_route_dev"))
+        lines = [
+            f"{ifn}  ({st})",
+        ]
+        if mac:
+            lines.append(f"MAC  {mac}")
+        if ipv4:
+            lines.append(f"IPv4 {ipv4}/{pfx}  ({mode})")
+        else:
+            lines.append(f"IPv4 —  ({mode})")
+        if def_dev and gw:
+            lines.append(f"Standard-Gateway  {gw}" if getattr(self, "ui_lang", "de") == "de" else f"Default via  {gw}")
+        elif gw and not def_dev:
+            hint = "(anderes Interface routet Standard)" if getattr(self, "ui_lang", "de") == "de" else "(default route on another iface)"
+            lines.append(hint)
+        return "\n".join(lines)
+
+    def _dash_net_refresh_config_display(self) -> None:
+        tw = getattr(self, "dash_net_config_text", None)
+        cb = getattr(self, "dash_net_iface_combo", None)
+        info = getattr(self, "_dash_net_last_info", None)
+        if tw is None or cb is None or not isinstance(info, dict):
+            return
+        ifn = (cb.get() or "").strip()
+        if not ifn:
+            keys = sorted(info.keys(), key=lambda z: z.lower())
+            ifn = keys[0] if keys else ""
+            if ifn and hasattr(cb, "set"):
+                cb.set(ifn)
+        row = info.get(ifn) if ifn else None
+        txt = self._dash_net_format_live_config(ifn, row if isinstance(row, dict) else None)
+        try:
+            tw.configure(state=tk.NORMAL)
+            tw.delete("1.0", tk.END)
+            tw.insert("1.0", txt)
+            tw.configure(state=tk.DISABLED)
+        except tk.TclError:
+            pass
+
+    def _dash_net_on_iface_selected(self, _evt=None) -> None:
+        cb = getattr(self, "dash_net_iface_combo", None)
+        if cb is None:
+            return
+        v = (cb.get() or "").strip()
+        if v:
+            self._dash_net_save_dashboard_partial(net_detail_iface=v)
+        self._dash_net_refresh_config_display()
+
+    def _dash_net_fill_from_last_snap(self) -> None:
+        cb = getattr(self, "dash_net_iface_combo", None)
+        info = getattr(self, "_dash_net_last_info", None)
+        if cb is None or not isinstance(info, dict):
+            return
+        ifn = (cb.get() or "").strip()
+        row = info.get(ifn) if ifn else None
+        if not isinstance(row, dict):
+            return
+        ip_e = getattr(self, "dash_net_entry_ip", None)
+        pfx_e = getattr(self, "dash_net_entry_pfx", None)
+        gw_e = getattr(self, "dash_net_entry_gw", None)
+        mc = getattr(self, "dash_net_mode_combo", None)
+        if ip_e is not None:
+            ip_e.delete(0, tk.END)
+            ip_e.insert(0, str(row.get("ipv4") or ""))
+        if pfx_e is not None:
+            pfx_e.delete(0, tk.END)
+            pfx_e.insert(0, str(row.get("prefixlen") or "24"))
+        if gw_e is not None:
+            gw_e.delete(0, tk.END)
+            gw_e.insert(0, str(row.get("default_gw") or ""))
+        if mc is not None:
+            dyn = bool(row.get("dynamic"))
+            static_l = self.t("dash.net_mode_static")
+            dhcp_l = self.t("dash.net_mode_dhcp")
+            mc.set(dhcp_l if dyn else static_l)
+
+    def _dash_net_save_filter_clicked(self) -> None:
+        ent = getattr(self, "dash_net_filter_entry", None)
+        if ent is None:
+            return
+        raw = ent.get().strip()
+        self._dash_net_save_dashboard_partial(net_monitor_filter=raw)
+        self.set_status(self.t("dash.net_filter_saved"))
+
+    def _dash_net_apply_clicked(self) -> None:
+        if not getattr(self, "_danger_gate", lambda: True)():
+            return
+        cb = getattr(self, "dash_net_iface_combo", None)
+        mc = getattr(self, "dash_net_mode_combo", None)
+        ip_e = getattr(self, "dash_net_entry_ip", None)
+        pfx_e = getattr(self, "dash_net_entry_pfx", None)
+        gw_e = getattr(self, "dash_net_entry_gw", None)
+        if cb is None or mc is None:
+            return
+        iface = (cb.get() or "").strip()
+        if not iface:
+            messagebox.showwarning(self.t("tab.dashboard"), self.t("dash.net_err_form"))
+            return
+        mode = mc.get() or ""
+        static_l = self.t("dash.net_mode_static")
+        dhcp_l = self.t("dash.net_mode_dhcp")
+        qi = shlex.quote(iface)
+
+        def worker_dhcp():
+            inner = (
+                f"PATH=/sbin:/usr/sbin:/bin:/usr/bin; "
+                f"if command -v dhclient >/dev/null 2>&1; then "
+                f"dhclient -r {qi} 2>/dev/null; dhclient -nw {qi}; "
+                f"elif command -v dhcpcd >/dev/null 2>&1; then "
+                f"dhcpcd -k {qi} 2>/dev/null; dhcpcd {qi}; "
+                f"else echo 'no dhclient/dhcpcd'; exit 1; fi"
+            )
+            out = self.run_ssh_cmd(inner, use_sudo=True, update_status=True) or ""
+            msg = self.t("dash.net_apply_out", out=str(out)[:8000])
+            self.root.after(0, lambda m=msg: messagebox.showinfo(self.t("tab.dashboard"), m))
+
+        def worker_static():
+            raw_ip = ip_e.get().strip() if ip_e else ""
+            raw_pfx = pfx_e.get().strip() if pfx_e else "24"
+            raw_gw = gw_e.get().strip() if gw_e else ""
+            try:
+                pfx_i = max(1, min(32, int(raw_pfx)))
+            except ValueError:
+                self.root.after(
+                    0,
+                    lambda: messagebox.showwarning(self.t("tab.dashboard"), self.t("dash.net_err_form")),
+                )
+                return
+            parts = raw_ip.split(".")
+            if len(parts) != 4 or not all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
+                self.root.after(
+                    0,
+                    lambda: messagebox.showwarning(self.t("tab.dashboard"), self.t("dash.net_err_form")),
+                )
+                return
+            qip = shlex.quote(raw_ip)
+            inner = (
+                f"set -e; "
+                f"ip link set {qi} up; "
+                f"ip -4 addr flush dev {qi}; "
+                f"ip -4 addr add {qip}/{pfx_i} dev {qi}; "
+            )
+            if raw_gw:
+                qgw = shlex.quote(raw_gw)
+                inner += (
+                    f"ip -4 route replace default via {qgw} dev {qi} 2>/dev/null || "
+                    f"ip -4 route add default via {qgw} dev {qi}; "
+                )
+            out = self.run_ssh_cmd(inner, use_sudo=True, update_status=True) or ""
+            msg = self.t("dash.net_apply_out", out=str(out)[:8000])
+            self.root.after(0, lambda m=msg: messagebox.showinfo(self.t("tab.dashboard"), m))
+
+        if mode == dhcp_l:
+            if not messagebox.askyesno(self.t("tab.dashboard"), self.t("dash.net_confirm_dhcp", iface=iface)):
+                return
+            threading.Thread(target=worker_dhcp, daemon=True).start()
+            return
+        if not messagebox.askyesno(self.t("tab.dashboard"), self.t("dash.net_confirm_static")):
+            return
+
+        threading.Thread(target=worker_static, daemon=True).start()
+
     def _dash_parse_fan_rpms(self, raw: str) -> list[tuple[str, int]]:
         """UGOS it86: z. B. ``sysfan1 speed:482``; hwmon: ``fan1_input 1200``."""
         out: list[tuple[str, int]] = []
@@ -1095,6 +1390,293 @@ class MixinScriptsDockerMonitor:
             "run": "…",
         }
 
+    def _dash_fan_settings_bindings(self) -> dict[str, str | bool]:
+        cfg = self._load_app_settings()
+        dash = dict(cfg.get("dashboard") or {})
+
+        def _bln(k: str, default: bool) -> bool:
+            v = dash.get(k)
+            if isinstance(v, bool):
+                return v
+            if isinstance(v, str):
+                low = v.strip().lower()
+                if low in ("1", "true", "yes", "on"):
+                    return True
+                if low in ("0", "false", "no", "off", ""):
+                    return False
+            if isinstance(v, (int, float)):
+                return bool(int(v))
+            return default
+
+        return {
+            "slot0_pwm_secondary": _bln("fan_slot0_use_pwm_secondary", False),
+            "slot1_pwm_secondary": _bln("fan_slot1_use_pwm_secondary", True),
+            "slot0_rpm_key": str(dash.get("fan_slot0_rpm_key") or "").strip().lower(),
+            "slot1_rpm_key": str(dash.get("fan_slot1_rpm_key") or "").strip().lower(),
+        }
+
+    def _dash_fan_save_bindings(
+        self,
+        *,
+        slot0_pwm_secondary: bool,
+        slot1_pwm_secondary: bool,
+        slot0_rpm_key: str,
+        slot1_rpm_key: str,
+    ) -> None:
+        try:
+            cfg = self._load_app_settings()
+            sec = dict(cfg.get("dashboard") or {})
+            sec["fan_slot0_use_pwm_secondary"] = bool(slot0_pwm_secondary)
+            sec["fan_slot1_use_pwm_secondary"] = bool(slot1_pwm_secondary)
+            sec["fan_slot0_rpm_key"] = str(slot0_rpm_key or "").strip().lower()
+            sec["fan_slot1_rpm_key"] = str(slot1_rpm_key or "").strip().lower()
+            cfg["dashboard"] = sec
+            with open(self._app_settings_path(), "w", encoding="utf-8") as f:
+                json.dump(cfg, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+
+    def _dash_fan_use_secondary_for_slot(self, fan_idx: int) -> bool:
+        b = self._dash_fan_settings_bindings()
+        return bool(b["slot1_pwm_secondary"]) if fan_idx else bool(b["slot0_pwm_secondary"])
+
+    def _dash_fan_display_pair_for_slot(
+        self,
+        slot_idx: int,
+        pairs: list[tuple[str, int]],
+        sys_p: tuple[str, int] | None,
+        cpu_p: tuple[str, int] | None,
+    ) -> tuple[str, int] | None:
+        bd = self._dash_fan_settings_bindings()
+        raw_key = (bd["slot0_rpm_key"] if slot_idx == 0 else bd["slot1_rpm_key"]) or ""
+        if raw_key:
+            for nm, rpm in pairs:
+                n = (nm or "").strip().lower()
+                rk = raw_key.strip().lower()
+                if rk == n or rk in n or n.startswith(rk):
+                    return (nm, rpm)
+            for nm, rpm in pairs:
+                if raw_key in (nm or "").lower():
+                    return (nm, rpm)
+        if slot_idx == 0:
+            if sys_p:
+                return sys_p
+            return pairs[0] if pairs else None
+        if cpu_p:
+            return cpu_p
+        if len(pairs) >= 2:
+            return pairs[1]
+        # Nur ein physischer Lüfter: zweite Kachel nicht mit derselben Zeile füllen.
+        return None
+
+    def _dash_fan_scan_remote_cmd(self) -> str:
+        """Sammelt /proc/it86/fan, HWMON-Zeilen und Meta — ein Shell-Block."""
+        return (
+            "echo '__UGF_PROC__'\n"
+            "if [ -e /proc/it86/fan ]; then cat /proc/it86/fan 2>/dev/null; else echo '__NO_IT86__'; fi\n"
+            "echo '__UGF_HWM__'\n"
+            "for f in /sys/class/hwmon/hwmon*/fan*_input; do "
+            '[ -r "$f" ] || continue; echo "$f $(cat "$f" 2>/dev/null)"; done 2>/dev/null\n'
+            "echo '__UGF_META__'\n"
+            "if [ -e /proc/it86/fan ]; then ls -la /proc/it86/fan 2>/dev/null; else echo 'no /proc/it86/fan'; fi\n"
+            "HWM=$(systemctl is-active hwmonitor 2>/dev/null || echo unknown); echo \"hwmonitor:$HWM\"\n"
+        )
+
+    def _dash_fan_parse_scan(self, raw: str) -> tuple[str, list[str], bool, bool]:
+        """Rohbericht, Sensornamen (RPM-Zeilen), it86 vorhanden, vermutlich schreibbar."""
+        text = (raw or "").replace("\r\n", "\n").strip()
+        proc_s = ""
+        hw_s = ""
+        meta_s = ""
+        is_de = getattr(self, "ui_lang", "de") == "de"
+        if "__UGF_PROC__" in text and "__UGF_HWM__" in text and "__UGF_META__" in text:
+            try:
+                _, rest = text.split("__UGF_PROC__", 1)
+                proc_s, rest = rest.split("__UGF_HWM__", 1)
+                hw_s, meta_s = rest.split("__UGF_META__", 1)
+                proc_s = proc_s.strip()
+                hw_s = hw_s.strip()
+                meta_s = meta_s.strip()
+            except ValueError:
+                proc_s = text.strip()
+                hw_s = ""
+                meta_s = ""
+        else:
+            proc_s = text.strip()
+            hw_s = ""
+            meta_s = ""
+
+        pairs = self._dash_parse_fan_rpms(proc_s + "\n" + hw_s if hw_s else proc_s)
+        names = sorted({(p[0] or "").strip() for p in pairs if (p[0] or "").strip()})
+
+        proc_mark = "__NO_IT86__" in proc_s or proc_s.strip() == "__NO_IT86__"
+        has_it86 = bool(proc_s) and not proc_mark
+        mlow = meta_s.lower()
+        writable_guess = bool(meta_s.strip()) and (
+            "root" in mlow and ("/proc/it86/fan" in meta_s or "it86/fan" in mlow.replace(" ", ""))
+        )
+
+        report = "\n".join(
+            [
+                "=== /proc/it86/fan ===",
+                proc_s or ("(nicht vorhanden)" if is_de else "(missing)"),
+                "=== hwmon fan*_input ===",
+                hw_s or "—",
+                "=== Meta ===",
+                meta_s or "—",
+            ]
+        ).strip()
+        return report, names, has_it86, writable_guess
+
+    def _dash_fan_open_setup_dialog(self) -> None:
+        ei = getattr(self, "entry_ip", None)
+        if ei is None or not str(ei.get() or "").strip():
+            messagebox.showinfo(self.t("dash.fan_setup_title"), self.t("dash.fan_setup_need_conn"))
+            return
+        bd = self._dash_fan_settings_bindings()
+        ft = self._dash_fan_tile_labels()
+        pwm_labels = (
+            self.t("dash.fan_pwm_channel_1"),
+            self.t("dash.fan_pwm_channel_2"),
+        )
+        rpm_auto_left = self.t("dash.fan_rpm_auto_slot", n=1, tile=ft["fan_slot1"])
+        rpm_auto_right = self.t("dash.fan_rpm_auto_slot", n=2, tile=ft["fan_slot_cpu"])
+
+        win = tk.Toplevel(self.root)
+        win.title(self.t("dash.fan_setup_title"))
+        win.geometry("700x560")
+        win.minsize(560, 440)
+        win.configure(bg=getattr(self, "color_surface_alt", "#f8fafc"))
+        win.transient(self.root)
+
+        frm = tk.Frame(win, bg=win.cget("bg"))
+        frm.pack(fill=tk.BOTH, expand=True, padx=14, pady=12)
+
+        tk.Label(
+            frm,
+            text=self.t("dash.fan_setup_explain"),
+            bg=frm.cget("bg"),
+            fg=getattr(self, "color_text_muted", "#64748b"),
+            font=("Segoe UI", 9),
+            anchor="w",
+            justify=tk.LEFT,
+            wraplength=660,
+        ).pack(fill=tk.X, pady=(0, 8))
+
+        txt = tk.Text(frm, height=14, wrap=tk.WORD, font=("Consolas", 9), bd=1, relief="solid")
+        txt.pack(fill=tk.BOTH, expand=True)
+        txt.insert(tk.END, self.t("dash.fan_setup_scanning"))
+        txt.configure(state=tk.DISABLED)
+
+        row_pwm = tk.Frame(frm, bg=frm.cget("bg"))
+        row_pwm.pack(fill=tk.X, pady=(10, 4))
+        tk.Label(row_pwm, text=self.t("dash.fan_pwm_for_slot", n=1), bg=frm.cget("bg"), font=("Segoe UI", 9)).grid(
+            row=0, column=0, sticky="w", padx=(0, 8)
+        )
+        cb_pwm0 = ttk.Combobox(row_pwm, state="readonly", width=36, values=pwm_labels, font=self.font_base)
+        cb_pwm0.grid(row=0, column=1, sticky="w")
+        cb_pwm0.set(pwm_labels[1] if bd["slot0_pwm_secondary"] else pwm_labels[0])
+
+        tk.Label(row_pwm, text=self.t("dash.fan_pwm_for_slot", n=2), bg=frm.cget("bg"), font=("Segoe UI", 9)).grid(
+            row=1, column=0, sticky="w", pady=(6, 0), padx=(0, 8)
+        )
+        cb_pwm1 = ttk.Combobox(row_pwm, state="readonly", width=36, values=pwm_labels, font=self.font_base)
+        cb_pwm1.grid(row=1, column=1, sticky="w", pady=(6, 0))
+        cb_pwm1.set(pwm_labels[1] if bd["slot1_pwm_secondary"] else pwm_labels[0])
+
+        row_rpm = tk.Frame(frm, bg=frm.cget("bg"))
+        row_rpm.pack(fill=tk.X, pady=(8, 4))
+        tk.Label(row_rpm, text=self.t("dash.fan_rpm_show_slot", n=1), bg=frm.cget("bg"), font=("Segoe UI", 9)).grid(
+            row=0, column=0, sticky="w", padx=(0, 8)
+        )
+        cb_rpm0 = ttk.Combobox(row_rpm, state="readonly", width=36, values=[rpm_auto_left], font=self.font_base)
+        cb_rpm0.grid(row=0, column=1, sticky="w")
+
+        tk.Label(row_rpm, text=self.t("dash.fan_rpm_show_slot", n=2), bg=frm.cget("bg"), font=("Segoe UI", 9)).grid(
+            row=1, column=0, sticky="w", pady=(6, 0), padx=(0, 8)
+        )
+        cb_rpm1 = ttk.Combobox(row_rpm, state="readonly", width=36, values=[rpm_auto_right], font=self.font_base)
+        cb_rpm1.grid(row=1, column=1, sticky="w", pady=(6, 0))
+
+        def _pick_saved_name(names: list[str], key: str, auto_lbl: str) -> str:
+            kl = (key or "").strip().lower()
+            if not kl:
+                return auto_lbl
+            for n in names:
+                nl = str(n).lower()
+                if nl == kl or kl in nl or nl.startswith(kl):
+                    return n
+            return auto_lbl
+
+        def _fill_rpm_combos(names: list[str]) -> None:
+            v0 = [rpm_auto_left] + names
+            v1 = [rpm_auto_right] + names
+            cb_rpm0.configure(values=v0)
+            cb_rpm1.configure(values=v1)
+            k0 = (bd["slot0_rpm_key"] or "").strip().lower()
+            k1 = (bd["slot1_rpm_key"] or "").strip().lower()
+            cb_rpm0.set(_pick_saved_name(names, k0, rpm_auto_left))
+            cb_rpm1.set(_pick_saved_name(names, k1, rpm_auto_right))
+
+        def _pwm_sel_is_secondary(sel: str) -> bool:
+            s = str(sel or "").strip()
+            try:
+                return pwm_labels.index(s) == 1
+            except ValueError:
+                return s.endswith("2)") or pwm_labels[1] in s
+
+        def _rpm_key_from_combo(sel: str, auto_lbl: str) -> str:
+            s = str(sel or "").strip()
+            aa = str(auto_lbl or "").strip()
+            if not s or s == aa:
+                return ""
+            return s.lower()
+
+        def save_clicked() -> None:
+            sk0 = _rpm_key_from_combo(cb_rpm0.get(), rpm_auto_left)
+            sk1 = _rpm_key_from_combo(cb_rpm1.get(), rpm_auto_right)
+            self._dash_fan_save_bindings(
+                slot0_pwm_secondary=_pwm_sel_is_secondary(cb_pwm0.get()),
+                slot1_pwm_secondary=_pwm_sel_is_secondary(cb_pwm1.get()),
+                slot0_rpm_key=sk0,
+                slot1_rpm_key=sk1,
+            )
+            messagebox.showinfo(self.t("dash.fan_setup_title"), self.t("dash.fan_setup_saved"))
+            try:
+                win.destroy()
+            except tk.TclError:
+                pass
+
+        btn_bar = tk.Frame(frm, bg=frm.cget("bg"))
+        btn_bar.pack(fill=tk.X, pady=(12, 0))
+        self.create_modern_btn(
+            btn_bar,
+            self.t("dash.fan_setup_save"),
+            save_clicked,
+            getattr(self, "color_user", "#2563eb"),
+            "white",
+            width=16,
+        ).pack(side=tk.RIGHT)
+
+        def worker() -> None:
+            cmd = self._dash_fan_scan_remote_cmd()
+            out = str(self.run_ssh_cmd(cmd, use_sudo=True, update_status=False) or "")
+            report, names, _hi, _wr = self._dash_fan_parse_scan(out)
+
+            def ui() -> None:
+                txt.configure(state=tk.NORMAL)
+                txt.delete("1.0", tk.END)
+                txt.insert(tk.END, report)
+                txt.configure(state=tk.DISABLED)
+                _fill_rpm_combos(names)
+
+            try:
+                self.root.after(0, ui)
+            except Exception:
+                pass
+
+        threading.Thread(target=worker, daemon=True).start()
+
     @staticmethod
     def _dash_fan_ssh_err(res: str) -> bool:
         low = (res or "").lower()
@@ -1218,6 +1800,7 @@ class MixinScriptsDockerMonitor:
         return (
             "#!/bin/sh\n"
             "# UG-NAS-Admin: Fest-PWM (wie ug_aging_test.sh, ohne mask damit UGOS-App uebernehmen kann)\n"
+            "# SLOT*_USE2=1 entspricht Kanal 2 (set2/cpu2/fan2), 0 entspricht Kanal 1 (set/cpu).\n"
             f"ENVF={shlex.quote(envf)}\n"
             "sleep 65\n"
             "[ ! -r \"$ENVF\" ] && exit 0\n"
@@ -1226,13 +1809,24 @@ class MixinScriptsDockerMonitor:
             "systemctl stop hwmonitor 2>/dev/null || service hwmonitor stop 2>/dev/null || true\n"
             "sleep 2\n"
             "if [ \"${F1_PWM:-}\" != \"\" ]; then\n"
-            "  echo \"set $F1_PWM\" > /proc/it86/fan 2>/dev/null\n"
-            "  echo \"cpu $F1_PWM\" > /proc/it86/fan 2>/dev/null\n"
+            "  if [ \"${SLOT0_USE2:-0}\" = \"1\" ]; then\n"
+            "    echo \"set2 $F1_PWM\" > /proc/it86/fan 2>/dev/null\n"
+            "    echo \"cpu2 $F1_PWM\" > /proc/it86/fan 2>/dev/null\n"
+            "    echo \"fan2 $F1_PWM\" > /proc/it86/fan 2>/dev/null\n"
+            "  else\n"
+            "    echo \"set $F1_PWM\" > /proc/it86/fan 2>/dev/null\n"
+            "    echo \"cpu $F1_PWM\" > /proc/it86/fan 2>/dev/null\n"
+            "  fi\n"
             "fi\n"
             "if [ \"${F2_PWM:-}\" != \"\" ]; then\n"
-            "  echo \"set2 $F2_PWM\" > /proc/it86/fan 2>/dev/null\n"
-            "  echo \"cpu2 $F2_PWM\" > /proc/it86/fan 2>/dev/null\n"
-            "  echo \"fan2 $F2_PWM\" > /proc/it86/fan 2>/dev/null\n"
+            "  if [ \"${SLOT1_USE2:-0}\" = \"1\" ]; then\n"
+            "    echo \"set2 $F2_PWM\" > /proc/it86/fan 2>/dev/null\n"
+            "    echo \"cpu2 $F2_PWM\" > /proc/it86/fan 2>/dev/null\n"
+            "    echo \"fan2 $F2_PWM\" > /proc/it86/fan 2>/dev/null\n"
+            "  else\n"
+            "    echo \"set $F2_PWM\" > /proc/it86/fan 2>/dev/null\n"
+            "    echo \"cpu $F2_PWM\" > /proc/it86/fan 2>/dev/null\n"
+            "  fi\n"
             "fi\n"
             "exit 0\n"
         )
@@ -1254,10 +1848,14 @@ class MixinScriptsDockerMonitor:
 
         p1, p2 = _pct_from_combo(cb1), _pct_from_combo(cb2)
         pwm1, pwm2 = self._dash_fan_pct_to_pwm(p1), self._dash_fan_pct_to_pwm(p2)
+        u0 = 1 if self._dash_fan_use_secondary_for_slot(0) else 0
+        u1 = 1 if self._dash_fan_use_secondary_for_slot(1) else 0
         env_body = (
             "# UG-NAS-Admin\n"
             f"F1_PWM={pwm1}\n"
             f"F2_PWM={pwm2}\n"
+            f"SLOT0_USE2={u0}\n"
+            f"SLOT1_USE2={u1}\n"
         )
         self.run_ssh_cmd("mkdir -p /volume1/scripts", True, update_status=False)
         if not self.write_root_file(self.DASH_FAN_REMOTE_BOOT_ENV, env_body.rstrip()):
@@ -1329,19 +1927,19 @@ class MixinScriptsDockerMonitor:
         """silent / standard / max — wie im Cursor-Verlauf zu UGOS (/proc/it86/fan)."""
         if not self._dash_fan_precheck(fan_idx):
             return
-        fan2 = bool(fan_idx)
         ft = self._dash_fan_tile_labels()
-        tag = ft["fan_slot_cpu"] if fan2 else ft["fan_slot1"]
+        tag = ft["fan_slot_cpu"] if fan_idx else ft["fan_slot1"]
+        fan_ch2 = self._dash_fan_use_secondary_for_slot(fan_idx)
         if mode == "silent":
-            inner = self._dash_fan_wrap_fixed_pwm(self._dash_fan_write_pair(50, fan2=fan2))
+            inner = self._dash_fan_wrap_fixed_pwm(self._dash_fan_write_pair(50, fan2=fan_ch2))
             self._dash_fan_run_sudo_inner(inner, detail=f"{tag}: {ft['silent']} (~50)", fan_idx=fan_idx)
             return
         if mode == "max":
-            inner = self._dash_fan_wrap_fixed_pwm(self._dash_fan_write_pair(255, fan2=fan2))
+            inner = self._dash_fan_wrap_fixed_pwm(self._dash_fan_write_pair(255, fan2=fan_ch2))
             self._dash_fan_run_sudo_inner(inner, detail=f"{tag}: {ft['max']}", fan_idx=fan_idx)
             return
         if mode == "standard":
-            if not fan2:
+            if not fan_ch2:
                 inner = (
                     "systemctl unmask hwmonitor 2>/dev/null || true; "
                     "( systemctl restart hwmonitor 2>/dev/null || service hwmonitor restart 2>/dev/null || true ); "
@@ -1365,7 +1963,7 @@ class MixinScriptsDockerMonitor:
 
     def _dash_ssh_sudo_bash_lc(self, ssh, inner: str) -> str:
         """Ein mehrzeiliges Remote-Skript mit sudo -S (Passwort wie bei run_ssh_cmd) — nötig für /proc/it86/fan."""
-        full = f"sudo -S bash -lc {shlex.quote(inner)}"
+        full = f"sudo -S bash -lc {nas_ssh.quote_remote_bash_lc(inner)}"
         stdin, stdout, stderr = ssh.exec_command(full)
         try:
             stdin.write((self.entry_pwd.get() or "") + "\n")
@@ -1402,7 +2000,9 @@ class MixinScriptsDockerMonitor:
             return
         pct = max(0, min(100, int(m.group(1))))
         pwm = self._dash_fan_pct_to_pwm(pct)
-        inner = self._dash_fan_wrap_fixed_pwm(self._dash_fan_write_pair(pwm, fan2=bool(fan_idx)))
+        inner = self._dash_fan_wrap_fixed_pwm(
+            self._dash_fan_write_pair(pwm, fan2=self._dash_fan_use_secondary_for_slot(fan_idx))
+        )
         _ft_pwm = self._dash_fan_tile_labels()
         fan_lab = _ft_pwm["fan_slot_cpu"] if fan_idx else _ft_pwm["fan_slot1"]
 
@@ -1463,11 +2063,12 @@ class MixinScriptsDockerMonitor:
         for c in range(2):
             self.dash_container.columnconfigure(c, weight=1, uniform="dash_tiles")
         self.dash_container.rowconfigure(0, weight=1)
-        self.dash_container.rowconfigure(1, weight=1)
+        self.dash_container.rowconfigure(1, weight=0)
         self.dash_container.rowconfigure(2, weight=1)
         self.dash_container.rowconfigure(3, weight=1)
-        self.dash_container.rowconfigure(4, weight=0)
+        self.dash_container.rowconfigure(4, weight=1)
         self.dash_container.rowconfigure(5, weight=0)
+        self.dash_container.rowconfigure(6, weight=0)
 
         def make_tile_grid(r: int, c: int, *, hug_inner: bool = False) -> tk.Frame:
             card = RoundedCard(
@@ -1553,7 +2154,7 @@ class MixinScriptsDockerMonitor:
 
         # —— Speicher-Kachel: erkannte / + /volumeN (+ USB-Zeilen) ——
         # hug_inner: sonst klemmt RoundedCard die Innenhöhe — untere Platten/USB-Zeilen werden abgeschnitten.
-        disk_in = make_tile_grid(2, 0, hug_inner=True)
+        disk_in = make_tile_grid(3, 0, hug_inner=True)
         tk.Label(
             disk_in,
             text=self.t("dash.disk_short"),
@@ -1569,17 +2170,155 @@ class MixinScriptsDockerMonitor:
         self._dash_disk_sparks: dict[str, DashSparkline] = {}
         self._dash_disk_detail_labels: dict[str, tk.Label] = {}
 
-        # —— Netzwerk-Kachel ——
-        net_in = make_tile_grid(2, 1)
+        # —— Netzwerk-Kachel (Live + aktuelle Konfiguration + Filter + Bearbeiten) ——
+        net_in = make_tile_grid(3, 1, hug_inner=True)
+        net_hdr = tk.Frame(net_in, bg=tile_bg)
+        net_hdr.pack(fill=tk.X)
+        tk.Label(net_hdr, text=self.t("dash.net_short"), bg=tile_bg, fg=fg_muted, font=("Segoe UI", 9, "bold")).pack(
+            side=tk.LEFT
+        )
+        net_sel = tk.Frame(net_in, bg=tile_bg)
+        net_sel.pack(fill=tk.X, pady=(4, 2))
+        tk.Label(net_sel, text=self.t("dash.net_iface_label"), bg=tile_bg, fg=fg_muted, font=("Segoe UI", 8)).pack(
+            side=tk.LEFT
+        )
+        self.dash_net_iface_combo = ttk.Combobox(
+            net_sel, width=14, state="readonly", font=self.font_base, values=tuple()
+        )
+        self.dash_net_iface_combo.pack(side=tk.LEFT, padx=(6, 0))
+        self.dash_net_iface_combo.bind("<<ComboboxSelected>>", self._dash_net_on_iface_selected)
+
+        tk.Label(net_in, text=self.t("dash.net_config_live"), bg=tile_bg, fg=fg_muted, font=("Segoe UI", 8)).pack(
+            anchor="w", pady=(2, 0)
+        )
+        _in_bg = getattr(self, "color_input_bg", tile_bg)
+        self.dash_net_config_text = tk.Text(
+            net_in,
+            height=7,
+            wrap=tk.WORD,
+            font=("Consolas", 8),
+            bg=tile_bg,
+            fg=fg_val,
+            relief="flat",
+            highlightthickness=0,
+            state=tk.DISABLED,
+        )
+        self.dash_net_config_text.pack(fill=tk.X, pady=(0, 4))
+
         tk.Label(
             net_in,
-            text=self.t("dash.net_short"),
+            text=self.t("dash.net_monitor_filter_ph"),
             bg=tile_bg,
             fg=fg_muted,
-            font=("Segoe UI", 9, "bold"),
+            font=("Segoe UI", 7),
+            anchor="w",
         ).pack(anchor="w")
+        filt_row = tk.Frame(net_in, bg=tile_bg)
+        filt_row.pack(fill=tk.X)
+        self.dash_net_filter_entry = tk.Entry(
+            filt_row,
+            font=("Segoe UI", 8),
+            bg=_in_bg,
+            fg=fg_val,
+            insertbackground=fg_val,
+            relief="flat",
+            highlightbackground=tile_border,
+            highlightthickness=1,
+        )
+        self.dash_net_filter_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=2)
+        _cfd = self._dash_net_settings_dashboard_dict()
+        self.dash_net_filter_entry.insert(0, _cfd.get("net_monitor_filter") or "")
+        self.create_modern_btn(
+            filt_row,
+            self.t("dash.net_filter_save"),
+            self._dash_net_save_filter_clicked,
+            getattr(self, "color_btn_secondary", "#64748b"),
+            "white",
+            width=11,
+        ).pack(side=tk.LEFT, padx=(6, 0))
+
+        edit_row = tk.Frame(net_in, bg=tile_bg)
+        edit_row.pack(fill=tk.X, pady=(6, 2))
+        tk.Label(edit_row, text=self.t("dash.net_ipv4"), bg=tile_bg, fg=fg_muted, font=("Segoe UI", 8)).pack(
+            side=tk.LEFT
+        )
+        self.dash_net_entry_ip = tk.Entry(
+            edit_row,
+            width=13,
+            font=self.font_mono,
+            bg=_in_bg,
+            fg=fg_val,
+            insertbackground=fg_val,
+            relief="flat",
+            highlightbackground=tile_border,
+            highlightthickness=1,
+        )
+        self.dash_net_entry_ip.pack(side=tk.LEFT, padx=(4, 8), ipady=2)
+        tk.Label(edit_row, text=self.t("dash.net_prefix"), bg=tile_bg, fg=fg_muted, font=("Segoe UI", 8)).pack(
+            side=tk.LEFT
+        )
+        self.dash_net_entry_pfx = tk.Entry(
+            edit_row,
+            width=4,
+            font=self.font_mono,
+            bg=_in_bg,
+            fg=fg_val,
+            insertbackground=fg_val,
+            relief="flat",
+            highlightbackground=tile_border,
+            highlightthickness=1,
+        )
+        self.dash_net_entry_pfx.insert(0, "24")
+        self.dash_net_entry_pfx.pack(side=tk.LEFT, padx=(4, 8), ipady=2)
+        tk.Label(edit_row, text=self.t("dash.net_gw"), bg=tile_bg, fg=fg_muted, font=("Segoe UI", 8)).pack(side=tk.LEFT)
+        self.dash_net_entry_gw = tk.Entry(
+            edit_row,
+            width=13,
+            font=self.font_mono,
+            bg=_in_bg,
+            fg=fg_val,
+            insertbackground=fg_val,
+            relief="flat",
+            highlightbackground=tile_border,
+            highlightthickness=1,
+        )
+        self.dash_net_entry_gw.pack(side=tk.LEFT, padx=(4, 0), ipady=2)
+
+        edit_row2 = tk.Frame(net_in, bg=tile_bg)
+        edit_row2.pack(fill=tk.X, pady=(0, 4))
+        tk.Label(edit_row2, text=self.t("dash.net_mode"), bg=tile_bg, fg=fg_muted, font=("Segoe UI", 8)).pack(
+            side=tk.LEFT
+        )
+        _mode_vals = (self.t("dash.net_mode_static"), self.t("dash.net_mode_dhcp"))
+        self.dash_net_mode_combo = ttk.Combobox(
+            edit_row2, values=_mode_vals, state="readonly", width=22, font=self.font_base
+        )
+        self.dash_net_mode_combo.set(_mode_vals[0])
+        self.dash_net_mode_combo.pack(side=tk.LEFT, padx=(6, 12))
+
+        self.create_modern_btn(
+            edit_row2,
+            self.t("dash.net_fill_from_nas"),
+            self._dash_net_fill_from_last_snap,
+            getattr(self, "color_user", "#2563eb"),
+            "white",
+            width=14,
+        ).pack(side=tk.LEFT, padx=(0, 6))
+        self._register_danger_rounded(
+            self.create_modern_btn(
+                edit_row2,
+                self.t("dash.net_apply"),
+                self._dash_net_apply_clicked,
+                getattr(self, "color_root", "#dc2626"),
+                "white",
+                width=14,
+            )
+        ).pack(side=tk.LEFT)
+
+        self._dash_net_last_info: dict[str, dict[str, object]] = {}
+
         self.dash_net_body = tk.Frame(net_in, bg=tile_bg)
-        self.dash_net_body.pack(fill=tk.BOTH, expand=True, pady=(2, 3))
+        self.dash_net_body.pack(fill=tk.BOTH, expand=True, pady=(4, 3))
         self._dash_net_iface_key = None
         self._dash_net_sparks: dict[str, DashSparkline] = {}
         self.dash_net_lbl = tk.Label(
@@ -1593,7 +2332,28 @@ class MixinScriptsDockerMonitor:
         )
         self.dash_net_lbl.pack(fill=tk.X)
 
-        # —— Lüfter: zwei Kacheln (gleiche Rastergröße wie CPU/RAM), direkt unter CPU/RAM ——
+        # —— Lüfter: Toolbar + zwei Kacheln ——
+        fan_toolbar = tk.Frame(self.dash_container, bg=tile_page, highlightthickness=0)
+        fan_toolbar.grid(row=1, column=0, columnspan=2, sticky="ew", padx=8, pady=(2, 0))
+        self.create_modern_btn(
+            fan_toolbar,
+            self.t("dash.fan_setup_btn"),
+            self._dash_fan_open_setup_dialog,
+            getattr(self, "color_btn_secondary", "#64748b"),
+            "white",
+            width=28,
+        ).pack(side=tk.LEFT)
+        tk.Label(
+            fan_toolbar,
+            text=self.t("dash.fan_setup_hint"),
+            bg=tile_page,
+            fg=fg_muted,
+            font=("Segoe UI", 8),
+            anchor="w",
+            wraplength=520,
+            justify=tk.LEFT,
+        ).pack(side=tk.LEFT, padx=(10, 0), fill=tk.X, expand=True)
+
         _ft = self._dash_fan_tile_labels()
         combo_vals = [f"{p} %" for p in range(0, 101, 5)]
         wrap_fan = 280
@@ -1609,7 +2369,7 @@ class MixinScriptsDockerMonitor:
                 outline=tile_border,
                 outline_width=2,
             )
-            card.grid(row=1, column=col, sticky="nsew", padx=5, pady=5)
+            card.grid(row=2, column=col, sticky="nsew", padx=5, pady=5)
             fin = tk.Frame(card.inner, bg=tile_bg, highlightthickness=0)
             fin.pack(fill=tk.BOTH, expand=True, padx=8, pady=(6, 8))
             fh = tk.Frame(fin, bg=tile_bg)
@@ -1728,7 +2488,7 @@ class MixinScriptsDockerMonitor:
             outline=tile_border,
             outline_width=2,
         )
-        dock_card.grid(row=3, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
+        dock_card.grid(row=4, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
         dock_in = tk.Frame(dock_card.inner, bg=tile_bg, highlightthickness=0)
         dock_in.pack(fill=tk.BOTH, expand=True, padx=8, pady=(4, 7))
         dock_hdr = tk.Frame(dock_in, bg=tile_bg)
@@ -1779,7 +2539,7 @@ class MixinScriptsDockerMonitor:
             outline=tile_border,
             outline_width=2,
         )
-        script_card.grid(row=4, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
+        script_card.grid(row=5, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
         script_in = tk.Frame(script_card.inner, bg=tile_bg, highlightthickness=0)
         script_in.pack(fill=tk.BOTH, expand=True, padx=8, pady=(4, 7))
         tk.Label(
@@ -1818,7 +2578,7 @@ class MixinScriptsDockerMonitor:
         self.dash_script_jobs_canvas.bind("<Configure>", _script_jobs_cfg_canvas)
 
         st_row = tk.Frame(self.dash_container, bg=tile_page)
-        st_row.grid(row=5, column=0, columnspan=2, sticky="ew", padx=6, pady=(0, 4))
+        st_row.grid(row=6, column=0, columnspan=2, sticky="ew", padx=6, pady=(0, 4))
         self.dash_status_lbl = tk.Label(
             st_row,
             text=self.t("dash.ssh_needed"),
@@ -2248,6 +3008,10 @@ echo "$max"
                 "done\n"
                 "echo __UG_NET__\n"
                 "cat /proc/net/dev\n"
+                "echo __UG_IPJ__\n"
+                "PATH=/usr/sbin:/sbin:/usr/bin:/bin; ip -j addr 2>/dev/null || echo []\n"
+                "echo __UG_RT__\n"
+                "PATH=/usr/sbin:/sbin:/usr/bin:/bin; ip -j route 2>/dev/null || echo []\n"
                 "echo __UG_DOCKER__\n"
                 "(docker ps --format '{{.Names}}' 2>/dev/null || true) | head -n 48\n"
                 "echo __UG_SCRIPT_PS__\n"
@@ -2271,6 +3035,8 @@ echo "$max"
                     "__UG_MEM__",
                     "__UG_DF__",
                     "__UG_NET__",
+                    "__UG_IPJ__",
+                    "__UG_RT__",
                     "__UG_DOCKER__",
                     "__UG_SCRIPT_PS__",
                     "__UG_CRON__",
@@ -2285,7 +3051,7 @@ echo "$max"
                 if chunks is not None:
                     chunks.append(remainder)
 
-                if not chunks or len(chunks) < 10:
+                if not chunks or len(chunks) < 12:
                     time.sleep(1)
                     continue
 
@@ -2295,11 +3061,13 @@ echo "$max"
                 mem_block = chunks[2]
                 df_block = chunks[3]
                 net_txt = chunks[4]
-                docker_txt = chunks[5]
-                script_ps_txt = chunks[6]
-                cron_txt = chunks[7]
-                load_txt = chunks[8]
-                fan_txt = chunks[9]
+                ipj_blob = chunks[5]
+                rt_blob = chunks[6]
+                docker_txt = chunks[7]
+                script_ps_txt = chunks[8]
+                cron_txt = chunks[9]
+                load_txt = chunks[10]
+                fan_txt = chunks[11]
 
                 cpu_lines = cpu_block.strip().splitlines()
                 line0 = cpu_lines[0] if cpu_lines else ""
@@ -2325,6 +3093,12 @@ echo "$max"
                 disk_volumes = self._dash_collect_volume_metrics(disk_lines_txt)
 
                 phys = self._dash_physical_iface_counters(net_txt)
+                filt = self._dash_net_monitor_filter_ifaces()
+                if filt is not None:
+                    phys = {k: v for k, v in phys.items() if k in filt}
+                info_by_if = self._dash_parse_ip_j_addr_forifaces(ipj_blob, phys)
+                self._dash_merge_default_route_into_iface_info(info_by_if, rt_blob)
+                net_iface_info = {k: dict(v) for k, v in info_by_if.items()}
                 net_ifaces_out: dict[str, dict[str, float | None]] = {}
                 for ifn in phys:
                     rx_k, tx_k = phys[ifn]
@@ -2358,10 +3132,17 @@ echo "$max"
                 fan_raw = fan_txt.strip()
                 fan_pairs = self._dash_parse_fan_rpms(fan_raw)
                 fan_sys, fan_cpu = self._dash_fan_classify_slots(fan_pairs)
-                fan_human = self._dash_fan_text_from_raw(fan_raw)
+                fan_pick0 = self._dash_fan_display_pair_for_slot(0, fan_pairs, fan_sys, fan_cpu)
+                fan_pick1 = self._dash_fan_display_pair_for_slot(1, fan_pairs, fan_sys, fan_cpu)
+                fh_bits: list[str] = []
+                if fan_pick0:
+                    fh_bits.append(f"{fan_pick0[0]}: {fan_pick0[1]}")
+                if fan_pick1:
+                    fh_bits.append(f"{fan_pick1[0]}: {fan_pick1[1]}")
+                fan_human = " · ".join(fh_bits) if fh_bits else self._dash_fan_text_from_raw(fan_raw)
                 fan_count = len(fan_pairs)
-                fan_line_1 = self._dash_fan_pair_line(fan_sys)
-                fan_line_2 = self._dash_fan_pair_line(fan_cpu)
+                fan_line_1 = self._dash_fan_pair_line(fan_pick0)
+                fan_line_2 = self._dash_fan_pair_line(fan_pick1)
                 cpu_temp_c = self._dash_parse_cpu_temp_c(temp_block.strip())
 
                 snapshot = {
@@ -2375,6 +3156,7 @@ echo "$max"
                     "fan_count": fan_count,
                     "disk_volumes": [dict(v) for v in disk_volumes],
                     "net_ifaces": net_ifaces_out,
+                    "net_iface_info": net_iface_info,
                     "docker_names": docker_names,
                     "script_jobs": script_jobs,
                     "script_running": sorted(script_running),
@@ -2579,6 +3361,25 @@ echo "$max"
             df2 = getattr(self, "dash_fan_lbl_2", None)
             if df2 is not None:
                 df2.config(text=f"{cap}: {l2}" if l2 else f"{cap}: {na_fan}")
+            ninfo = snap.get("net_iface_info")
+            if isinstance(ninfo, dict) and ninfo:
+                self._dash_net_last_info = dict(ninfo)
+                cb = getattr(self, "dash_net_iface_combo", None)
+                if cb is not None:
+                    keys_sorted = tuple(sorted(ninfo.keys(), key=lambda z: z.lower()))
+                    try:
+                        cb.configure(values=keys_sorted)
+                        want = self._dash_net_settings_dashboard_dict().get("net_detail_iface") or ""
+                        cur = (cb.get() or "").strip()
+                        if want and want in ninfo:
+                            cb.set(want)
+                        elif cur and cur in ninfo:
+                            pass
+                        elif keys_sorted:
+                            cb.set(keys_sorted[0])
+                    except tk.TclError:
+                        pass
+                self._dash_net_refresh_config_display()
             nid = snap.get("net_ifaces")
             if isinstance(nid, dict):
                 order = tuple(sorted(nid.keys(), key=lambda z: z.lower()))

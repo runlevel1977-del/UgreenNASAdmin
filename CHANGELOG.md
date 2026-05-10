@@ -4,6 +4,26 @@
 
 _(noch nicht veröffentlicht)_
 
+## 23.8.0 — 2026-05-09
+
+### Deutsch
+
+- **Handbuch (DE/EN):** Tab **NAS-Verwaltung** ist jetzt ein eigenes Kapitel **`## 14.`** mit großer PDF-Überschrift (wie andere Tabs); folgende Kapitel wurden um eins nach hinten verschoben. **`HANDBUCH_STRUKTURIERT.md`** verweist auf **`## 14`** statt der alten Unternummer **31.6**.
+- **Cron lesen (NAS-Verwaltung):** Zusätzlich **`ls /etc/cron.d`** und **direktes Lesen** der root-**Crontab-Spool-Dateien** (`/var/spool/cron/…`), weil `crontab -l` per SSH oft leer bleibt. **TimedShutdown**-Zeilen (z. B. **`/sbin/TimedShutdown`** in der Root-Crontab, typisch für UGOS-Zeitabschaltung) werden ausdrücklich erkannt, nicht nur allgemeines `shutdown`/`poweroff`.
+- **Dashboard → Netzwerk (Kachel erweitert):** Während der **Live-Überwachung** werden pro physischer NIC u. a. **`ip -j addr`** und die **IPv4-Standardroute** (`ip -j route`) ausgewertet und in der Kachel unter **„Aktuelle Konfiguration“** angezeigt (Zustand, MAC, IPv4/Präfix, DHCP vs. statisch, Standard-Gateway wenn diese Schnittstelle die Default-Route trägt). **Dropdown „Schnittstelle“** wählt die Detailansicht; Auswahl wird in **`app_settings.json` → `dashboard.net_detail_iface`** gespeichert. **Filterzeile** (kommagetrennt, z. B. `eth0,eth1`) begrenzt die **Sparkline-Durchsatzkurven**; leer = alle NICs wie bisher — gespeichert unter **`dashboard.net_monitor_filter`**. Zum **Ändern:** Felder **IPv4**, **Präfix**, **Gateway**, Modus **Statisch** oder **DHCP neu**; **„Vom NAS laden“** übernimmt die zuletzt gemessenen Werte; **„Anwenden (sudo)“** setzt Laufzeit-Settings per `ip` bzw. `dhclient`/`dhcpcd` und erfordert **„Volle Rechte“** im Header sowie Bestätigung (Risiko: falsche Adresse bricht SSH ab). **Hinweis:** OS-seitige Speicher in UGOS kann die Werte nach Neustart wieder überschreiben — dauerhafte System-IP bleibt primär Sache der NAS-Oberfläche. Beim Speichern unter **Settings** bleiben **`dashboard`** und **`docker_update`** in **`app_settings.json`** erhalten (Merge).
+- **Dashboard → Lüfter:** Über den Bereich liegt eine Zeile mit **„Lüfter prüfen & zuordnen …“** (SSH/sudo): Scan von **`/proc/it86/fan`** und **`hwmon`-`fan*_input`**, dann im Dialog **PWM-Kanal** (UGOS Kanal 1 vs. 2: `set`/`cpu` vs. `set2`/`cpu2`/`fan2`) und **RPM-Anzeige** pro Kachel wählbar; Speicherung lokal unter **`app_settings.json` → `dashboard`:** **`fan_slot0_use_pwm_secondary`**, **`fan_slot1_use_pwm_secondary`**, **`fan_slot0_rpm_key`**, **`fan_slot1_rpm_key`**. Persistiertes **Boot-PWM** (`ugreen_fan_boot.env`) enthält zusätzlich **`SLOT0_USE2`** / **`SLOT1_USE2`** passend zur Zuordnung. **Nur ein physischer Lüfter:** die zweite Kachel zeigt keine duplizierte Drehzahl mehr („nicht lesbar“, bis eine zweite RPM-Quelle existiert oder im Dialog eine Zeile gewählt wurde).
+- **Dokumentation:** **`README.md`**, **`HANDBUCH.md`**, **`HANDBOOK_EN.md`**, **`HANDBUCH_STRUKTURIERT.md`** — Lüfter- und Netz-Kapitel (§ 6); PDF über **`tools/handbuch_pdf_from_md.py`**, Build: `python tools/build_handbuch_pdf.py`, `python tools/build_handbook_en_pdf.py`.
+
+### English (short)
+
+- **NAS management — cron reads:** **cron.d** listing, root **spool** paths, explicit **TimedShutdown** line detection.
+- **Dashboard network tile:** **`ip -j addr` / route** summary, NIC **sparkline filter**, guarded runtime IP apply; **`dashboard`** merge on Settings save.
+- **Dashboard fans:** **Probe & map** per tile (PWM + tach), **`SLOT0_USE2`/`SLOT1_USE2`** in boot env; no duplicate RPM when only one fan is present.
+
+## 23.7.0 — 2026-05-09
+
+- **Tab „NAS-Verwaltung“ ausgebaut (ein Scroll-Layout, gemeinsames Protokoll):** zusätzlich zu USB/SMART/RAID-Wartung/LED/Summer u. a. **Energie** (`/etc/power.conf`, WoL), **täglicher Shutdown** über `/etc/cron.d/nas_admin_timed_shutdown`, **UGOS-USB-Auswurf** mit `USBDiskStop` und lsof/fuser-Vorcheck (Dialogs nur im UI-Thread), **SMART Self-Test Log**, **mdcheck Fortschritt**, **SSH-Härtung** als `sshd_config.d`-Drop-in mit **bestätigtem Rollback** (`at` nur gezielt per Job-ID, Schreiben per base64), **UGOS-`*_serv`-Konsole**, **NGINX** Reload/Recovery, **earlyOOM**-Editor, **Samba** Freigaben/Papierkorb/Schnellanlage, vollständige **DE/EN-Übersetzungen** für die neuen Texte.
+
 ## 23.6.0 — 2026-05-08
 
 Vergleichsbasis: **neueste öffentliche GitHub-Release `v23.5.2`**.

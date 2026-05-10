@@ -892,6 +892,7 @@ class MixinThemeUI:
         self.tab_devices = tk.Frame(self.notebook, bg=_page_bg)
         self.tab_docker = tk.Frame(self.notebook, bg=_page_bg)
         self.tab_health = tk.Frame(self.notebook, bg=_page_bg)
+        self.tab_nas_admin = tk.Frame(self.notebook, bg=_page_bg)
         self.tab_storage = tk.Frame(self.notebook, bg=_page_bg)
         self.tab_acl = tk.Frame(self.notebook, bg=_page_bg)
         self.tab_snapshots = tk.Frame(self.notebook, bg=_page_bg)
@@ -905,6 +906,7 @@ class MixinThemeUI:
         self.notebook.add(self.tab_devices, text=self.t("tab.devices"))
         self.notebook.add(self.tab_docker, text=self.t("tab.docker"))
         self.notebook.add(self.tab_health, text=self.t("tab.health"))
+        self.notebook.add(self.tab_nas_admin, text=self.t("tab.nas_admin"))
         self.notebook.add(self.tab_storage, text=self.t("tab.storage"))
         self.notebook.add(self.tab_acl, text=self.t("tab.acl"))
         self.notebook.add(self.tab_snapshots, text=self.t("tab.snapshots"))
@@ -935,6 +937,7 @@ class MixinThemeUI:
         self.setup_devices_tab()
         self.setup_docker_tab()
         self.setup_health_tab()
+        self.setup_nas_admin_tab()
         self.setup_storage_tab()
         self.setup_acl_tab()
         self.setup_snapshots_tab()
@@ -977,6 +980,7 @@ class MixinThemeUI:
             ("devices", "🖧", self.t("nav.devices")),
             ("docker", "📦", self.t("nav.docker")),
             ("health", "♥", self.t("nav.health")),
+            ("nas_admin", "🛠", self.t("nav.nas_admin")),
             ("storage", "💾", self.t("nav.storage")),
             ("acl", "👥", self.t("nav.acl")),
             ("snapshots", "📸", self.t("nav.snapshots")),
@@ -1033,7 +1037,7 @@ class MixinThemeUI:
             act_bg = getattr(self, "color_nav_active_row_bg", self.color_selected_bg)
             act_ac = getattr(self, "color_nav_active_accent", "#60a5fa")
             act_fg = getattr(self, "color_nav_active_fg", "#ffffff")
-            if idx == 11:
+            if idx == 12:
                 btn.set_theme(act_bg, act_fg, accent=act_ac)
             else:
                 btn.set_theme(nav_bg, self.color_nav_idle_fg, accent=nav_bg)
@@ -1058,7 +1062,7 @@ class MixinThemeUI:
         act_bg = getattr(self, "color_nav_active_row_bg", self.color_selected_bg)
         act_ac = getattr(self, "color_nav_active_accent", "#60a5fa")
         act_fg = getattr(self, "color_nav_active_fg", "#ffffff")
-        if idx == 11:
+        if idx == 12:
             btn.set_theme(act_bg, act_fg, accent=act_ac)
         else:
             # Sanftes Pulsieren auf Navy-Sidebar (dezentes Amber).
@@ -1136,11 +1140,12 @@ class MixinThemeUI:
             "devices": 4,
             "docker": 5,
             "health": 6,
-            "storage": 7,
-            "acl": 8,
-            "snapshots": 9,
-            "backup": 10,
-            "settings": 11,
+            "nas_admin": 7,
+            "storage": 8,
+            "acl": 9,
+            "snapshots": 10,
+            "backup": 11,
+            "settings": 12,
         }
         idx = index_map.get(key, 0)
         try:
@@ -1162,11 +1167,12 @@ class MixinThemeUI:
             4: "devices",
             5: "docker",
             6: "health",
-            7: "storage",
-            8: "acl",
-            9: "snapshots",
-            10: "backup",
-            11: "settings",
+            7: "nas_admin",
+            8: "storage",
+            9: "acl",
+            10: "snapshots",
+            11: "backup",
+            12: "settings",
         }
         active = rev.get(idx, "dashboard")
         nav_bg = getattr(self, "color_sidebar_bg", self.color_nav_idle_bg)
@@ -1180,7 +1186,7 @@ class MixinThemeUI:
                 btn.set_theme(nav_bg, self.color_nav_idle_fg, accent=nav_bg)
         # Nach dem normalen Sync ggf. Aufmerksamkeit auf "Settings" wieder setzen.
         self._update_settings_nav_attention()
-        if idx == 11:
+        if idx == 12:
             try:
                 if hasattr(self, "_settings_privacy_on_tab_enter"):
                     self._settings_privacy_on_tab_enter()
@@ -1208,11 +1214,12 @@ class MixinThemeUI:
             4: "devices",
             5: "docker",
             6: "health",
-            7: "storage",
-            8: "acl",
-            9: "snapshots",
-            10: "backup",
-            11: "settings",
+            7: "nas_admin",
+            8: "storage",
+            9: "acl",
+            10: "snapshots",
+            11: "backup",
+            12: "settings",
         }
         nav_bg = getattr(self, "color_sidebar_bg", self.color_nav_idle_bg)
         act_bg = getattr(self, "color_nav_active_row_bg", self.color_selected_bg)

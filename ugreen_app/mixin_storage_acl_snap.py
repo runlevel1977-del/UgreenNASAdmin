@@ -700,8 +700,8 @@ class MixinStorageAclSnap:
         self._health_write("\n--- RAID / MDCHECK ---")
         mdcheck_cmd = (
             "for s in mdcheck_start mdcheck_continue; do "
-            "A=$(systemctl is-active ${s}.service 2>/dev/null || echo unknown); "
-            "E=$(systemctl is-enabled ${s}.service 2>/dev/null || echo unknown); "
+            "A=$(systemctl is-active ${s}.service 2>/dev/null || true); "
+            "E=$(systemctl is-enabled ${s}.service 2>/dev/null || true); "
             "printf '%s: active=%s enabled=%s\\n' \"$s\" \"$A\" \"$E\"; "
             "done; "
             "echo '---'; "
@@ -712,8 +712,8 @@ class MixinStorageAclSnap:
         self._health_write("\n--- UGOS CORE SERVICES ---")
         svc_cmd = (
             "for s in storage_serv snapshot_serv docker_serv ugbus syncbackup_serv; do "
-            "A=$(systemctl is-active ${s}.service 2>/dev/null || echo unknown); "
-            "E=$(systemctl is-enabled ${s}.service 2>/dev/null || echo unknown); "
+            "A=$(systemctl is-active ${s}.service 2>/dev/null || true); "
+            "E=$(systemctl is-enabled ${s}.service 2>/dev/null || true); "
             "printf '%s: active=%s enabled=%s\\n' \"$s\" \"$A\" \"$E\"; "
             "done"
         )
@@ -729,8 +729,8 @@ class MixinStorageAclSnap:
         self._health_write("\n--- UPS (NUT) ---")
         ups_cmd = (
             "for s in nut-monitor nut-server; do "
-            "A=$(systemctl is-active ${s}.service 2>/dev/null || echo unknown); "
-            "E=$(systemctl is-enabled ${s}.service 2>/dev/null || echo unknown); "
+            "A=$(systemctl is-active ${s}.service 2>/dev/null || true); "
+            "E=$(systemctl is-enabled ${s}.service 2>/dev/null || true); "
             "printf '%s: active=%s enabled=%s\\n' \"$s\" \"$A\" \"$E\"; "
             "done"
         )
@@ -738,18 +738,18 @@ class MixinStorageAclSnap:
         self._health_write((ups_out or "").strip() if (ups_out or "").strip() else "Keine UPS-Daten")
         self._health_write("\n--- NETWORK READY ---")
         net_ready_cmd = (
-            "A=$(systemctl is-active systemd-networkd-wait-online.service 2>/dev/null || echo unknown); "
-            "E=$(systemctl is-enabled systemd-networkd-wait-online.service 2>/dev/null || echo unknown); "
+            "A=$(systemctl is-active systemd-networkd-wait-online.service 2>/dev/null || true); "
+            "E=$(systemctl is-enabled systemd-networkd-wait-online.service 2>/dev/null || true); "
             "printf 'systemd-networkd-wait-online.service: active=%s enabled=%s\\n' \"$A\" \"$E\""
         )
         net_ready_out = self.run_ssh_cmd(net_ready_cmd, True, update_status=False)
         self._health_write((net_ready_out or "").strip() if (net_ready_out or "").strip() else "Keine Network-Ready-Daten")
         self._health_write("\n--- DOCKER RUNTIME ---")
         docker_rt_cmd = (
-            "DA=$(systemctl is-active docker.service 2>/dev/null || echo unknown); "
-            "DE=$(systemctl is-enabled docker.service 2>/dev/null || echo unknown); "
-            "CA=$(systemctl is-active containerd.service 2>/dev/null || echo unknown); "
-            "CE=$(systemctl is-enabled containerd.service 2>/dev/null || echo unknown); "
+            "DA=$(systemctl is-active docker.service 2>/dev/null || true); "
+            "DE=$(systemctl is-enabled docker.service 2>/dev/null || true); "
+            "CA=$(systemctl is-active containerd.service 2>/dev/null || true); "
+            "CE=$(systemctl is-enabled containerd.service 2>/dev/null || true); "
             "DV=$(docker version --format '{{.Server.Version}}' 2>/dev/null || true); "
             "CV=$(containerd --version 2>/dev/null | head -1 || true); "
             "printf 'dockerd: active=%s enabled=%s version=%s\\n' \"$DA\" \"$DE\" \"$DV\"; "
@@ -759,8 +759,8 @@ class MixinStorageAclSnap:
         self._health_write((docker_rt_out or "").strip() if (docker_rt_out or "").strip() else "Keine Docker-Runtime-Daten")
         self._health_write("\n--- SMART DAEMON ---")
         smartd_cmd = (
-            "A=$(systemctl is-active smartmontools.service 2>/dev/null || echo unknown); "
-            "E=$(systemctl is-enabled smartmontools.service 2>/dev/null || echo unknown); "
+            "A=$(systemctl is-active smartmontools.service 2>/dev/null || true); "
+            "E=$(systemctl is-enabled smartmontools.service 2>/dev/null || true); "
             "printf 'smartmontools.service: active=%s enabled=%s\\n' \"$A\" \"$E\""
         )
         smartd_out = self.run_ssh_cmd(smartd_cmd, True, update_status=False)
@@ -768,8 +768,8 @@ class MixinStorageAclSnap:
         self._health_write("\n--- FILE SERVICES (SMB/NFS) ---")
         file_svc_cmd = (
             "for s in smbd nfs-server wsdd2; do "
-            "A=$(systemctl is-active ${s}.service 2>/dev/null || echo unknown); "
-            "E=$(systemctl is-enabled ${s}.service 2>/dev/null || echo unknown); "
+            "A=$(systemctl is-active ${s}.service 2>/dev/null || true); "
+            "E=$(systemctl is-enabled ${s}.service 2>/dev/null || true); "
             "printf '%s: active=%s enabled=%s\\n' \"$s\" \"$A\" \"$E\"; "
             "done; "
             "echo '--- exportfs -v ---'; "
@@ -780,8 +780,12 @@ class MixinStorageAclSnap:
         self._health_write("\n--- MAINTENANCE TIMERS ---")
         timers_cmd = (
             "for t in fstrim.timer sysstat-collect.timer sysstat-summary.timer logrotate.timer dpkg-db-backup.timer pg_basebackup@.timer; do "
-            "A=$(systemctl is-active ${t} 2>/dev/null || echo unknown); "
-            "E=$(systemctl is-enabled ${t} 2>/dev/null || echo unknown); "
+            "A=$(systemctl is-active ${t} 2>/dev/null || true); "
+            "E=$(systemctl is-enabled ${t} 2>/dev/null || true); "
+            "A=$(printf '%s' \"$A\" | head -1); "
+            "E=$(printf '%s' \"$E\" | head -1); "
+            "[ -n \"$A\" ] || A='unknown'; "
+            "[ -n \"$E\" ] || E='unknown'; "
             "printf '%s: active=%s enabled=%s\\n' \"$t\" \"$A\" \"$E\"; "
             "done"
         )
@@ -790,8 +794,8 @@ class MixinStorageAclSnap:
         self._health_write("\n--- STORAGE FABRICS (iSCSI/NVMe-oF) ---")
         fabrics_cmd = (
             "for s in iscsid.service open-iscsi.service nvmf-autoconnect.service nvmefc-boot-connections.service; do "
-            "A=$(systemctl is-active ${s} 2>/dev/null || echo unknown); "
-            "E=$(systemctl is-enabled ${s} 2>/dev/null || echo unknown); "
+            "A=$(systemctl is-active ${s} 2>/dev/null || true); "
+            "E=$(systemctl is-enabled ${s} 2>/dev/null || true); "
             "printf '%s: active=%s enabled=%s\\n' \"$s\" \"$A\" \"$E\"; "
             "done; "
             "echo '--- iSCSI sessions ---'; "
@@ -803,14 +807,14 @@ class MixinStorageAclSnap:
         self._health_write((fabrics_out or "").strip() if (fabrics_out or "").strip() else "Keine Fabrics-Daten")
         self._health_write("\n--- SECURITY & RECOVERY ---")
         sec_rec_cmd = (
-            "A=$(systemctl is-active rescue-ssh.target 2>/dev/null || echo unknown); "
-            "E=$(systemctl is-enabled rescue-ssh.target 2>/dev/null || echo unknown); "
+            "A=$(systemctl is-active rescue-ssh.target 2>/dev/null || true); "
+            "E=$(systemctl is-enabled rescue-ssh.target 2>/dev/null || true); "
             "printf 'rescue-ssh.target: active=%s enabled=%s\\n' \"$A\" \"$E\"; "
-            "A2=$(systemctl is-active netfilter-persistent.service 2>/dev/null || echo unknown); "
-            "E2=$(systemctl is-enabled netfilter-persistent.service 2>/dev/null || echo unknown); "
+            "A2=$(systemctl is-active netfilter-persistent.service 2>/dev/null || true); "
+            "E2=$(systemctl is-enabled netfilter-persistent.service 2>/dev/null || true); "
             "printf 'netfilter-persistent.service: active=%s enabled=%s\\n' \"$A2\" \"$E2\"; "
-            "A3=$(systemctl is-active nftables.service 2>/dev/null || echo unknown); "
-            "E3=$(systemctl is-enabled nftables.service 2>/dev/null || echo unknown); "
+            "A3=$(systemctl is-active nftables.service 2>/dev/null || true); "
+            "E3=$(systemctl is-enabled nftables.service 2>/dev/null || true); "
             "printf 'nftables.service: active=%s enabled=%s\\n' \"$A3\" \"$E3\"; "
             "echo '--- failed units (top 20) ---'; "
             "systemctl --failed --no-pager --plain 2>/dev/null | head -20"
@@ -818,6 +822,8 @@ class MixinStorageAclSnap:
         sec_rec_out = self.run_ssh_cmd(sec_rec_cmd, True, update_status=False)
         self._health_write((sec_rec_out or "").strip() if (sec_rec_out or "").strip() else "Keine Security/Recovery-Daten")
         self.health_check_scheduler_inventory(update_status=False)
+        self.health_check_ugos_core_paths(update_status=False)
+        self.health_check_ugos_dependency_port_audit(update_status=False)
         if update_status:
             self.set_status(
                 self.t("status.health_done"),
@@ -856,12 +862,105 @@ class MixinStorageAclSnap:
             "echo '--- systemd timers (all) ---'; "
             "systemctl list-timers --all --no-pager --plain 2>/dev/null | head -120; "
             "echo '--- cron service ---'; "
-            "A=$(systemctl is-active cron.service 2>/dev/null || echo unknown); "
-            "E=$(systemctl is-enabled cron.service 2>/dev/null || echo unknown); "
+            "A=$(systemctl is-active cron.service 2>/dev/null || true); "
+            "E=$(systemctl is-enabled cron.service 2>/dev/null || true); "
             "printf 'cron.service: active=%s enabled=%s\\n' \"$A\" \"$E\""
         )
         out = self.run_ssh_cmd(cmd, True, update_status=update_status)
         self._health_write((out or "").strip() if (out or "").strip() else "Keine Scheduler-Daten")
+
+    def health_check_ugos_core_paths(self, update_status=True):
+        self._health_write("\n--- UGOS CORE PATHS (Phase 1) ---")
+        cmd = (
+            "echo '--- Service-Mapping (/etc/sysconfig -> /var/targets) ---'; "
+            "for f in /etc/sysconfig/*_serv.sh /etc/sysconfig/thumb_core.sh /etc/sysconfig/transcode_clear_cache.sh /etc/sysconfig/ollama_serv_*.sh /etc/sysconfig/ugreen_rag_serv.sh; do "
+            "  [ -f \"$f\" ] || continue; "
+            "  t=$(grep -Eo '/var/targets/[A-Za-z0-9_.-]+' \"$f\" 2>/dev/null | head -1); "
+            "  if [ -z \"$t\" ]; then "
+            "    base=$(basename \"$f\" .sh); "
+            "    cand=\"/var/targets/${base}\"; "
+            "    [ -e \"$cand\" ] && t=\"$cand\"; "
+            "  fi; "
+            "  [ -n \"$t\" ] || t='(kein /var/targets gefunden)'; "
+            "  printf '%s -> %s\\n' \"$f\" \"$t\"; "
+            "done; "
+            "echo; echo '--- Targets Integritaet (Datei/Groesse/mtime) ---'; "
+            "for t in /var/targets/app_serv /var/targets/gateway_serv /var/targets/filemgr_serv /var/targets/storage_serv /var/targets/docker_serv /var/targets/snapshot_serv /var/targets/taskmgr_serv /var/targets/search_serv /var/targets/index_serv /var/targets/antivirus_serv /var/targets/aiconsole_serv; do "
+            "  if [ -e \"$t\" ]; then stat -Lc '%n | size=%s | mtime=%y' \"$t\" 2>/dev/null || ls -l \"$t\"; else echo \"$t | MISSING\"; fi; "
+            "done; "
+            "echo; echo '--- Antivirus Chain ---'; "
+            "for p in /etc/sysconfig/antivirus_serv.sh /var/targets/antivirus_serv /usr/bin/ugscan /usr/bin/freshclam; do "
+            "  [ -e \"$p\" ] && echo \"OK: $p\" || echo \"MISS: $p\"; "
+            "done; "
+            "echo; echo '--- Transcode Readiness ---'; "
+            "if [ -f /etc/sysconfig/transcode_serv.sh ]; then "
+            "  grep -E 'LD_PRELOAD|LIBVA_DRIVERS_PATH|LD_LIBRARY_PATH' /etc/sysconfig/transcode_serv.sh 2>/dev/null || echo 'Keine expliziten Env-Zeilen'; "
+            "else echo '/etc/sysconfig/transcode_serv.sh fehlt'; fi; "
+            "for p in /usr/lib/x86_64-linux-gnu/libjemalloc.so.2 /usr/lib/x86_64-linux-gnu/dri; do [ -e \"$p\" ] && echo \"OK: $p\" || echo \"MISS: $p\"; done; "
+            "echo; echo '--- AI/RAG/Photo Readiness ---'; "
+            "for f in /etc/sysconfig/ai_serv.sh /etc/sysconfig/ugreen_rag_serv.sh /etc/sysconfig/photo_serv.sh; do "
+            "  [ -f \"$f\" ] || continue; "
+            "  echo \"[$f]\"; "
+            "  grep -E 'PG_PORT=|PG_DB=|db_port=|db_name=|storage_path|LD_LIBRARY_PATH' \"$f\" 2>/dev/null | head -40; "
+            "done; "
+            "echo; echo '--- Aiconsole PID Path ---'; "
+            "if [ -f /etc/sysconfig/aiconsole_serv.sh ]; then "
+            "  grep -E 'aiconsole_serv.pid|ai_mcp_serv|killall' /etc/sysconfig/aiconsole_serv.sh 2>/dev/null | head -20; "
+            "else echo '/etc/sysconfig/aiconsole_serv.sh fehlt'; fi; "
+            "for p in /var/ugreen/aiconsole_serv.pid /var/ugreen/aiconsole_mcp_serv.pid; do [ -e \"$p\" ] && echo \"EXISTS: $p\" || echo \"NOT_FOUND: $p\"; done; "
+            "echo; echo '--- DNSMasq Defaults ---'; "
+            "[ -f /etc/default/dnsmasq ] && grep -E 'CONFIG_DIR|DNSMASQ_OPTS' /etc/default/dnsmasq 2>/dev/null || echo '/etc/default/dnsmasq fehlt'; "
+            "echo; echo '--- UGREEN PostgreSQL Defaults ---'; "
+            "[ -f /etc/default/ugreen-psql ] && grep -E 'DataRoot|LogDir|LogFile|EnablePasswd|ReadAfterWrite' /etc/default/ugreen-psql 2>/dev/null || echo '/etc/default/ugreen-psql fehlt'; "
+            "echo; echo '--- EarlyOOM Policy ---'; "
+            "[ -f /etc/default/earlyoom ] && cat /etc/default/earlyoom 2>/dev/null | head -40 || echo '/etc/default/earlyoom fehlt'; "
+            "echo; echo '--- DHCP / WLAN Script Presence ---'; "
+            "for p in /usr/ugreen/scripts/dhcpclient.sh /usr/ugreen/scripts/dhclient-start /usr/ugreen/scripts/dhclient6-start /usr/ugreen/scripts/wpa_supplicant.sh /usr/ugreen/scripts/wpa_action.sh /usr/ugreen/scripts/network_model; do "
+            "  [ -e \"$p\" ] && echo \"OK: $p\" || echo \"MISS: $p\"; "
+            "done; "
+            "echo; echo '--- Boot Completion Marker ---'; "
+            "[ -e /tmp/.cache/.complete ] && echo 'Boot-Marker: /tmp/.cache/.complete vorhanden' || echo 'Boot-Marker fehlt'; "
+            "echo; echo '--- Error Signatures (domain_tool / smbftpd) ---'; "
+            "for s in domain_tool smbftpd; do "
+            "  A=$(systemctl is-active ${s}.service 2>/dev/null || true); "
+            "  E=$(systemctl is-enabled ${s}.service 2>/dev/null || true); "
+            "  A=$(printf '%s' \"$A\" | head -1); "
+            "  E=$(printf '%s' \"$E\" | head -1); "
+            "  [ -n \"$A\" ] || A='unknown'; "
+            "  [ -n \"$E\" ] || E='unknown'; "
+            "  printf '%s: active=%s enabled=%s\\n' \"$s\" \"$A\" \"$E\"; "
+            "done; "
+            "echo '--- journal snippets ---'; "
+            "journalctl -b --no-pager 2>/dev/null | grep -Ei 'domain_tool|smbftpd|smbdomain\\.conf|conf_tool' | tail -40"
+        )
+        out = self.run_ssh_cmd(cmd, True, update_status=update_status)
+        self._health_write((out or "").strip() if (out or "").strip() else "Keine UGOS-Core-Pfad-Daten")
+
+    def health_check_ugos_dependency_port_audit(self, update_status=True):
+        self._health_write("\n--- UGOS DEPENDENCIES + PORT AUDIT (Phase 2) ---")
+        cmd = (
+            "echo '--- systemd dependency tree: ugreen-basic.target ---'; "
+            "systemctl list-dependencies ugreen-basic.target --all --plain --no-pager 2>/dev/null | head -220; "
+            "echo; echo '--- core service edges (After/Requires/Wants/ExecStart/FragmentPath) ---'; "
+            "for s in entry_serv storage_serv app_serv gateway_serv filemgr_serv index_serv search_serv taskmgr_serv docker_serv snapshot_serv syncbackup_serv jobmgr_serv log_serv discovery_serv; do "
+            "  echo \"[$s.service]\"; "
+            "  systemctl show ${s}.service -p FragmentPath -p ExecStart -p After -p Requires -p Wants 2>/dev/null | sed '/^$/d'; "
+            "  echo; "
+            "done; "
+            "echo '--- dangling refs hint (sysinfo_serv) ---'; "
+            "systemctl status sysinfo_serv.service --no-pager 2>/dev/null | head -30 || echo 'sysinfo_serv.service nicht gefunden'; "
+            "echo; echo '--- listening ports (ss -tulpen, top) ---'; "
+            "ss -tulpen 2>/dev/null | head -160; "
+            "echo; echo '--- focused service ports ---'; "
+            "ss -tulpen 2>/dev/null | grep -E ':(22|80|443|9999|9443|5443|5432|6379|445|139|2049|19099)\\b|sshd|nginx|postgres|redis|smbd|nfs|docker|containerd' | head -180; "
+            "echo; echo '--- nginx route mapping (/ugreen + proxy_pass/upstream) ---'; "
+            "grep -R -n -E 'location\\s+/ugreen|location\\s+/api|proxy_pass|upstream\\s+' /etc/nginx 2>/dev/null | head -240; "
+            "echo; echo '--- cron + timers quick summary ---'; "
+            "echo '[cron files]'; ls -1 /etc/cron.d 2>/dev/null | head -40; "
+            "echo '[timers]'; systemctl list-timers --all --no-pager --plain 2>/dev/null | head -80"
+        )
+        out = self.run_ssh_cmd(cmd, True, update_status=update_status)
+        self._health_write((out or "").strip() if (out or "").strip() else "Keine Dependency/Port-Audit-Daten")
 
     def health_check_raid(self):
         self._health_write("\n--- RAID ---")
@@ -869,8 +968,8 @@ class MixinStorageAclSnap:
             "cat /proc/mdstat; "
             "echo; echo '--- mdcheck ---'; "
             "for s in mdcheck_start mdcheck_continue; do "
-            "A=$(systemctl is-active ${s}.service 2>/dev/null || echo unknown); "
-            "E=$(systemctl is-enabled ${s}.service 2>/dev/null || echo unknown); "
+            "A=$(systemctl is-active ${s}.service 2>/dev/null || true); "
+            "E=$(systemctl is-enabled ${s}.service 2>/dev/null || true); "
             "echo \"$s active=$A enabled=$E\"; "
             "done; "
             "echo; echo '--- mdadm monitor ---'; "
@@ -908,8 +1007,8 @@ class MixinStorageAclSnap:
     def health_check_smart(self):
         self._health_write("\n--- SMART ---")
         smd = self.run_ssh_cmd(
-            "A=$(systemctl is-active smartmontools.service 2>/dev/null || echo unknown); "
-            "E=$(systemctl is-enabled smartmontools.service 2>/dev/null || echo unknown); "
+            "A=$(systemctl is-active smartmontools.service 2>/dev/null || true); "
+            "E=$(systemctl is-enabled smartmontools.service 2>/dev/null || true); "
             "echo \"smartmontools.service active=$A enabled=$E\"",
             True,
         )
@@ -978,7 +1077,13 @@ class MixinStorageAclSnap:
             break
 
         disk_count = len(
-            re.findall(r"^/dev/(?:sd[a-z]+|nvme\d+n\d+)\s*$", content, flags=re.MULTILINE)
+            {
+                m.group(0)
+                for m in re.finditer(
+                    r"/dev/(?:sd[a-z]+\d*|nvme\d+n\d+(?:p\d+)?|mmcblk\d+(?:p\d+)?|mapper/[^\s]+)",
+                    content,
+                )
+            }
         )
         smart_passed = len(re.findall(r"SMART overall-health.*PASSED", content))
         smart_failed = len(re.findall(r"SMART overall-health.*FAILED", content))

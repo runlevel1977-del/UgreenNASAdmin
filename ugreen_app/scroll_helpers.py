@@ -46,20 +46,30 @@ def smooth_canvas_scrollregion_cb(root: tk.Misc, canvas: tk.Canvas):
             except tk.TclError:
                 pass
 
-        setattr(canvas, job_attr, root.after(20, apply))
+        setattr(canvas, job_attr, root.after(8, apply))
 
     return on_configure
 
 
-def smooth_canvas_wheel_handlers(canvas: tk.Canvas):
-    """Gleichmäßiges Scrollen: pro Rad-Kerbe genug Pixel, ohne Layout-Sturm (s. scrollregion-CB)."""
-    # Pixel pro „unit“ — höher = schneller ans Ende, aber noch kontrollierbar.
+def _canvas_refresh_scrollregion(canvas: tk.Canvas) -> None:
+    """Sofort bbox → scrollregion (vermeidet „Klemmen“ durch verzögertes after(…))."""
     try:
-        canvas.configure(yscrollincrement=16)
+        box = canvas.bbox("all")
+        if box:
+            canvas.configure(scrollregion=box)
     except tk.TclError:
         pass
-    # Kleinerer Divisor = mehr units pro delta (Windows typ. ±120 pro Kerbe).
-    divisor = 36 if sys.platform == "darwin" else 34
+
+
+def smooth_canvas_wheel_handlers(canvas: tk.Canvas):
+    """Gleichmäßiges Scrollen: pro Rad-Kerbe genug Pixel; scrollregion direkt nach Bewegung."""
+    # Etwas feinere Schritte = flüssigere Wahrnehmung bei gleicher Kerbe.
+    try:
+        canvas.configure(yscrollincrement=12)
+    except tk.TclError:
+        pass
+    # Windows: typ. ±120 pro Kerbe — etwas mehr motion pro Kerbe als vorher (weniger „ruckeln“).
+    divisor = 28 if sys.platform == "darwin" else 26
 
     def on_wheel(event):
         d = getattr(event, "delta", 0) or 0
@@ -69,20 +79,23 @@ def smooth_canvas_wheel_handlers(canvas: tk.Canvas):
                 if n == 0:
                     n = -1 if d > 0 else 1
                 canvas.yview_scroll(n, "units")
+                _canvas_refresh_scrollregion(canvas)
         except tk.TclError:
             pass
         return "break"
 
     def on_up(_event=None):
         try:
-            canvas.yview_scroll(-5, "units")
+            canvas.yview_scroll(-4, "units")
+            _canvas_refresh_scrollregion(canvas)
         except tk.TclError:
             pass
         return "break"
 
     def on_dn(_event=None):
         try:
-            canvas.yview_scroll(5, "units")
+            canvas.yview_scroll(4, "units")
+            _canvas_refresh_scrollregion(canvas)
         except tk.TclError:
             pass
         return "break"

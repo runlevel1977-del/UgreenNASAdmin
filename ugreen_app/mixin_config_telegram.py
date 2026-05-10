@@ -737,6 +737,14 @@ class MixinConfigTelegram:
             },
             "second_nas_smb_peers": [],
             "second_nas_smb_active_peer": 0,
+            "dashboard": {
+                "net_detail_iface": "",
+                "net_monitor_filter": "",
+                "fan_slot0_use_pwm_secondary": False,
+                "fan_slot1_use_pwm_secondary": True,
+                "fan_slot0_rpm_key": "",
+                "fan_slot1_rpm_key": "",
+            },
         }
 
     def _second_nas_one_peer_dict(self, smb: dict) -> dict:
@@ -1465,7 +1473,15 @@ if __name__ == "__main__":
                     loaded = json.load(f)
                 if isinstance(loaded, dict):
                     raw = loaded
-                    for sec in ("telegram", "email", "paths", "second_nas_smb", "script_notifications", "docker_update"):
+                    for sec in (
+                        "telegram",
+                        "email",
+                        "paths",
+                        "second_nas_smb",
+                        "script_notifications",
+                        "docker_update",
+                        "dashboard",
+                    ):
                         if isinstance(raw.get(sec), dict):
                             data[sec].update(raw[sec])
             except Exception:
@@ -1498,6 +1514,9 @@ if __name__ == "__main__":
         second_nas = dict(peers[ai])
         self._settings_privacy_ensure_struct()
         script_notify = {"rules": self._script_notify_rules_from_ui()}
+        prev = self._load_app_settings()
+        docker_prev = {**(self._default_app_settings().get("docker_update") or {}), **dict(prev.get("docker_update") or {})}
+        dash_prev = {**(self._default_app_settings().get("dashboard") or {}), **dict(prev.get("dashboard") or {})}
         return {
             "telegram": {
                 "bot_token": self._settings_privacy_telegram_token_for_save(),
@@ -1523,6 +1542,8 @@ if __name__ == "__main__":
             "second_nas_smb": second_nas,
             "second_nas_smb_peers": peers,
             "second_nas_smb_active_peer": ai,
+            "docker_update": docker_prev,
+            "dashboard": dash_prev,
         }
 
     def _settings_status_snapshot(self, cfg=None):

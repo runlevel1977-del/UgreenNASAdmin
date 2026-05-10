@@ -1127,6 +1127,8 @@ class MixinTabsSetup:
         self.create_modern_btn(h1, self.t("health.smart"), self.health_check_smart, self.color_btn_purple).pack(side=tk.LEFT, padx=3)
         self.create_modern_btn(h1, self.t("health.storage"), self.health_check_storage, self.color_user).pack(side=tk.LEFT, padx=3)
         self.create_modern_btn(h1, self.t("health.scheduler_inventory"), self.health_check_scheduler_inventory, self.color_btn_secondary).pack(side=tk.LEFT, padx=3)
+        self.create_modern_btn(h1, "UGOS Core-Pfade", self.health_check_ugos_core_paths, self.color_btn_secondary).pack(side=tk.LEFT, padx=3)
+        self.create_modern_btn(h1, "UGOS Abh.+Ports", self.health_check_ugos_dependency_port_audit, self.color_btn_secondary).pack(side=tk.LEFT, padx=3)
         self._register_danger_rounded(
             self.create_modern_btn(h1, self.t("health.report_save"), self.save_health_snapshot, getattr(self, "color_btn_dark", self.color_btn_secondary))
         ).pack(side=tk.LEFT, padx=3)

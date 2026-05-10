@@ -1,6 +1,6 @@
 # Ugreen NAS Admin
 
-Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: **Dashboard** with live metrics, **scripts** and cron planner, **Explorer**, **NAS ↔ NAS** SMB copy, **network devices**, **Docker**, **system health** / Telegram guard, **storage**, **ACL**, **snapshots**, dedicated **Backup** tab (**Docker+scripts**, **user data**, **full data exports**; destinations **NAS / PC folder / USB on the NAS / second NAS SMB**; **cron scheduling on the NAS** without leaving a PC running), **Settings**, plus optional Telegram/Email notifications. The UI is available in many languages; switch in **Settings** (and often the status bar).
+Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: **Dashboard** with live metrics, **scripts** and cron planner, **Explorer**, **NAS ↔ NAS** SMB copy, **network devices**, **Docker**, **system health** / Telegram guard, **NAS management** (power/WoL, scheduled shutdown, USB eject, SMART, RAID/trim/scrub, SSH drop-in, services, NGINX, earlyOOM, Samba, LED/beeper), **storage**, **ACL**, **snapshots**, dedicated **Backup** tab (**Docker+scripts**, **user data**, **full data exports**; destinations **NAS / PC folder / USB on the NAS / second NAS SMB**; **cron scheduling on the NAS** without leaving a PC running), **Settings**, plus optional Telegram/Email notifications. The UI is available in many languages; switch in **Settings** (and often the status bar).
 
 **This file** is the **public release** README (folder **`öffentlich/`**). The step-by-step guide below mirrors the **private** project’s main `README.md` (English + German), including **an extended Backup chapter** users asked for — release notes in [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -19,6 +19,18 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 **Deutsch (kurz):** Wer die **fertige EXE/Release-ZIPs** will: **Releases → Assets** (oder SourceForge) — **nicht** der grüne **Code → Download ZIP**. Dieser liefert **nur Quellcode** des Standard-Branches; eine **Umlenkung** dieses Buttons gibt es bei GitHub **nicht** (kein Repo-Fix). Die **Zahl** in `nas_manager.py` im ZIP-Snapshot entspricht dem letzten **Push** auf `main` (siehe Datei im entpackten Ordner, falls unsicher).
 
 **Links (immer aktuell):** [GitHub **Latest release**](https://github.com/runlevel1977-del/UgreenNASAdmin/releases/latest) · SourceForge „latest“ (oben) · [All releases](https://github.com/runlevel1977-del/UgreenNASAdmin/releases)
+
+### What's new in v23.8.0
+
+- **NAS management — cron reads:** richer host cron visibility (`ls /etc/cron.d`, direct root **crontab** spool paths when `crontab -l` stays empty); **TimedShutdown** lines are recognised for scheduled-power hints.
+- **Dashboard — Network tile:** live **IPv4/interface** details from **`ip -j addr` / routing**, optional **NIC filter for throughput sparklines**; guarded **runtime IP changes** (`app_settings.json` **`dashboard`** keys preserved on Settings save).
+- **Dashboard — fans:** **“Probe & map fans…”** / **„Lüfter prüfen & zuordnen …“** — PWM channel + tach line **per tile**, boot env **`SLOT0_USE2` / `SLOT1_USE2`**; single-fan models no longer duplicate one RPM on both tiles.
+- **Handbooks:** German **NAS management** promoted to its own handbook chapter (**§14**); EN/DE handbooks + PDF build helpers updated (`tools/handbuch_pdf_from_md.py`).
+- Details: [`CHANGELOG.md`](CHANGELOG.md).
+
+### What's new in v23.7.0
+
+- **NAS management tab expanded:** one scrollable panel with power.conf / WoL, cron.d timed shutdown, UGOS `USBDiskStop` eject, SMART log + mdcheck progress, SSH hardening with rollback, UGOS `*_serv` console, NGINX, earlyOOM, Samba helpers — see [`CHANGELOG.md`](CHANGELOG.md).
 
 ### What's new in v23.6.0
 
@@ -142,19 +154,20 @@ The **sidebar** matches the main areas (top to bottom). Use it to switch **tabs*
 5. **Network devices** — list **LAN and USB devices the NAS sees** (requires SSH; see below).  
 6. **Docker** — containers, logs, compose, catalog/wizard.  
 7. **System health** — load, RAID/SMART/storage checks, Telegram/email guard, NAS central watch, reboot/shutdown (guarded).  
-8. **Storage** — volumes, shares, top folders, disk imaging/restore (dangerous).  
-9. **Users (ACL)** — inspect path permissions, chmod/chown helpers.  
-10. **Snapshots** — btrfs/ZFS/Snapper where available.  
-11. **Backup** — create **archives on the NAS** (or copy to **PC** / **USB stick on the NAS** / **second NAS** via SMB profile); **schedule** recurring jobs with **cron on the NAS** (see detailed section).  
-12. **Settings** — connection profiles, language, paths, Telegram/SMTP, script notifications, SMB peers.
+8. **NAS management** — active maintenance: power/WoL, scheduled shutdown, USB eject (UGOS), SMART (+ log), RAID/mdcheck/TRIM/scrub, SSH drop-in, core services, NGINX, earlyOOM, Samba, LED & beeper (**Full access** + sudo for writes).  
+9. **Storage** — volumes, shares, top folders, disk imaging/restore (dangerous).  
+10. **Users (ACL)** — inspect path permissions, chmod/chown helpers.  
+11. **Snapshots** — btrfs/ZFS/Snapper where available.  
+12. **Backup** — create **archives on the NAS** (or copy to **PC** / **USB stick on the NAS** / **second NAS** via SMB profile); **schedule** recurring jobs with **cron on the NAS** (see detailed section).  
+13. **Settings** — connection profiles, language, paths, Telegram/SMTP, script notifications, SMB peers.
 
 ### Dashboard
 
-**Purpose:** At-a-glance **live** metrics while this tab is open: CPU/RAM sparklines, key **volume/disk** usage (`df`), **network** throughput per interface, and a compact **Docker** summary (running containers). Lower sections summarize **cron jobs** the app manages (host/Docker/script schedules and backup-related entries when installed).  
+**Purpose:** At-a-glance **live** metrics while this tab is open: CPU/RAM sparklines, key **volume/disk** usage (`df`), **network** throughput per interface, **two-slot fan controls** with optional **“Probe & map fans…”** (per-tile PWM channel + tach line; local `dashboard.*` keys in `app_settings.json`), and a compact **Docker** summary (running containers). Lower sections summarize **cron jobs** the app manages (host/Docker/script schedules and backup-related entries when installed).  
 
 - **SSH must be connected** for live numbers; otherwise tiles show the “SSH needed” hint.  
 - Switching away stops live updates tied to this page (design goal: reduce background load).  
-- Use it to spot **_disk fill_, busy CPU/RAM**, or **Docker downtime** before opening deeper tabs.
+- Use it to spot **_disk fill_, busy CPU/RAM**, **fan/RPM quirks on odd hardware layouts**, or **Docker downtime** before opening deeper tabs. Full fan workflow: handbook **§6 → 24.2 / 42.6 / 62** (German/English guides).
 
 ### 1) Scripts
 
@@ -419,21 +432,22 @@ python ugreen_nas_admin.py
 5. **Netzwerkgeräte** — Geräte, die der **NAS über SSH** sieht (LAN/USB; siehe eigener Abschnitt).  
 6. **Docker** — Container, Logs, Compose, Katalog/Assistent.  
 7. **System Health** — Last, RAID/SMART/Speicher, Telegram/E-Mail-Wächter, Deploy-Helfer.  
-8. **Speicher** — Volumes, Freigaben, Platz-Top, Imaging/Wiederherstellung.  
-9. **Benutzer (ACL)** — Rechte/ chmod-chown-Helfer.  
-10. **Snapshots** — btrfs/ZFS/Snapper je nach System.  
-11. **Backup & Wiederherstellen** — **Docker+Skripte**, **Nutzerdaten**, **alle Nutzerdaten** als Archive; Ziel **NAS-intern**, **PC-Ordner**, **USB am NAS** oder **Zweit-NAS (SMB)**; **geplante Aufträge per Cron auf dem NAS** (PC kann aus sein) — Details im Abschnitt **10)**.  
-12. **Settings** — Verbindung, Sprache, Pfade, Telegram/SMTP, Benachrichtigungen, SMB-Peers.
+8. **NAS-Verwaltung** — aktive Wartung: Energie/WoL, geplanter Shutdown, USB (UGOS), SMART (+ Log), RAID/mdcheck/TRIM/Scrub, SSH-Drop-in, Kern-Dienste, NGINX, earlyOOM, Samba, LED & Summer (**Volle Rechte** + sudo für Schreibaktionen).  
+9. **Speicher** — Volumes, Freigaben, Platz-Top, Imaging/Wiederherstellung.  
+10. **Benutzer (ACL)** — Rechte/ chmod-chown-Helfer.  
+11. **Snapshots** — btrfs/ZFS/Snapper je nach System.  
+12. **Backup & Wiederherstellen** — **Docker+Skripte**, **Nutzerdaten**, **alle Nutzerdaten** als Archive; Ziel **NAS-intern**, **PC-Ordner**, **USB am NAS** oder **Zweit-NAS (SMB)**; **geplante Aufträge per Cron auf dem NAS** (PC kann aus sein) — Details im Abschnitt **10)**.  
+13. **Settings** — Verbindung, Sprache, Pfade, Telegram/SMTP, Benachrichtigungen, SMB-Peers.
 
 Darunter in der Sidebar: **Hilfswerkzeuge** (z. B. alles neu laden) sowie (je nach Version) **Webcam** und **Live Monitor**.
 
 ### Dashboard
 
-**Ziel:** **Live-Metriken**, solange dieser Tab aktiv ist: CPU/RAM-Verläufe, **df**-/Volume-Zeilen, **Netz**-Durchsatz, **Docker** (laufende Container), plus eine Übersicht **geplanter Cron-Jobs**, die die App kennt.
+**Ziel:** **Live-Metriken**, solange dieser Tab aktiv ist: CPU/RAM-Verläufe, **df**-/Volume-Zeilen, **Netz**-Durchsatz, **zwei Lüfter-Kacheln** mit optional **„Lüfter prüfen & zuordnen …“** (PWM-Kanal und RPM-Zeile pro Kachel; lokal in **`app_settings.json` → `dashboard`**), **Docker** (laufende Container), plus eine Übersicht **geplanter Cron-Jobs**, die die App kennt.
 
 - Ohne **SSH-Verbindung** zeigen die Kacheln den Hinweis, dass SSH nötig ist.  
 - Beim Tab-Wechsel laufen keine dauerhaften Hintergrund-Abfragen für dieses Dashboard weiter (weniger Last).  
-- Geeignet, um **vollen Speicher**, hohe Last oder **Docker-Probleme** schnell zu erkennen, bevor du tiefer einsteigst.
+- Geeignet, um **vollen Speicher**, hohe Last, **spezielle Lüfter-/RPM-Konfigurationen** oder **Docker-Probleme** schnell zu erkennen — ausführlich **`HANDBUCH.md`** Abschnitte **24.2**, **42.6**, **62**.
 
 ### 1) Scripts
 

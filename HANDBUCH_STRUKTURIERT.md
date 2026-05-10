@@ -1,5 +1,7 @@
 # Ugreen NAS Admin - Komplettes Handbuch (strukturierte Edition)
 
+> **Tab „NAS-Verwaltung“ (komplett):** Die ausführliche Anleitung steht **nicht** in dieser Datei, sondern in **`HANDBUCH.md` → `## 14. Tab NAS-Verwaltung komplett`** (blaue PDF-Überschrift wie andere Tabs). Die App öffnet bei **Info → Handbuch** die **`HANDBUCH.pdf`** (neben der .exe) aus **`HANDBUCH.md`**. **Kurzfassung:** hier **12.6**; PDF aktualisieren: `python tools/build_handbuch_pdf.py`.
+
 ## 1. Ziel dieses Handbuchs
 
 Dieses Handbuch erklaert die aktuelle App-Version als durchgaengigen Betriebsleitfaden. Jeder Bereich ist so aufgebaut, dass alles, was zusammengehoert, direkt im selben Kapitel steht: Felder, Buttons, typische Nutzung, Fehlerfaelle und sichere Reihenfolgen.
@@ -217,13 +219,15 @@ Fehlerbilder:
 - CPU
 - RAM
 - Volume/Belegung
-- Netzwerk
+- Netzwerk (siehe **5.3**)
 - Docker Uebersicht
 - Skriptjob-Uebersicht
 
 ### 5.2 Fan-Bereich (links System, rechts CPU)
 
-Modi:
+Ueber beiden Kacheln: **„Lüfter prüfen & zuordnen …“** — SSH-/sudo-Scan von **`/proc/it86/fan`** und **`hwmon`**-**`fan*_input`**, Dialog fuer **PWM-Kanal** (Kanal 1 vs. 2, UGOS `set`/`cpu` vs. `set2`/`cpu2`/`fan2`) und **RPM-Zeile** pro Kachel; speichert in **`app_settings.json`** → **`dashboard`:** **`fan_slot0_use_pwm_secondary`**, **`fan_slot1_use_pwm_secondary`**, **`fan_slot0_rpm_key`**, **`fan_slot1_rpm_key`**; Boot-Datei **`ugreen_fan_boot.env`** **`SLOT0_USE2`** / **`SLOT1_USE2`**. Nur **ein** Luefter: rechte Kachel ohne zweite Drehzahl (kein Duplicate). Ausfuehrlich **`HANDBUCH.md`** → **24.2**, **42.6**, **62**.
+
+Modi (je Kachel):
 
 - Silent
 - Standard
@@ -233,14 +237,21 @@ Modi:
 Buttons:
 
 - `Uebernehmen`
-- `UGOS-Steuerung zurueckgeben`
+- `UGOS-Steuerung zurueckgeben` (linker Kachel-Bereich, gemeinsame Rueckgabe)
 
 Betriebslogik:
 
-1. Modus waehlen.
-2. `Uebernehmen`.
-3. Wirkung kurz beobachten.
-4. Wenn UGOS wieder fuehren soll: `UGOS-Steuerung zurueckgeben`.
+1. Optional: Zuordnung mit **„Lüfter prüfen & zuordnen …“** einmal durchlaufen und speichern.
+2. Modus waehlen.
+3. `Uebernehmen`.
+4. Wirkung kurz beobachten.
+5. Wenn UGOS wieder fuehren soll: `UGOS-Steuerung zurueckgeben`.
+
+### 5.3 Netzwerk-Kachel (Durchsatz + Konfiguration)
+
+- **Sparklines:** Durchsatz je NIC (physische Interfaces); optional **Filter** (kommagetrennt) nur fuer die Kurven; leer = alle. Gespeichert: `app_settings.json` → `dashboard.net_monitor_filter`.
+- **Aktuelle Konfiguration:** live vom NAS (`ip -j addr`, Standardroute); **Dropdown Schnittstelle** waehlt die Detailansicht; gespeichert: `dashboard.net_detail_iface`.
+- **Aendern:** IPv4, Praefix, Gateway, Modus **Statisch** oder **DHCP neu**; **Vom NAS laden** fuellt die Felder; **Anwenden (sudo)** nur mit **Volle Rechte** und Bestaetigung (Risiko: SSH-Abbruch). Laufzeit-`ip`/`dhclient` — UGOS kann nach Neustart ueberschreiben. Vollstaendig: **`HANDBUCH.md`** → **## 6**, Abschnitt **42.3 Netzwerk**.
 
 ---
 
@@ -499,6 +510,18 @@ Buttons:
 - `Lokal speichern`
 - `Auf NAS installieren`
 - `Test senden`
+
+### 12.6 Tab NAS-Verwaltung (aktive Aktionen, SSH/sudo)
+
+**Sidebar:** Zwischen **System & Health** und **Speicher & Freigaben**. Zwei Spalten: links alle Funktionsblöcke (scrollbar), rechts SSH-Protokoll; dazwischen **Splitter** ziehen, wenn die Konsole zu breit ist.
+
+**Rolle:** Gezielte **Aktionen** am NAS (Wartung, Dienste, Konfig), nicht nur Diagnose. Schreibende Schaltflächen brauchen **„Volle Rechte“** im Header und **sudo** für den SSH-User (wie Neustart/Herunterfahren im Health-Tab).
+
+**Wichtige Blöcke (Stichworte):** Energie & WoL (`/etc/power.conf`), **geplanter täglicher Shutdown** (Cron), USB (UGOS-Auswurf), SMART, RAID/TRIM/Scrub, SSH-Drop-in mit Rollback, UGOS-`*_serv`-Dienste, NGINX, earlyOOM, Samba, LED & Summer.
+
+**„Cron lesen“ beim geplanten Shutdown:** Die App verwaltet die Datei **`/etc/cron.d/nas_admin_timed_shutdown`** nur dann, wenn du hier **„Cron schreiben“** genutzt hast. **UGOS** kann das tägliche Herunterfahren (z. B. 23:00) in **anderen** Cron-Dateien, der **root-crontab** oder **`/etc/crontab`** eintragen — **„Cron lesen“** sucht deshalb dort mit und zeigt alle passenden Zeilen im Protokoll. Wird eine **tägliche** Shutdown-Zeile gefunden, übernimmt die App **Stunde/Minute** in die Felder.
+
+Details, Tabellen und sichere Abläufe: **`HANDBUCH.md` → `## 14. Tab NAS-Verwaltung komplett`** (vollständig).
 
 ---
 
