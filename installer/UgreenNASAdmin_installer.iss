@@ -41,8 +41,9 @@ DisableWelcomePage=no
 LicenseFile={#RepoLicense}
 
 [Languages]
-; Installer-Assistent (Inno) — unabhängig von der App-Oberfläche. Die gebündelte EXE enthält
-; bereits alle in der App eingebauten Sprachen (Einstellungen → UI-Sprache).
+; Installer-Assistent + erste App-Sprache: Nach Setup schreibt [Code] HKCU\Software\UgreenNASAdmin
+; → InstallerUiLang (de, en, hr, …). Die App liest das einmalig, wenn nas_admin_connection.json noch kein ui_lang hat.
+; Alle UI-Texte sind in der EXE (Einstellungen → UI-Sprache zum Wechseln).
 ; Zu SUPPORTED_LANGS in ugreen_app/i18n.py: de, en, hr, fr, es, it, pl, ru, tr, ko, zh
 ; Kroatisch + Chinesisch (vereinfacht): Dateien unter languages_unofficial\ (von jrsoftware/issrc),
 ; da viele Inno-Installationen keinen Unterordner compiler:Languages\Unofficial mitliefern.
@@ -71,3 +72,27 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent unchecked
+
+[Code]
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  Code: string;
+begin
+  if CurStep <> ssPostInstall then Exit;
+  case ActiveLanguage of
+    'german': Code := 'de';
+    'english': Code := 'en';
+    'croatian': Code := 'hr';
+    'french': Code := 'fr';
+    'spanish': Code := 'es';
+    'italian': Code := 'it';
+    'polish': Code := 'pl';
+    'russian': Code := 'ru';
+    'turkish': Code := 'tr';
+    'korean': Code := 'ko';
+    'chinesesimplified': Code := 'zh';
+  else
+    Code := 'en';
+  end;
+  RegWriteStringValue(HKCU, 'Software\UgreenNASAdmin', 'InstallerUiLang', Code);
+end;

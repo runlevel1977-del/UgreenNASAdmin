@@ -290,18 +290,72 @@ class MixinConfigTelegram:
         except Exception:
             pass
 
+    def _read_installer_ui_lang_from_windows_registry(self) -> str | None:
+        """Nach Setup: Inno schreibt HKCU …\\InstallerUiLang (ISO-Code). Nur Windows."""
+        if sys.platform != "win32":
+            return None
+        try:
+            import winreg  # noqa: PLC0415 — nur auf Windows
+        
+            with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\UgreenNASAdmin",
+                0,
+                winreg.KEY_READ,
+            ) as key:
+                val, _ = winreg.QueryValueEx(key, "InstallerUiLang")
+                s = str(val or "").strip().lower()
+                return s if s else None
+        except OSError:
+            return None
+
+    def _clear_installer_ui_lang_windows_registry(self) -> None:
+        if sys.platform != "win32":
+            return
+        try:
+            import winreg  # noqa: PLC0415
+        
+            with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\UgreenNASAdmin",
+                0,
+                winreg.KEY_SET_VALUE,
+            ) as key:
+                try:
+                    winreg.DeleteValue(key, "InstallerUiLang")
+                except OSError:
+                    pass
+        except OSError:
+            pass
+
     def _load_ui_lang_from_disk(self):
         from ugreen_app.i18n import normalize_lang
 
+        self._pending_installer_ui_lang_persist = False
         try:
             p = self._connection_config_path()
             if os.path.isfile(p):
                 with open(p, encoding="utf-8") as f:
                     data = json.load(f)
-                return normalize_lang(data.get("ui_lang"), default="de")
+                if isinstance(data, dict) and "ui_lang" in data:
+                    return normalize_lang(data.get("ui_lang"), default="de")
         except Exception:
             pass
+        installer = self._read_installer_ui_lang_from_windows_registry()
+        if installer:
+            self._pending_installer_ui_lang_persist = True
+            return normalize_lang(installer, default="de")
         return "de"
+
+    def _finalize_installer_ui_lang_hint(self) -> None:
+        """Nach Verbindungs-Profilen: Hinweis aus dem Windows-Installer in JSON übernehmen."""
+        if not getattr(self, "_pending_installer_ui_lang_persist", False):
+            return
+        try:
+            self._persist_ui_lang()
+        finally:
+            self._clear_installer_ui_lang_windows_registry()
+            self._pending_installer_ui_lang_persist = False
 
     def _persist_ui_lang(self):
         p = self._connection_config_path()

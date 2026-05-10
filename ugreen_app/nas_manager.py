@@ -103,6 +103,7 @@ class NASManager(
         self._init_danger_lock_state()
         self.setup_ui()
         self._load_connection_config()
+        self._finalize_installer_ui_lang_hint()
         self.root.protocol("WM_DELETE_WINDOW", self._on_app_close)
         self.root.after(1500, self.telegram_restart_monitor)
         self._schedule_update_check_delayed()
