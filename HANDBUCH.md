@@ -69,6 +69,9 @@ Wichtig zur Einordnung: In der aktuellen UI liegen die umfangreichen Verbindungs
 - Modellanzeige  
   Zeigt das erkannte NAS-Modell, sobald per SSH auslesbar.
 
+- **UGOS/OS-Zeile** (direkt unter der Modellanzeige)  
+  Zeigt nach erfolgreicher Auslese u. a. **`OS_VERSION`** und **`PRETTY_NAME`** aus **`/etc/os-release`** auf dem NAS; bei **`OS_IS_BETA=true`** erscheint ein **Beta**-Hinweis. **Befüllung:** (1) nach **„Alles aktualisieren“** in der Sidebar — dabei wird `os-release` in demselben gebündelten SSH-Lauf mitgelesen; (2) alternativ beim **ersten Start der Dashboard-Live-Daten** (Tab **Dashboard** aktiv, Live-Schleife startet), falls die Zeile noch leer ist. Ohne Verbindung bleibt ein erklärender Platzhaltertext.
+
 ### 3.2 Was du im Header nicht tun solltest
 
 - Keine kritischen Aktionen starten, wenn SSH-Badge nicht verbunden ist.
@@ -139,6 +142,10 @@ Nach Sprachewechsel Dashboard-Sonderregel beachten (deutsch nur bei `de`, sonst 
 
 Wird beim verbundenen SSH-Status aktualisiert und zeigt das erkannte NAS-Modell an.
 
+### 64.6 UGOS/OS-Zeile (unter dem Modell)
+
+Ergänzt die Einordnung des Systems: **UGOS-Build** (`OS_VERSION`) und **Basis-OS** (`PRETTY_NAME` / `VERSION_ID` in einem String), optional **Beta**-Kennzeichnung. Die Daten stammen von **`/etc/os-release`** auf dem NAS. **Aktualisierung:** mit **„Alles aktualisieren“** (Sidebar) oder beim **ersten** Verbinden der **Dashboard-Live-Schleife**, wenn noch kein Wert gesetzt wurde.
+
 ---
 
 ---
@@ -167,7 +174,7 @@ Links befindet sich die feste Navigation mit allen Haupttabs.
 ### 4.2 Tool-Buttons unten in der Sidebar
 
 - `Alles aktualisieren`  
-  Startet einen Gesamt-Refresh mehrerer Bereiche.
+  Startet einen **Gesamt-Refresh** mehrerer Bereiche (Skriptliste, NAS-Scan, Docker-Liste, Health-Übersicht, Speicher-Tab usw.) über **SSH**. Technisch läuft das seit Version **23.8.1** in der Regel als **ein gebündelter sudo-Befehl** mit festen Markern in der Antwort (weniger Roundtrips, schneller als viele Einzelaufrufe). Schlägt das Bundling fehl, nutzt die App automatisch die **frühere Folge einzelner Befehle** (Fallback). Im selben Zyklus werden u. a. **`/etc/os-release`** (für die **UGOS/OS-Zeile** im Header) und die Liste der auf dem NAS aktiven **`*_serv.service`-Units** (für die **Service-Combobox** im Tab **NAS-Verwaltung**) eingelesen.
 
 - `Health Snapshot`  
   Speichert den aktuellen Health-Zustand als Bericht.
@@ -187,7 +194,7 @@ Die Sidebar ist nicht nur „Tabwechsel“, sondern ein Arbeitsfluss:
 
 Unten:
 
-- `Alles aktualisieren`: synchronisiert mehrere Bereiche.
+- `Alles aktualisieren`: synchronisiert mehrere Bereiche (**gebündelter SSH-Lauf** seit v23.8.1, mit Fallback; aktualisiert u. a. **Header UGOS/OS** und **NAS-Verwaltung → Service-Liste**).
 - `Health Snapshot`: dokumentiert Zustand.
 
 Beide sind vor/nach Änderungen sehr wertvoll.
@@ -510,7 +517,7 @@ Nutzen: Backupziel und NAS↔NAS.
 ### 24.1 Elemente
 
 - Dashboard-Titel
-- Live-Hinweis
+- Live-Hinweis (beim Start der Live-Schleife wird — falls die **UGOS/OS-Zeile** im Header noch leer ist — **`/etc/os-release`** einmalig mitgelesen)
 - Webcam-Button
 - Metrik-Kacheln (inkl. Netzwerk mit **aktueller Schnittstellen-Konfiguration**, Filter, Bearbeiten — siehe **42.3**)
 - **Lüfter:** Hinweiszeile **„Lüfter prüfen & zuordnen …“** (öffnet den Erkennungs-/Zuordnungsdialog) sowie zwei Steuer-Kacheln
@@ -1200,6 +1207,7 @@ Buttons:
 - Lokal speichern
 - Auf NAS installieren
 - Test
+- **Berichtsinhalt (NAS-Skript):** Der per Cron auf dem NAS laufende Tagesbericht enthält seit **v23.8.1** einen Abschnitt **OS / UGOS** (Auszug aus **`/etc/os-release`**: u. a. `PRETTY_NAME`, `VERSION_ID`, `OS_VERSION`, `OS_IS_BETA`) — nützlich für Support und Versionsvergleich neben den bestehenden Blöcken (Uptime, Load, SMART, Docker, …).
 
 ---
 
@@ -1236,7 +1244,7 @@ Eigenständiger Tab **zwischen** „System & Health“ und „Speicher & Freigab
 | SMART | Selbsttests und Protokoll | `/dev/sd…`, `smartctl` |
 | RAID & Dateisystem-Wartung | RAID-Scrub anstoßen, TRIM, ext4-Scrub | `mdcheck`, `fstrim`, `e2scrub_all` (systemd) |
 | SSH (Drop-in) | Zusatzregeln für `sshd`, mit Rollback-Sicherung | `/etc/ssh/sshd_config.d/60-ugreen-nas-admin.conf` |
-| UGOS-Core-Dienste | Kern-Dienste starten/stoppen/Log | `*_serv.service` |
+| UGOS-Core-Dienste | Kern-Dienste starten/stoppen/Log; **Service-Liste** wird bei „Alles aktualisieren“ um alle aktiven `*_serv`-Units **ergänzt** | `*_serv.service` |
 | NGINX | Konfiguration neu laden oder aus ROM zurücksetzen | `ugnginx-reload`, `/rom/etc/nginx`, … |
 | earlyOOM | Speicherüberwachung parametrieren | `/etc/default/earlyoom` |
 | Samba | Freigaben, Papierkorb leeren, Schnellanlage | `smb.conf`, `testparm` |
@@ -1283,9 +1291,10 @@ Eigenständiger Tab **zwischen** „System & Health“ und „Speicher & Freigab
 
 ### 14.11 UGOS-Core-Dienste
 
-- Dropdown mit typischen `*_serv`-Namen (storage, docker, gateway, …).
+- **Dropdown:** Enthält eine **fest definierte Kernliste** typischer `*_serv`-Namen (storage, docker, gateway, …). Nach jedem erfolgreichen **„Alles aktualisieren“** (Sidebar) hängt die App **alle weiteren auf dem NAS aktiven** Units an, deren Name auf **`_serv.service`** endet (alphabetisch sortiert, ohne Duplikate) — so erscheinen z. B. zusätzliche UGOS-Paket-Dienste, ohne auf eine App-Aktualisierung zu warten.
 - **Start / Stop / Neustart:** `systemctl`-Aktion — kann Verbindungen oder Dienste kurz unterbrechen.
 - **Journal:** Letzte Journalzeilen der gewählten Unit — Diagnose bei Fehlern.
+- **Support-Snapshot** (neben **Journal**, nur Lesen): Schreibt ins **rechte Protokoll** des Tabs u. a. **`uname -a`**, einen Auszug aus **`/etc/os-release`**, ein kurzes **`journalctl`**-Stück zu **`entry_serv`**, sowie **Tail-Auszüge** aus typischen UGOS-Logs (`storage_serv`, `gateway_serv`, `docker_serv`, `networking.log`, `syslog`). **Kein** Schreibzugriff auf dem NAS; dient der **Einsammel-Hilfe** für Support (Text kopieren). **Voraussetzung:** NAS-IP im Header und SSH; bei fehlender IP erscheint ein Hinweisdialog.
 
 ### 14.12 NGINX
 

@@ -69,6 +69,9 @@ Shows whether the SSH connection is active.
 - Model display
 Shows the recognized NAS model as soon as it can be read via SSH.
 
+- **UGOS/OS line** (directly under the model line)  
+  After a successful read, shows among other things **`OS_VERSION`** and **`PRETTY_NAME`** from the NAS file **`/etc/os-release`**; if **`OS_IS_BETA=true`**, a **beta** hint is shown. **How it fills:** (1) after **Update everything** in the sidebar — `os-release` is read in the same **batched** SSH round-trip; (2) alternatively on the **first start of dashboard live polling** (Dashboard tab active, live loop begins) if the line is still empty. Without SSH, a short placeholder text remains.
+
 ### 3.2 What you shouldn't do in the header
 
 - Do not start critical actions if SSH badge is not connected.
@@ -139,6 +142,10 @@ Please note special dashboard rule after language change (German only).`de`, oth
 
 Updates on connected SSH status and shows the detected NAS model.
 
+### 64.6 UGOS/OS line (below the model)
+
+Adds context: **UGOS build** (`OS_VERSION`) and **base OS** (`PRETTY_NAME` / `VERSION_ID` in one line), optional **beta** flag. Data comes from **`/etc/os-release`** on the NAS. **Refresh:** use **Update everything** (sidebar) or the **first** start of **dashboard live polling** if nothing is shown yet.
+
 ---
 
 ---
@@ -167,7 +174,7 @@ On the left is the fixed navigation with all main tabs.
 ### 4.2 Tool buttons at the bottom of the sidebar
 
 - `Update everything`
-Starts an overall refresh of several areas.
+Starts an overall refresh of several areas (scripts list, NAS scan, Docker list, health overview, storage tab, …) over **SSH**. Since **v23.8.1** this usually runs as **one batched sudo command** with markers in the response (fewer round trips). If batching fails, the app **falls back** to the older **sequence of single commands**. The same cycle also reads **`/etc/os-release`** (for the **UGOS/OS line** in the header) and the list of active **`*_serv.service`** units on the NAS (for the **service combobox** in **NAS management**).
 
 - `Health Snapshot`
 Saves the current health status as a report.
@@ -187,7 +194,7 @@ The sidebar is not just “tab switching”, but a workflow:
 
 Below:
 
-- `Update All`: synchronizes multiple areas.
+- `Update All`: synchronizes multiple areas (**batched SSH run** since v23.8.1, with fallback; also refreshes **header UGOS/OS** and **NAS management → service list**).
 - `Health Snapshot`: documents state.
 
 Both are very valuable before/after changes.
@@ -510,7 +517,7 @@ Benefits: Backup destination and NAS↔NAS.
 ### 24.1 Elements
 
 - Dashboard title
-- Live notice
+- Live notice (when live polling starts, **`/etc/os-release`** is read **once** if the **UGOS/OS header line** is still empty)
 - Webcam button
 - Metric tiles (including Network with **current interface configuration**, filter, and edit controls — see **42.3**)
 - **Fans:** toolbar line **“Probe & map fans…”** (opens the probe/mapping dialog) plus two fan control tiles
@@ -1199,6 +1206,7 @@ Buttons:
 - Save locally
 - Install on NAS
 - test
+- **Report content (NAS script):** Since **v23.8.1** the daily report includes an **OS / UGOS** section (excerpt from **`/etc/os-release`**: e.g. `PRETTY_NAME`, `VERSION_ID`, `OS_VERSION`, `OS_IS_BETA`) — useful for support and version checks alongside the existing blocks.
 
 ---
 
@@ -1235,7 +1243,7 @@ A dedicated tab **between** “System & Health” and “Storage & Shares”. Th
 | SMART | Self-tests and log | `/dev/sd…`, `smartctl` |
 | RAID & filesystem maintenance | RAID scrub, TRIM, ext4 scrub | `mdcheck`, `fstrim`, `e2scrub_all` (systemd) |
 | SSH (drop-in) | Extra `sshd` rules with rollback | `/etc/ssh/sshd_config.d/60-ugreen-nas-admin.conf` |
-| UGOS core services | Start/stop/restart/log | `*_serv.service` |
+| UGOS core services | Start/stop/restart/log; combobox is **extended** with every active `*_serv` unit after **Update everything** | `*_serv.service` |
 | NGINX | Reload or restore ROM config | `ugnginx-reload`, `/rom/etc/nginx`, … |
 | earlyOOM | Tune low-memory killer | `/etc/default/earlyoom` |
 | Samba | Shares, empty recycle, quick add | `smb.conf`, `testparm` |
@@ -1282,9 +1290,10 @@ A dedicated tab **between** “System & Health” and “Storage & Shares”. Th
 
 ### 14.11 UGOS core services
 
-- Dropdown of typical `*_serv` units (storage, docker, gateway, …).
+- **Dropdown:** Starts from a **fixed core list** of typical `*_serv` names. After each successful **Update everything** (sidebar), the app **appends every other active** unit whose name ends in **`_serv.service`** (sorted, no duplicates) — extra UGOS package services appear without waiting for an app update.
 - **Start / Stop / Restart:** `systemctl` — may briefly interrupt services.
 - **Journal:** Recent journal lines for the selected unit.
+- **Support snapshot** (next to **Journal**, read-only): Writes to this tab’s **right-hand log** e.g. **`uname -a`**, an excerpt from **`/etc/os-release`**, a short **`journalctl`** slice for **`entry_serv`**, and **tail excerpts** from typical UGOS logs (`storage_serv`, `gateway_serv`, `docker_serv`, `networking.log`, `syslog`). **No** writes to NAS config — meant to **collect diagnostics** for support (copy text). **Requires** NAS IP in the header and SSH; if IP is missing, a warning dialog appears.
 
 ### 14.12 NGINX
 

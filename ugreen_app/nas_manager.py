@@ -44,7 +44,7 @@ from ugreen_app.mixin_editor_cron import MixinEditorCron
 from ugreen_app.mixin_update_check import MixinUpdateCheck
 from ugreen_app.i18n import cron_mappings_for_lang, translate
 
-__version__ = "23.8.0"
+__version__ = "23.8.1"
 
 class NASManager(
     MixinSafetyLock,
@@ -66,6 +66,8 @@ class NASManager(
         self._app_version = __version__
         self.ui_lang = self._load_ui_lang_from_disk()
         self.stable_cron_path = "/etc/cron.d/papa_jobs"
+        # Aus ``/etc/os-release`` (PRETTY_NAME, OS_VERSION, OS_IS_BETA) — gesetzt bei Refresh/Dashboard.
+        self._nas_release_info: dict[str, object] = {}
         
         # Bessere Darstellung unter Windows (HiDPI)
         try:

@@ -581,6 +581,110 @@ def usb_mount_candidates_union(lsblk_body: str, fallback_body: str) -> list[dict
     return usb_mount_candidates_merge(lsblk_body, fallback_body)
 
 
+def parse_kv_os_release(text: str) -> dict[str, object]:
+    """Werte aus ``/etc/os-release``-Auszug (PRETTY_NAME, OS_VERSION, OS_IS_BETA)."""
+    out: dict[str, object] = {"pretty": None, "os_version": None, "os_beta": None}
+    for line in (text or "").replace("\r\n", "\n").splitlines():
+        line = line.strip()
+        if "=" not in line or line.startswith("#"):
+            continue
+        k, _, v = line.partition("=")
+        k = k.strip()
+        v = v.strip().strip('"').strip("'")
+        if k == "PRETTY_NAME":
+            out["pretty"] = v or out.get("pretty")
+        elif k == "OS_VERSION":
+            out["os_version"] = v
+        elif k == "OS_IS_BETA":
+            out["os_beta"] = str(v).lower() in ("true", "1", "yes")
+    return out
+
+
+def merge_ugos_service_names(static: tuple[str, ...], remote_lines: str) -> tuple[str, ...]:
+    """Kern-UGOS-Reihenfolge aus ``static``, danach alle weiteren ``*_serv``-Namen vom NAS."""
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for n in static:
+        base = n.replace(".service", "").strip()
+        if base and base not in seen:
+            seen.add(base)
+            ordered.append(base)
+    for line in (remote_lines or "").replace("\r\n", "\n").splitlines():
+        n = line.strip()
+        if not n or " " in n:
+            continue
+        base = n.replace(".service", "").strip()
+        if not base.endswith("_serv"):
+            continue
+        if base not in seen:
+            seen.add(base)
+            ordered.append(base)
+    return tuple(ordered)
+
+
+REFRESH_ALL_PANELS_MARKER_ORDER: tuple[str, ...] = (
+    "SCRIPTS",
+    "DOCKER",
+    "HOST",
+    "CPU",
+    "DF",
+    "MD",
+    "VOL",
+    "SMB",
+    "NFS",
+    "OSREL",
+    "SERVICES",
+)
+
+
+def split_refresh_all_panels_batch(raw: str) -> dict[str, str]:
+    """Zerlegt die gebündelte ``refresh_all_panels``-SSH-Antwort (Marker ``__UGRFX_*__``)."""
+    s = (raw or "").replace("\r\n", "\n")
+    tags = [f"__UGRFX_{m}__" for m in REFRESH_ALL_PANELS_MARKER_ORDER]
+    out: dict[str, str] = {m: "" for m in REFRESH_ALL_PANELS_MARKER_ORDER}
+    if tags[0] not in s:
+        return out
+    chunk = s.split(tags[0], 1)[1].lstrip("\n")
+    for i in range(len(REFRESH_ALL_PANELS_MARKER_ORDER) - 1):
+        m, ntag = REFRESH_ALL_PANELS_MARKER_ORDER[i], tags[i + 1]
+        if ntag not in chunk:
+            out[m] = chunk.strip()
+            return out
+        body, _, chunk = chunk.partition(ntag)
+        out[m] = body.strip()
+        chunk = chunk.lstrip("\n")
+    out[REFRESH_ALL_PANELS_MARKER_ORDER[-1]] = chunk.strip()
+    return out
+
+
+# Ein sudo-bash-lc-Block: Marker-Zeilen mit printf (keine Sonderzeichen in den Markern).
+REFRESH_ALL_PANELS_BATCH_INNER = (
+    "printf '%s\\n' __UGRFX_SCRIPTS__\n"
+    "ls /volume1/scripts/ 2>/dev/null || true\n"
+    "printf '%s\\n' __UGRFX_DOCKER__\n"
+    "docker ps -a --format '{{.Names}}|{{.Status}}|{{.Image}}' 2>/dev/null || true\n"
+    "printf '%s\\n' __UGRFX_HOST__\n"
+    "hostname && uptime 2>/dev/null || true\n"
+    "printf '%s\\n' __UGRFX_CPU__\n"
+    "cat /proc/loadavg 2>/dev/null || true\n"
+    "printf '%s\\n' __UGRFX_DF__\n"
+    "df -h 2>/dev/null | grep -E \"^Filesystem|/volume|/dev/\" || true\n"
+    "printf '%s\\n' __UGRFX_MD__\n"
+    "cat /proc/mdstat 2>/dev/null || true\n"
+    "printf '%s\\n' __UGRFX_VOL__\n"
+    "df -h -x tmpfs -x devtmpfs 2>/dev/null || df -h 2>/dev/null || true\n"
+    "printf '%s\\n' __UGRFX_SMB__\n"
+    "testparm -s 2>/dev/null | head -250 || cat /etc/samba/smb.conf 2>/dev/null | head -250 || true\n"
+    "printf '%s\\n' __UGRFX_NFS__\n"
+    "exportfs -v 2>/dev/null; echo '---'; cat /etc/exports 2>/dev/null || true\n"
+    "printf '%s\\n' __UGRFX_OSREL__\n"
+    "grep -E \"^(PRETTY_NAME|NAME|VERSION_ID|OS_VERSION|OS_IS_BETA)=\" /etc/os-release 2>/dev/null || true\n"
+    "printf '%s\\n' __UGRFX_SERVICES__\n"
+    "systemctl list-units --type=service --all --no-legend 2>/dev/null | while read -r u _rest; do "
+    "case \"$u\" in *_serv.service) printf '%s\\n' \"${u%.service}\";; esac; done | sort -u || true\n"
+)
+
+
 # Inner bodies for SSH — app wraps with ``/bin/bash -lc``.
 BACKUP_USB_LSBLK_PROBE_INNER = (
     "PATH=/usr/bin:/bin:/usr/sbin:/sbin;"

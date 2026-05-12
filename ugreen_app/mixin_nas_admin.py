@@ -394,7 +394,14 @@ class MixinNasAdmin:
             self.nas_admin_service_journal,
             self.color_btn_secondary,
             width=14,
-        ).pack()
+        ).pack(side=tk.LEFT)
+        self.create_modern_btn(
+            self._nas_admin_btn_cell(sv2b, padx=(8, 0)),
+            self.t("nas_admin.btn_support_snapshot"),
+            self.nas_admin_support_snapshot,
+            self.color_btn_secondary,
+            width=20,
+        ).pack(side=tk.LEFT)
 
         # ----- NGINX -----
         ngx = tk.LabelFrame(inner, text=self.t("nas_admin.section_nginx"), bg=self.color_surface, fg=self.color_text, font=self.font_bold, padx=10, pady=8)
@@ -1093,6 +1100,39 @@ class MixinNasAdmin:
                 update_status=True,
             )
             self.root.after(0, lambda: self._nas_admin_log(out))
+
+        self._nas_admin_worker(work)
+
+    def nas_admin_support_snapshot(self) -> None:
+        """Nur-Lese-Diagnose: uname, os-release, kurze Log-Auszüge (Support)."""
+        try:
+            if not str(self.entry_ip.get() or "").strip():
+                messagebox.showwarning(self.t("nas_admin.msg_invalid"), self.t("nas_admin.msg_need_ip"))
+                return
+        except Exception:
+            return
+
+        def work():
+            cmd = (
+                "echo \"=== uname ===\"; uname -a 2>/dev/null || true; "
+                "echo \"=== os-release ===\"; "
+                "grep -E \"^(PRETTY_NAME|NAME|VERSION_ID|OS_VERSION|OS_IS_BETA)=\" /etc/os-release 2>/dev/null || true; "
+                "echo \"=== journal entry_serv (tail) ===\"; "
+                "journalctl -u entry_serv.service -b --no-pager 2>/dev/null | tail -n 35 || true; "
+                "echo \"=== tail storage_serv.slog ===\"; "
+                "tail -n 35 /var/ugreen/log/storage_serv.slog 2>/dev/null || true; "
+                "echo \"=== tail gateway_serv.slog ===\"; "
+                "tail -n 35 /var/ugreen/log/gateway_serv.slog 2>/dev/null || true; "
+                "echo \"=== tail docker_serv.slog ===\"; "
+                "tail -n 35 /var/ugreen/log/docker_serv.slog 2>/dev/null || true; "
+                "echo \"=== tail networking.log ===\"; "
+                "tail -n 35 /var/log/networking.log 2>/dev/null || true; "
+                "echo \"=== tail syslog (last lines) ===\"; "
+                "tail -n 60 /var/log/syslog 2>/dev/null || true; "
+                "echo \"=== END support snapshot ===\""
+            )
+            out = self._nas_admin_run(cmd, update_status=True)
+            self.root.after(0, lambda o=out: self._nas_admin_log(o))
 
         self._nas_admin_worker(work)
 

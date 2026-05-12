@@ -32,6 +32,7 @@ from urllib.parse import urlencode, quote
 
 import nas_ssh
 import nas_utils
+from ugreen_app.mixin_nas_admin import _UGOS_SERV_NAMES
 from ugreen_app._paramiko import _paramiko
 from ugreen_app.rounded_ui import SidebarNavItem, create_rounded_button, create_rounded_outline_button, RoundedCard
 
@@ -785,6 +786,16 @@ class MixinThemeUI:
             anchor="w",
         )
         self._header_model_label.pack(fill=tk.X, anchor="w", pady=(2, 0))
+        self._header_ugos_label = tk.Label(
+            self._header_hint_fr,
+            text=self.t("header.ugos_unknown"),
+            font=("Segoe UI", 8),
+            bg=self.color_header,
+            fg=self.color_header_subtle,
+            justify=tk.LEFT,
+            anchor="w",
+        )
+        self._header_ugos_label.pack(fill=tk.X, anchor="w", pady=(1, 0))
 
         hdr_right = tk.Frame(self.header_frame, bg=self.color_header)
         hdr_right.grid(row=0, column=2, sticky="e")
@@ -1239,7 +1250,38 @@ class MixinThemeUI:
             else:
                 w = int(self.header_frame.winfo_width() or 0)
             if w > 120:
-                self._header_hint_label.config(wraplength=max(260, w - 24))
+                wl = max(260, w - 24)
+                self._header_hint_label.config(wraplength=wl)
+                ug = getattr(self, "_header_ugos_label", None)
+                if ug is not None:
+                    try:
+                        ug.config(wraplength=wl)
+                    except tk.TclError:
+                        pass
+        except tk.TclError:
+            pass
+
+    def _apply_nas_release_from_osrel_text(self, text: str) -> None:
+        """Speichert UGOS-/OS-Zeilen aus ``/etc/os-release`` und aktualisiert die Header-Zeile."""
+        parsed = nas_utils.parse_kv_os_release(text or "")
+        self._nas_release_info = dict(parsed)
+        ul = getattr(self, "_header_ugos_label", None)
+        if ul is None:
+            return
+        osv = (parsed.get("os_version") or "").strip() if isinstance(parsed.get("os_version"), str) else ""
+        pret = (parsed.get("pretty") or "").strip() if isinstance(parsed.get("pretty"), str) else ""
+        beta = bool(parsed.get("os_beta"))
+        beta_tag = f" {self.t('header.ugos_beta')}" if beta else ""
+        try:
+            if not osv and not pret:
+                ul.config(text=self.t("header.ugos_unknown"))
+                return
+            if osv and pret:
+                ul.config(text=self.t("header.ugos_pair", osv=osv, pretty=pret, beta=beta_tag))
+            elif osv:
+                ul.config(text=self.t("header.ugos_os_only", osv=osv, beta=beta_tag))
+            else:
+                ul.config(text=self.t("header.ugos_pretty_only", pretty=pret, beta=beta_tag))
         except tk.TclError:
             pass
 
@@ -1251,51 +1293,109 @@ class MixinThemeUI:
         def worker():
             if token != self._refresh_all_token:
                 return
+            script_out = ""
+            docker_out = ""
+            health_pref = ("", "", "", "")
+            storage_pref = ("", "", "")
+            osrel = ""
+            services_txt = ""
+            batch_raw = ""
             try:
-                script_out = self.run_ssh_cmd("ls /volume1/scripts/", update_status=False)
+                batch_raw = self.run_ssh_cmd(nas_utils.REFRESH_ALL_PANELS_BATCH_INNER, True, update_status=False) or ""
             except Exception:
-                script_out = ""
-            try:
-                docker_out = self.run_ssh_cmd(
-                    "docker ps -a --format '{{.Names}}|{{.Status}}|{{.Image}}'",
-                    True,
-                    update_status=False,
+                batch_raw = ""
+            parts = nas_utils.split_refresh_all_panels_batch(batch_raw)
+            batch_ok = "__UGRFX_SCRIPTS__" in batch_raw and "__UGRFX_DOCKER__" in batch_raw
+            if batch_ok:
+                script_out = parts.get("SCRIPTS", "") or ""
+                docker_out = parts.get("DOCKER", "") or ""
+                health_pref = (
+                    parts.get("HOST", "") or "",
+                    parts.get("CPU", "") or "",
+                    parts.get("DF", "") or "",
+                    parts.get("MD", "") or "",
                 )
-            except Exception:
-                docker_out = ""
-            try:
-                host = self.run_ssh_cmd("hostname && uptime", True, update_status=False)
-                cpu = self.run_ssh_cmd("cat /proc/loadavg", True, update_status=False)
-                df_out = self.run_ssh_cmd(
-                    "df -h | grep -E 'Filesystem|/volume|/dev/'", True, update_status=False
+                storage_pref = (
+                    parts.get("VOL", "") or "",
+                    parts.get("SMB", "") or "",
+                    parts.get("NFS", "") or "",
                 )
-                md_out = self.run_ssh_cmd("cat /proc/mdstat", True, update_status=False)
-                health_pref = (host, cpu, df_out, md_out)
-            except Exception:
-                health_pref = ("", "", "", "")
-            try:
-                vol = self.run_ssh_cmd(
-                    "df -h -x tmpfs -x devtmpfs 2>/dev/null || df -h 2>/dev/null",
-                    True,
-                    update_status=False,
-                )
-                smb = self.run_ssh_cmd(
-                    "testparm -s 2>/dev/null | head -250 || cat /etc/samba/smb.conf 2>/dev/null | head -250",
-                    True,
-                    update_status=False,
-                )
-                nfs = self.run_ssh_cmd(
-                    "exportfs -v 2>/dev/null; echo '---'; cat /etc/exports 2>/dev/null",
-                    True,
-                    update_status=False,
-                )
-                storage_pref = (vol, smb, nfs)
-            except Exception:
-                storage_pref = ("", "", "")
+                osrel = parts.get("OSREL", "") or ""
+                services_txt = parts.get("SERVICES", "") or ""
+            else:
+                try:
+                    script_out = self.run_ssh_cmd("ls /volume1/scripts/", update_status=False) or ""
+                except Exception:
+                    script_out = ""
+                try:
+                    docker_out = self.run_ssh_cmd(
+                        "docker ps -a --format '{{.Names}}|{{.Status}}|{{.Image}}'",
+                        True,
+                        update_status=False,
+                    ) or ""
+                except Exception:
+                    docker_out = ""
+                try:
+                    host = self.run_ssh_cmd("hostname && uptime", True, update_status=False) or ""
+                    cpu = self.run_ssh_cmd("cat /proc/loadavg", True, update_status=False) or ""
+                    df_out = self.run_ssh_cmd(
+                        "df -h | grep -E '^Filesystem|/volume|/dev/'", True, update_status=False
+                    ) or ""
+                    md_out = self.run_ssh_cmd("cat /proc/mdstat", True, update_status=False) or ""
+                    health_pref = (host, cpu, df_out, md_out)
+                except Exception:
+                    health_pref = ("", "", "", "")
+                try:
+                    vol = self.run_ssh_cmd(
+                        "df -h -x tmpfs -x devtmpfs 2>/dev/null || df -h 2>/dev/null",
+                        True,
+                        update_status=False,
+                    ) or ""
+                    smb = self.run_ssh_cmd(
+                        "testparm -s 2>/dev/null | head -250 || cat /etc/samba/smb.conf 2>/dev/null | head -250",
+                        True,
+                        update_status=False,
+                    ) or ""
+                    nfs = self.run_ssh_cmd(
+                        "exportfs -v 2>/dev/null; echo '---'; cat /etc/exports 2>/dev/null",
+                        True,
+                        update_status=False,
+                    ) or ""
+                    storage_pref = (vol, smb, nfs)
+                except Exception:
+                    storage_pref = ("", "", "")
+                try:
+                    osrel = self.run_ssh_cmd(
+                        "grep -E \"^(PRETTY_NAME|NAME|VERSION_ID|OS_VERSION|OS_IS_BETA)=\" /etc/os-release 2>/dev/null",
+                        True,
+                        update_status=False,
+                    ) or ""
+                except Exception:
+                    osrel = ""
+                try:
+                    services_txt = self.run_ssh_cmd(
+                        "systemctl list-units --type=service --all --no-legend 2>/dev/null | "
+                        "while read -r u _rest; do case \"$u\" in *_serv.service) printf '%s\\n' \"${u%.service}\";; esac; done | sort -u",
+                        True,
+                        update_status=False,
+                    ) or ""
+                except Exception:
+                    services_txt = ""
 
             def apply():
                 if token != self._refresh_all_token:
                     return
+                try:
+                    self._apply_nas_release_from_osrel_text(osrel)
+                except Exception:
+                    pass
+                try:
+                    cb = getattr(self, "combo_nas_service", None)
+                    if cb is not None and (services_txt or batch_ok):
+                        merged = nas_utils.merge_ugos_service_names(_UGOS_SERV_NAMES, services_txt)
+                        cb["values"] = tuple(f"{n}.service" for n in merged)
+                except Exception:
+                    pass
                 try:
                     self.refresh_script_list(ssh_output=script_out, update_status=False)
                 except Exception:

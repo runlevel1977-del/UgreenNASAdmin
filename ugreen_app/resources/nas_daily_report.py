@@ -83,6 +83,13 @@ def build_report_text(cfg: dict[str, Any]) -> str:
     lines.append(_tr(cfg, "📋 NAS Tagesbericht (Info, kein Alarm)", "📋 NAS daily report (info, not an alert)"))
     lines.append(f"🖥️ Hostname: {hn}")
     lines.append(f"🕐 {_tr(cfg, 'Zeit (lokal)', 'Local time')}: {ts}")
+    _, osrel = _run(
+        "grep -E '^(PRETTY_NAME|VERSION_ID|OS_VERSION|OS_IS_BETA)=' /etc/os-release 2>/dev/null",
+        10,
+    )
+    osb = (osrel or "").strip()
+    if osb:
+        lines.append(_block(cfg, "🧩", "OS / UGOS", "OS / UGOS", osb))
     lines.append("")
 
     _, up_p = _run("uptime -p 2>/dev/null", 10)

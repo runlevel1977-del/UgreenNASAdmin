@@ -2962,6 +2962,22 @@ class MixinScriptsDockerMonitor:
                 **self._ssh_connect_kwargs(timeout=5, banner_timeout=20, auth_timeout=20),
             )
             self._ssh_transport_keepalive(ssh)
+            ri = getattr(self, "_nas_release_info", None) or {}
+            if not (ri.get("os_version") or ri.get("pretty")):
+                try:
+                    os_raw = self._dash_ssh_sudo_bash_lc(
+                        ssh,
+                        "grep -E \"^(PRETTY_NAME|OS_VERSION|OS_IS_BETA)=\" /etc/os-release 2>/dev/null || true\n",
+                    )
+                except Exception:
+                    os_raw = ""
+                try:
+                    self.root.after(0, lambda t=os_raw: self._apply_nas_release_from_osrel_text(t))
+                except Exception:
+                    try:
+                        self._apply_nas_release_from_osrel_text(os_raw)
+                    except Exception:
+                        pass
             cron_path = shlex.quote(getattr(self, "stable_cron_path", "/etc/cron.d/papa_jobs"))
             _remote_cpu_temp = """max=0
 for z in /sys/class/thermal/thermal_zone*/temp; do

@@ -4,10 +4,25 @@
 
 _(noch nicht veröffentlicht)_
 
-- **Tab „NAS-Verwaltung“:** Vollständige Übersetzung der **NAS-Admin-Oberfläche** für **alle eingebauten UI-Sprachen** (`hr`, `fr`, `es`, `it`, `pl`, `ru`, `tr`, `ko`, `zh` über `NAS_ADMIN_SUPPLEMENT` + Locale-Module; **nicht** nur DE/EN-Fallback). **Service-Bestätigungsdialog** nutzt lokalisierte Aktion („Start/Stopp/…“); Übersetzungs-Fallback: für fehlende Schlüssel zuerst **EN**, dann **DE**.
-- **Windows (installation unter `Program Files`):** Wenn das EXE-Verzeichnis **nicht beschreibbar** ist, liegt die lokale Konfiguration unter **`%LocalAppData%\UgreenNASAdmin`** (bei schreibbarem Pfad weiterhin **neben der EXE**, z. B. `dist\`). Bekannte JSON/State-Dateien werden **einmalig** vom Installationsordner übernommen, falls dort vorhanden. **`nas_watch_local.json`** / **`nas_daily_report_local.json`** nutzen denselben Speicherort.
-- **Windows-Installer → erste App-Sprache:** Inno schreibt nach dem Setup **`HKCU\Software\UgreenNASAdmin\InstallerUiLang`** und zusätzlich **`%LocalAppData%\UgreenNASAdmin\installer_selected_ui_lang.txt`**. Bei der ersten Konfigurationsladung gilt dieser Hinweis **vor** gespeicherter **`ui_lang`** in **`nas_admin_connection.json`** — notwendig, wenn eine **übernommene/migrierte** JSON bereits `"ui_lang":"de"` erzwungen hätte. **Nach** dem Einmal-Anwenden: Wert wird in die JSON geschrieben, **Registry** und **Marker-Datei** entfernt.
-- **Repository:** **`.gitignore`** ergänzt um **`/installer/output/`** (nur die gebaute Setup-EXE bleibt lokal).
+## 23.8.1 — 2026-05-09
+
+### Deutsch
+
+- **SSH / Geschwindigkeit:** **„Alles aktualisieren“** (Sidebar) bündelt die NAS-Abfragen in **einen sudo-Batch** (Marker `__UGRFX_*__`); bei fehlenden Markern **Fallback** auf die frühere Befehlssequenz. Zusätzlich im Batch: **`/etc/os-release`**, **`systemctl`-Liste aller `*_serv.service`** für die Service-Combobox.
+- **Header:** Zeile **UGOS/OS** inkl. **Beta**-Hinweis; Befüllung nach **„Alles aktualisieren“** oder beim **Start der Dashboard-Live-Schleife**, falls noch leer.
+- **NAS-Verwaltung:** Button **Support-Snapshot** (nur Lesen: uname, os-release, Journal- und Log-Tails).
+- **Tagesbericht-Skript (`nas_daily_report.py`):** Abschnitt **OS / UGOS** aus `os-release`.
+- **Handbuch:** `HANDBUCH.md` / `HANDBOOK_EN.md` und Kurzfassung `HANDBUCH_STRUKTURIERT.md` — Header **UGOS/OS**, **„Alles aktualisieren“** (gebündelter Refresh), Dashboard-Hinweis, **NAS-Verwaltung §14.11** (Service-Liste, Support-Snapshot), **Daily Report §31.5**.
+- **Release-ZIP:** `python tools/build_release_zip.py` erzeugt `release/UgreenNASAdmin_v<Version>_release.zip` mit **`source/`** (Quellen + `dist/UgreenNASAdmin.exe`) und **`installer/`** (Setup-EXE aus `installer/output/`, falls vorhanden).
+
+### English (short)
+
+- **Refresh all panels:** single **sudo SSH batch** with safe fallback; **os-release** + **`*_serv` unit list** for the service combobox.
+- **Header:** **UGOS/OS** line (incl. beta flag); filled on refresh or first **dashboard live** connect.
+- **NAS management:** **Support snapshot** button (read-only diagnostics).
+- **Daily report script:** **OS / UGOS** block from `os-release`.
+- **Manual:** `HANDBUCH.md` / `HANDBOOK_EN.md` and short `HANDBUCH_STRUKTURIERT.md` — header **UGOS/OS**, **Update everything** (batched refresh), dashboard note, **NAS management §14.11** (service list, support snapshot), **Daily report §31.5**.
+- **Release ZIP:** `python tools/build_release_zip.py` writes `release/UgreenNASAdmin_v<Version>_release.zip` with **`source/`** (sources + `dist/UgreenNASAdmin.exe`) and **`installer/`** (setup EXE from `installer/output/` when present).
 
 ## 23.8.0 — 2026-05-09
 

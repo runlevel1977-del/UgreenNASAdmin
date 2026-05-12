@@ -23,6 +23,8 @@ Die App arbeitet nicht als Demo, sondern veraendert reale NAS-Zustaende. Deshalb
 9. kleinen Test-Backup-Lauf ausfuehren.
 10. `Watcher` und `Daily Report` aktivieren.
 
+_(Hinweis ab App-Version **23.8.1+:** Nach funktionierender SSH-Verbindung einmal **„Alles aktualisieren“** (Sidebar unten) ausführen — der Gesamt-Refresh läuft **gebündelt** über das NAS (weniger einzelne SSH-Runden) und aktualisiert u.a. die **UGOS/OS-Zeile** im Header sowie die **Service-Dropdown-Liste** im Tab NAS-Verwaltung.)_
+
 ---
 
 ## 3. Header komplett
@@ -37,6 +39,7 @@ Die App arbeitet nicht als Demo, sondern veraendert reale NAS-Zustaende. Deshalb
 - `Coffee`: Support-/Spendenlink.
 - SSH-Statusbadge: zeigt Verbindungszustand.
 - Modellanzeige: zeigt erkanntes NAS-Modell nach erfolgreicher SSH-Auslese.
+- **UGOS/OS-Zeile** (unter der Modellanzeige): zeigt nach erfolgreicher Auslese u. a. **`OS_VERSION`** und **`PRETTY_NAME`** aus **`/etc/os-release`**, optional den Hinweis **Beta**, wenn **`OS_IS_BETA=true`**. Befüllung: nach **„Alles aktualisieren“** in der Sidebar (ein gebündelter SSH-Lauf) und/oder beim **ersten Start der Dashboard-Live-Daten**, falls die Zeile noch leer war. Ohne SSH bleibt ein Hinweistext stehen.
 
 ### 3.2 Sicheres Arbeiten im Header
 
@@ -510,6 +513,7 @@ Buttons:
 - `Lokal speichern`
 - `Auf NAS installieren`
 - `Test senden`
+- Der auf dem NAS laufende Bericht enthält seit v23.8.1 einen Block **OS / UGOS** (Auszug aus **`/etc/os-release`**: u. a. `PRETTY_NAME`, `VERSION_ID`, `OS_VERSION`, `OS_IS_BETA`).
 
 ### 12.6 Tab NAS-Verwaltung (aktive Aktionen, SSH/sudo)
 
@@ -517,7 +521,7 @@ Buttons:
 
 **Rolle:** Gezielte **Aktionen** am NAS (Wartung, Dienste, Konfig), nicht nur Diagnose. Schreibende Schaltflächen brauchen **„Volle Rechte“** im Header und **sudo** für den SSH-User (wie Neustart/Herunterfahren im Health-Tab).
 
-**Wichtige Blöcke (Stichworte):** Energie & WoL (`/etc/power.conf`), **geplanter täglicher Shutdown** (Cron), USB (UGOS-Auswurf), SMART, RAID/TRIM/Scrub, SSH-Drop-in mit Rollback, UGOS-`*_serv`-Dienste, NGINX, earlyOOM, Samba, LED & Summer.
+**Wichtige Blöcke (Stichworte):** Energie & WoL (`/etc/power.conf`), **geplanter täglicher Shutdown** (Cron), USB (UGOS-Auswurf), SMART, RAID/TRIM/Scrub, SSH-Drop-in mit Rollback, UGOS-`*_serv`-Dienste (Combobox wird bei **„Alles aktualisieren“** um alle auf dem NAS aktiven `*_serv`-Units ergänzt), **Support-Snapshot** (nur Lesen: uname, os-release, Log-Tails ins Protokoll), NGINX, earlyOOM, Samba, LED & Summer.
 
 **„Cron lesen“ beim geplanten Shutdown:** Die App verwaltet die Datei **`/etc/cron.d/nas_admin_timed_shutdown`** nur dann, wenn du hier **„Cron schreiben“** genutzt hast. **UGOS** kann das tägliche Herunterfahren (z. B. 23:00) in **anderen** Cron-Dateien, der **root-crontab** oder **`/etc/crontab`** eintragen — **„Cron lesen“** sucht deshalb dort mit und zeigt alle passenden Zeilen im Protokoll. Wird eine **tägliche** Shutdown-Zeile gefunden, übernimmt die App **Stunde/Minute** in die Felder.
 
