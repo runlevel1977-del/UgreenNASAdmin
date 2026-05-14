@@ -9,6 +9,7 @@ Nicht mitnehmen: Cursor-Regeln, interne Release-Notizen, Forum-Entwürfe, Dev-He
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -165,19 +166,27 @@ def _sync_content() -> None:
 
 def _prune_foreign() -> list[str]:
     removed: list[str] = []
-    for path in sorted(WORKTREE.rglob("*"), key=lambda p: len(p.parts), reverse=True):
-        if path == WORKTREE:
-            continue
-        rel = path.relative_to(WORKTREE).as_posix()
-        if rel == ".git" or rel.startswith(".git/"):
-            continue
-        if path.is_dir():
-            if not any(path.iterdir()):
-                path.rmdir()
-            continue
-        if not _allowed_rel(rel):
-            path.unlink()
-            removed.append(rel)
+    for dirpath, _dirnames, filenames in os.walk(WORKTREE, topdown=False):
+        base = Path(dirpath)
+        for name in filenames:
+            path = base / name
+            rel = path.relative_to(WORKTREE).as_posix()
+            if rel == ".git" or rel.startswith(".git/"):
+                continue
+            if not _allowed_rel(rel):
+                path.unlink()
+                removed.append(rel)
+    for dirpath, dirnames, _filenames in os.walk(WORKTREE, topdown=False):
+        base = Path(dirpath)
+        for name in dirnames:
+            path = base / name
+            if path.name == ".git":
+                continue
+            try:
+                if not any(path.iterdir()):
+                    path.rmdir()
+            except OSError:
+                pass
     return removed
 
 
