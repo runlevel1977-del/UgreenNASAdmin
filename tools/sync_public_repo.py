@@ -54,6 +54,19 @@ TOOL_FILES = frozenset(
 
 SKIP_DIR_NAMES = frozenset({"__pycache__", ".mypy_cache", "output", ".git"})
 
+SENSITIVE_UGREEN_FILES = frozenset(
+    {
+        "app_settings.json",
+        "nas_admin_connection.json",
+        "telegram_notify.json",
+        "nas_watch_local.json",
+        "nas_daily_report_local.json",
+        "qnap_smb_prefs.json",
+        "transfer_log.txt",
+        "last_github_update_check.txt",
+    }
+)
+
 
 def _run(cmd: list[str], *, cwd: Path | None = None) -> None:
     subprocess.run(cmd, cwd=str(cwd or ROOT), check=True)
@@ -74,6 +87,8 @@ def _allowed_rel(rel: str) -> bool:
     if rel in TOP_FILES:
         return True
     if rel.startswith("ugreen_app/"):
+        if Path(rel).name in SENSITIVE_UGREEN_FILES:
+            return False
         return True
     if rel.startswith("images/"):
         return True
@@ -108,6 +123,8 @@ def _copy_tree(src: Path, dst: Path) -> None:
                 continue
         elif src == ROOT / "ugreen_app":
             if path.suffix == ".pyc":
+                continue
+            if path.name in SENSITIVE_UGREEN_FILES:
                 continue
         elif src == ROOT / "images":
             pass
