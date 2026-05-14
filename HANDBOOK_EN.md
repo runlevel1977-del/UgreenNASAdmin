@@ -1,6 +1,6 @@
 # Ugreen NAS Admin – Complete manual for the app and usage
 
-> **“NAS management” tab:** Its own chapter **`## 14. NAS management tab complete`** in this manual (blue heading in the PDF like other tabs). Not in `HANDBUCH_STRUKTURIERT.md`. **ℹ Info → Manual** opens **`HANDBOOK_EN.pdf`** — rebuild with `python tools/build_handbook_en_pdf.py`, or newer chapters will be missing.
+> **“Login Track” tab:** **`## 14. Login Track tab complete`**. **“NAS management” tab:** **`## 15. NAS management tab complete`** (blue PDF headings like other tabs). Short summaries partly in `HANDBUCH_STRUKTURIERT.md`. **ℹ Info → Manual** opens **`HANDBOOK_EN.pdf`** — rebuild with `python tools/build_handbook_en_pdf.py`, or newer chapters will be missing.
 
 This edition is tab-centered: Description, buttons, operation, workflows and error cases are directly together for each area - without scattered addendums at the end.
 
@@ -163,10 +163,12 @@ On the left is the fixed navigation with all main tabs.
 - Explorer
 - NAS ↔ NAS
 - Devices
-- docker
+- Docker
 - System Health
-- memory
-- user
+- Login Track
+- NAS management
+- Storage
+- Users (ACL)
 - Snapshots
 - Backup
 - Settings
@@ -1210,30 +1212,141 @@ Buttons:
 
 ---
 
-## 14. NAS management tab complete (actions over SSH/sudo)
+## 14. Login Track tab complete
 
-A dedicated tab **between** “System & Health” and “Storage & Shares”. This tab is for **actions** on the NAS, not passive diagnostics. Commands run over SSH with **sudo**.
+### From the area: Login Track — access by client IP
 
-### 14.1 Layout, scrolling, and window size
+The **Login Track** tab (sidebar icon **🔐**, between **System & Health** and **NAS management**) shows **sign-ins, failed logins, and active connections** to the NAS — **focused on the client IP** (not internal NAS services). The app reads several log and status sources on the NAS over **SSH**, normalizes lines into **entries**, and lists them in a **read-only** log (text widget). **Live** mode is on by default: you mostly see **new** events since **opening the tab** or since **turning live on**; with **Refresh** or live off you can load **history** instead (about **30 days** `journalctl` window plus log tails).
+
+### 14.1 Purpose and typical use
+
+- **Who** signed in **when** via **SSH**, **SMB**, **UGOS app** (iPhone/PC), **UGOS web**, or an **open TCP connection**?
+- **Live watch** while you test sign-in from phone/PC.
+- **Review** older access after **Refresh** with live off.
+- **Sort** by **date/time**, **IP**, **user**, **source**, or **outcome**; **export** to a text file; optionally **block an IP** via the UGOS block list.
+
+**Scope:** Login Track does **not** replace the Telegram/email **guard** on **System & Health** (thresholds, RAID, temperature). It is a dedicated **access log** in the app.
+
+### 14.2 Prerequisites
+
+- **NAS IP** and **SSH** in the **header** / **Settings** — without a working session you get hints instead of entries.
+- **Reading** logs is enough for display; **Block IP** writes **`/ugreen/.config/block_ip_list`** on the NAS over SSH with **sudo**. The **NAS IP** and **loopback** cannot be blocked.
+- Leaving the tab **stops** live polling.
+
+### 14.3 Tab layout
+
+**Top**
+
+- **Title** and **subtitle** (sources and live mode).
+- **Refresh** — with **live on**: resets baseline and clears the list (waits for new lines). With **live off**: one **history** collect.
+- **Export…** — saves the **visible** report (headers, sort, diagnostics) as a **text file** on the PC.
+- **Block IP…** — IPv4 dialog; writes to the UGOS **block list** (see **14.9**).
+
+**Sort and filters**
+
+- **Sort by:** **Date / time**, **IP address**, **User**, **Source**, **Outcome**.
+- **Newest / Z–A first** — for **date/time**, checked = newest on top; unchecked = oldest on top. **Date/time** sorts by **calendar day**, then **time of day**; rows **without** a parseable timestamp stay **at the bottom** (even when descending).
+- **Live (since tab start only)** — default **on**. Baseline on first poll; noted in the header diagnostics.
+- **Hide app session pings** — default **on**. Hides repeated UGOS session/VerifyToken noise; keeps real logins.
+
+**List**
+
+- **Read-only** (keyboard edit blocked); **select text** and **right-click** supported.
+- **Columns:** `Time | IP | Source | Outcome | User | Detail`
+- **Separator lines** between entries.
+- Header: host, mode, entry count, sort order, diagnostics, SSH notes on errors.
+
+### 14.4 Data sources on the NAS (technical)
+
+One **bundled SSH command** returns sections marked **`@@SOURCE:…@@`** (history vs live sets differ slightly):
+
+| Section | Content (short) |
+|---------|-----------------|
+| `ssh_journal` / `auth_log` | **OpenSSH** accepted/failed/invalid, sessions, disconnect |
+| `log_serv` | UGOS **log_serv.slog** login and Samba audit |
+| `ctl_serv` / `entry_serv` | UGOS app/web login, VerifyToken, biometrics, user-agent |
+| `gateway_serv` | **gateway_serv_gin.slog** (login/session related) |
+| `journal_ctl` | Short **journalctl** window (live) |
+| `nas_conn` | **`ss`**: established TCP to common service ports |
+| `last` / `lastlog` | Classic **last** output (history mode) |
+
+The app’s own **collect** command echo is **filtered** so live view is not flooded with **sudo/journalctl** noise from this tool.
+
+### 14.5 Source column (display)
+
+Typical **Source** values:
+
+- **SSH** — SSH sign-in / failure / disconnect
+- **UGOS Samba** — SMB per UGOS log
+- **UGOS iPhone** / **UGOS PC App** / **UGOS Web** — client from user-agent / module
+- **UGOS login** — other UGOS login lines
+- **NAS connection** — active connection from **`ss`**
+- **last** — **last** output
+
+**Outcome:** e.g. `ok`, `failed`, `info`, `session`.
+
+### 14.6 Live vs history
+
+| Setting | Behavior |
+|---------|----------|
+| **Live on** (default) | Polling about every **4 s** on tab focus. First round = **baseline**; then **deltas** only. Toggling live or **Refresh** resets baseline. |
+| **Live off** | **Refresh** loads **history**; list kept until next refresh. |
+
+**Live filter:** Treats `ok`/`failed` or timestamps near tab start (about **2 minutes** slack) as new — avoids old journal lines filling the live list.
+
+### 14.7 Sorting in detail
+
+- **Date / time:** chronological across mixed formats (`YYYY-MM-DD HH:MM:SS`, ISO with `T`/timezone, journal `Mon DD HH:MM:SS` with **inferred year**). Stable tie-break on original time string.
+- **IP:** numeric IPv4, then time.
+- **User / source / outcome:** alphabetical, then time.
+- **Newest / Z–A first:** reverses primary order; **missing timestamps** stay **at the bottom**.
+
+### 14.8 Export
+
+- **Export…** — file dialog; empty list → load first.
+- Exports the **visible** report after filters/sort, not raw SSH.
+
+### 14.9 Block IP
+
+- **Block IP…** or **right-click** a row with an IP.
+- Confirmation; writes JSON list **`/ugreen/.config/block_ip_list`** on the NAS. Duplicate IPs are not added twice.
+- **Not blockable:** **127.0.0.1** and the header **NAS IP**.
+- Effect depends on **UGOS/firewall** using that list.
+
+### 14.10 Troubleshooting and tips
+
+- **“SSH response missing expected log sections”** — connection, permissions, or UGOS paths; read the note block.
+- **Empty live list** — no new sign-in after baseline; test from another client; try **Hide app session pings** off.
+- **Missing UGOS app login** — some sessions only log **verify/is_login**; check **ctl_serv** / **log_serv**.
+- **Many SSH lines from this PC** — your admin session also logs; use the **IP** column for remote clients.
+- **Entry cap** in session — large internal buffer; **export** during long live sessions if needed.
+
+---
+
+## 15. NAS management tab complete (actions over SSH/sudo)
+
+A dedicated tab **between** “System & Health”, **Login Track**, and “Storage & Shares”. This tab is for **actions** on the NAS, not passive diagnostics. Commands run over SSH with **sudo**.
+
+### 15.1 Layout, scrolling, and window size
 
 - **Two columns:** All controls on the **left**, a **log** on the **right** showing SSH output for each action.
 - **Scrolling (left):** The left column is **taller than the viewport** — scroll vertically with the **mouse wheel** while the pointer is **over the left column** (fields and buttons). The **scrollbar** on the right edge of the left column still works (drag or click track). Scrolling should feel **smooth** (scroll region updates with each wheel step).
 - **Log width:** A **sash** (splitter) sits between the two panes. **Drag** it to balance width. On tab open, **~85%** goes to the **left pane**; buttons don’t share one “uniform” width per row, so long German labels cannot force an entire row to overflow. Start narrow on the log if you need more reading space.
 
-### 14.2 Prerequisites and “Full access”
+### 15.2 Prerequisites and “Full access”
 
 - **Writes or risky actions** (change files, reload services, maintenance, USB eject, SSH profiles, Samba, earlyOOM, NGINX recovery, …): **Full access** in the header and an SSH user with **sudo** (same idea as reboot/shutdown in Health).
 - **Read-only / lists / status only:** e.g. USB list, disk list, LED slots, share list, read cron, read `power.conf`, **RAID check status** — often works **without** unlocking danger actions, as long as **SSH is connected**.
 - **Always** read the **log** for errors; when unsure, do **read-only** steps first.
 
-### 14.3 Recommended workflow
+### 15.3 Recommended workflow
 
 1. Read the short intro at the top of the tab.
 2. **Refresh lists** (USB, disks, shares, …), then pick an item in the dropdown.
 3. Read confirmation dialogs before any **write**.
 4. After each action, check the **log** (`systemctl`, `smartctl`, `testparm`, etc.).
 
-### 14.4 Areas at a glance
+### 15.4 Areas at a glance
 
 | Area | Purpose (short) | Typical NAS targets |
 |------|-----------------|---------------------|
@@ -1249,31 +1362,31 @@ A dedicated tab **between** “System & Health” and “Storage & Shares”. Th
 | Samba | Shares, empty recycle, quick add | `smb.conf`, `testparm` |
 | LED & beeper | Chassis identification | `/sys/class/leds/diskN`, `ugbeep` |
 
-### 14.5 Power & Wake-on-LAN
+### 15.5 Power & Wake-on-LAN
 
 - **Read:** Reads `power_boot` and `wake_on` from `/etc/power.conf` and fills the combos; may show raw lines in the log.
 - **Save:** Writes selected values (usually `true`/`false`) with **sudo**. Only change what you understand (UGOS / NAS docs).
 - **Write WoL to power.conf:** Writes the **current Wake-on-LAN** selection only (shortcut if you only adjust WoL).
 
-### 14.6 Scheduled daily shutdown
+### 15.6 Scheduled daily shutdown
 
 - **App-managed file:** **Write cron** creates/updates only **`/etc/cron.d/nas_admin_timed_shutdown`**. If you never used that button, the file may be missing even though UGOS shuts down daily — the schedule might live in **another** `/etc/cron.d/*` file, **root’s crontab**, under **`/var/spool/cron/...`**, or **`/etc/crontab`** (often the **stock NAS UI** does **not** use the app file).
 - **Read cron** prints several blocks: the app file (if present), **listing `/etc/cron.d/`**, **grep** for shutdown/poweroff/halt/**TimedShutdown** (UGOS often uses **`/sbin/TimedShutdown`** in the **root crontab**, not under `/etc/cron.d`), **direct reads of spool files** (when `crontab -l` is empty over SSH), **`/etc/crontab`**, and **systemd timers**. If everything is empty or only generic timers appear, the schedule may exist **only in the UGOS GUI** or another mechanism — check there. **SSH must be connected** (otherwise you only see “Not connected”). The first cron line with a shutdown-related keyword (including **TimedShutdown**) updates the **time fields** (checkbox on) when minute/hour can be parsed (if multiple weekday lines exist, this reflects the first matching line in the output).
 - **Enable via this app:** **HH:MM** (24 h), then **Write cron** as above. **Real shutdown** — plan maintenance windows.
 - **Disable here:** Removes only the **app file** (with confirmation) — a schedule configured elsewhere on the NAS may **continue** until changed there.
 
-### 14.7 USB (UGOS)
+### 15.7 USB (UGOS)
 
 1. **Refresh USB list** — finds typical USB mount paths.
 2. Pick a mount, **UGOS eject:** shows **lsof/fuser**; warns if activity is seen; then **`USBDiskStop`** (if present), **`sync`**, **`umount`**. Close apps using the disk first.
 
-### 14.8 SMART
+### 15.8 SMART
 
 - **Disks:** Refresh list, select a block device.
 - **Test:** *short* (minutes), *long* (very long, heavy), *conveyance* — depends on disk/firmware.
 - **Self-test log:** Prints recent SMART / test history from logs or `smartctl` as available on the system.
 
-### 14.9 RAID & filesystem maintenance
+### 15.9 RAID & filesystem maintenance
 
 - **Start RAID check:** Starts the systemd unit used for the scheduled RAID check flow (`mdcheck_start`), as UGOS defines it.
 - **Status / Progress:** Read-only — shows current progress / md-related info.
@@ -1288,29 +1401,29 @@ A dedicated tab **between** “System & Health” and “Storage & Shares”. Th
 
 **Important:** For *high*, verify all clients support the chosen algorithms.
 
-### 14.11 UGOS core services
+### 15.11 UGOS core services
 
 - **Dropdown:** Starts from a **fixed core list** of typical `*_serv` names. After each successful **Update everything** (sidebar), the app **appends every other active** unit whose name ends in **`_serv.service`** (sorted, no duplicates) — extra UGOS package services appear without waiting for an app update.
 - **Start / Stop / Restart:** `systemctl` — may briefly interrupt services.
 - **Journal:** Recent journal lines for the selected unit.
 - **Support snapshot** (next to **Journal**, read-only): Writes to this tab’s **right-hand log** e.g. **`uname -a`**, an excerpt from **`/etc/os-release`**, a short **`journalctl`** slice for **`entry_serv`**, and **tail excerpts** from typical UGOS logs (`storage_serv`, `gateway_serv`, `docker_serv`, `networking.log`, `syslog`). **No** writes to NAS config — meant to **collect diagnostics** for support (copy text). **Requires** NAS IP in the header and SSH; if IP is missing, a warning dialog appears.
 
-### 14.12 NGINX
+### 15.12 NGINX
 
 - **Reload:** Runs UGOS **reload** (or `systemctl reload nginx`) and shows short status.
 - **Config recovery:** After typing **`RESTORE`** in the dialog — copies **ROM/default nginx** into `/etc/nginx` and overwrites live config there. **Custom edits can be lost** — have backups.
 
-### 14.13 earlyOOM
+### 15.13 earlyOOM
 
 - **Load / Save:** Edits `/etc/default/earlyoom` and restarts the service. Parameter syntax matters — wrong settings can worsen OOM behavior.
 
-### 14.14 Samba
+### 15.14 Samba
 
 1. **Refresh shares** — fills list from `testparm` / `smb.conf` (not `global` as target).
 2. **Empty recycle:** Resolves share path and deletes contents of common **recycle** folders — **irreversible** for those files.
 3. **Quick share:** Appends a simple block to `smb.conf`, validates with `testparm`, reloads **`smbd`**. Path must match a **UGOS volume** (e.g. `/volume1/…`).
 
-### 14.15 LED & beeper
+### 15.15 LED & beeper
 
 - **Refresh LED slots**, pick `diskN`, **Identify:** ~12 s blink to match bay to disk.
 - **Beeper:** Short test tone via UGOS tool (model-dependent).
@@ -1395,7 +1508,7 @@ First activate the security and availability critical checks. Then expand gradua
 
 ---
 
-## 15. Tab Storage & Sharing complete
+## 16. Tab Storage & Sharing complete
 
 ### From range: 32. Full reference: Storage tab
 
@@ -1443,7 +1556,7 @@ Before each image/restore action:
 
 ---
 
-## 16. Tab ACL complete
+## 17. Tab ACL complete
 
 ### From range: 33. Full reference: ACL tab
 
@@ -1486,7 +1599,7 @@ Rule:
 
 ---
 
-## 17. Snapshots tab complete
+## 18. Snapshots tab complete
 
 ### From range: 34. Full reference: Snapshots tab
 
@@ -1529,7 +1642,7 @@ Only with clear identification of the snapshot and fallback plan.
 
 ---
 
-## 18. Tab Backup complete (Backup + Restore + Schedules together)
+## 19. Tab Backup complete (Backup + Restore + Schedules together)
 
 ### From Range: 35. Full Reference: Backup Tab
 
@@ -1700,7 +1813,7 @@ A backup is only considered reliable once a restore has been tested successfully
 
 ---
 
-## 19. Info dialog complete
+## 20. Info dialog complete
 
 ### From the area: 54. Info dialog complete
 
@@ -1721,7 +1834,7 @@ Other elements:
 
 ---
 
-## 20. Overall operations, checklists, troubleshooting
+## 21. Overall operations, checklists, troubleshooting
 
 ### From the range: 19. Complete operation order (recommended)
 
@@ -2066,7 +2179,7 @@ Rework:
 
 ---
 
-## 21. Graduation
+## 22. Graduation
 
 ### From the area: 21. End
 

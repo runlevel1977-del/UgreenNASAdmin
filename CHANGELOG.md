@@ -4,6 +4,24 @@
 
 _(noch nicht veröffentlicht)_
 
+## 23.8.2 — 2026-05-14
+
+### Deutsch
+
+- **Neuer Tab Login Track (Sidebar 🔐):** Zeigt **Zugriffe nach Client-IP** aus mehreren NAS-Quellen per SSH — **SSH** (`journalctl`/`auth.log`), **UGOS** (`log_serv`, `ctl_serv`, `entry_serv`, Gateway), **SMB**, **aktive Verbindungen** (`ss`), optional **`last`**. Spalten **Zeit | IP | Quelle | Ergebnis | Benutzer | Detail**, **Trennlinien** zwischen Einträgen, **nur-Lesen**-Liste mit **Rechtsklick**.
+- **Echtzeit (Standard):** Polling ca. alle **4 s** nur solange der Tab aktiv ist; **Baseline** + **Delta** (keine Flut alter Journal-Zeilen); Filter für **eigene Collect-/sudo-Echos** und optional **App-Session-Pings** (VerifyToken-Rauschen, echte Logins bleiben).
+- **Historie:** **Aktualisieren** mit abgeschalteter Echtzeit lädt ca. **30 Tage** Journal-Fenster plus Log-Tails.
+- **Sortierung:** **Datum/Uhrzeit** (zuerst Kalendertag, dann Uhrzeit; gemischte Zeitformate; ohne Zeitstempel **am Ende**), dazu **IP**, **Benutzer**, **Quelle**, **Ergebnis**; **Neueste / Z–A zuerst**.
+- **IP sperren:** Button und Kontextmenü schreiben IPv4 in **`/ugreen/.config/block_ip_list`** (UGOS); NAS-IP und Loopback sind gesperrt.
+- **Export …** speichert den sichtbaren Bericht als Textdatei auf dem PC.
+- **UI:** Login Track in **11 Sprachen** (DE/EN + HR/FR/ES/IT/PL/RU/TR/KO/ZH).
+- **Dokumentation:** **`README.md`**, **`CHANGELOG.md`**, **`HANDBUCH.md`** / **`HANDBOOK_EN.md`** (neues Kapitel **§14 Login Track**; NAS-Verwaltung **§15**), Kurzfassung **`HANDBUCH_STRUKTURIERT.md`**; PDFs: `python tools/build_handbuch_pdf.py`, `python tools/build_handbook_en_pdf.py`.
+
+### English (short)
+
+- **New Login Track tab:** client-IP-focused access log over SSH (SSH, UGOS app/web, SMB, `ss`, `last`); live baseline/delta, history refresh, sort/export, optional hide session pings, block IP via UGOS list.
+- **Docs:** README, CHANGELOG, DE/EN manuals **§14**, structured summary; rebuild PDFs.
+
 ## 23.8.1 — 2026-05-09
 
 ### Deutsch

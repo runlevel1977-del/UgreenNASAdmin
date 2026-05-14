@@ -1,6 +1,6 @@
 # Ugreen NAS Admin
 
-Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: **Dashboard** with live metrics, **scripts** and cron planner, **Explorer**, **NAS ↔ NAS** SMB copy, **network devices**, **Docker**, **system health** / Telegram guard, **NAS management** (power/WoL, scheduled shutdown, USB eject, SMART, RAID/trim/scrub, SSH drop-in, services, NGINX, earlyOOM, Samba, LED/beeper), **storage**, **ACL**, **snapshots**, dedicated **Backup** tab (**Docker+scripts**, **user data**, **full data exports**; destinations **NAS / PC folder / USB on the NAS / second NAS SMB**; **cron scheduling on the NAS** without leaving a PC running), **Settings**, plus optional Telegram/Email notifications. The UI is available in many languages; switch in **Settings** (and often the status bar).
+Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: **Dashboard** with live metrics, **scripts** and cron planner, **Explorer**, **NAS ↔ NAS** SMB copy, **network devices**, **Docker**, **system health** / Telegram guard, **Login Track** (client-IP access log: SSH, SMB, UGOS app/web, live/history, sort, export, optional IP block), **NAS management** (power/WoL, scheduled shutdown, USB eject, SMART, RAID/trim/scrub, SSH drop-in, services, NGINX, earlyOOM, Samba, LED/beeper), **storage**, **ACL**, **snapshots**, dedicated **Backup** tab (**Docker+scripts**, **user data**, **full data exports**; destinations **NAS / PC folder / USB on the NAS / second NAS SMB**; **cron scheduling on the NAS** without leaving a PC running), **Settings**, plus optional Telegram/Email notifications. The UI is available in many languages; switch in **Settings** (and often the status bar).
 
 **This file** is the **public release** README (folder **`öffentlich/`**). The step-by-step guide below mirrors the **private** project’s main `README.md` (English + German), including **an extended Backup chapter** users asked for — release notes in [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -19,6 +19,13 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 **Deutsch (kurz):** Wer die **fertige EXE/Release-ZIPs** will: **Releases → Assets** (oder SourceForge) — **nicht** der grüne **Code → Download ZIP**. Dieser liefert **nur Quellcode** des Standard-Branches; eine **Umlenkung** dieses Buttons gibt es bei GitHub **nicht** (kein Repo-Fix). Die **Zahl** in `nas_manager.py` im ZIP-Snapshot entspricht dem letzten **Push** auf `main` (siehe Datei im entpackten Ordner, falls unsicher).
 
 **Links (immer aktuell):** [GitHub **Latest release**](https://github.com/runlevel1977-del/UgreenNASAdmin/releases/latest) · SourceForge „latest“ (oben) · [All releases](https://github.com/runlevel1977-del/UgreenNASAdmin/releases)
+
+### What's new in v23.8.2
+
+- **Login Track tab (sidebar 🔐):** **Client-IP** access log over SSH — **SSH**, **SMB**, **UGOS** (iPhone/PC app, web), active **`ss`** connections; **live** baseline/delta (default) or **history** on refresh; **sort** (date/time, IP, user, source, outcome), **export**, optional **hide app session pings**, **block IP** via **`/ugreen/.config/block_ip_list`**.
+- **Manuals:** new handbook chapter **§14 Login Track** (DE/EN); NAS management is **§15**; PDF rebuild: `python tools/build_handbuch_pdf.py`, `python tools/build_handbook_en_pdf.py`.
+- **Deutsch (kurz):** Neuer Tab **Login Track** — Zugriffe nach **Client-IP**, **Echtzeit** oder **Historie**, Sortierung/Export, optional **IP sperren**; Handbuch-Kapitel **§14**.
+- Details: [`CHANGELOG.md`](CHANGELOG.md).
 
 ### What's new in v23.8.0
 
@@ -154,12 +161,13 @@ The **sidebar** matches the main areas (top to bottom). Use it to switch **tabs*
 5. **Network devices** — list **LAN and USB devices the NAS sees** (requires SSH; see below).  
 6. **Docker** — containers, logs, compose, catalog/wizard.  
 7. **System health** — load, RAID/SMART/storage checks, Telegram/email guard, NAS central watch, reboot/shutdown (guarded).  
-8. **NAS management** — active maintenance: power/WoL, scheduled shutdown, USB eject (UGOS), SMART (+ log), RAID/mdcheck/TRIM/scrub, SSH drop-in, core services, NGINX, earlyOOM, Samba, LED & beeper (**Full access** + sudo for writes).  
-9. **Storage** — volumes, shares, top folders, disk imaging/restore (dangerous).  
-10. **Users (ACL)** — inspect path permissions, chmod/chown helpers.  
-11. **Snapshots** — btrfs/ZFS/Snapper where available.  
-12. **Backup** — create **archives on the NAS** (or copy to **PC** / **USB stick on the NAS** / **second NAS** via SMB profile); **schedule** recurring jobs with **cron on the NAS** (see detailed section).  
-13. **Settings** — connection profiles, language, paths, Telegram/SMTP, script notifications, SMB peers.
+8. **Login Track** — **client-IP** sign-ins and connections (SSH, SMB, UGOS app/web, `ss`); **live** (since tab start) or **history** on refresh; sort, export, optional **block IP** on the NAS.  
+9. **NAS management** — active maintenance: power/WoL, scheduled shutdown, USB eject (UGOS), SMART (+ log), RAID/mdcheck/TRIM/scrub, SSH drop-in, core services, NGINX, earlyOOM, Samba, LED & beeper (**Full access** + sudo for writes).  
+10. **Storage** — volumes, shares, top folders, disk imaging/restore (dangerous).  
+11. **Users (ACL)** — inspect path permissions, chmod/chown helpers.  
+12. **Snapshots** — btrfs/ZFS/Snapper where available.  
+13. **Backup** — create **archives on the NAS** (or copy to **PC** / **USB stick on the NAS** / **second NAS** via SMB profile); **schedule** recurring jobs with **cron on the NAS** (see detailed section).  
+14. **Settings** — connection profiles, language, paths, Telegram/SMTP, script notifications, SMB peers.
 
 ### Dashboard
 
@@ -295,6 +303,21 @@ You need: a **Telegram** account, one **bot token**, and your **chat id** (or gr
 10. In **System Health**, use **Test Telegram** / run checks. You should get a test message. If not: re-check **token**, **chat id**, whether you pressed **Start** in the private chat, and whether **DNS/firewall** blocks `api.telegram.org` on the PC or the NAS (for server-side tools).
 
 **Script notifications and NAS-side runners** in Settings re-use the **same** bot credentials. After changing token/chat id, **re-save** and use **“Sync / install runner on NAS”** (wording in your app) if you rely on **cron** jobs without a PC.
+
+### 6d) Login Track (client IP)
+
+**Purpose:** One place to see **who reached the NAS from which client IP** — **SSH**, **SMB**, **UGOS** (iPhone app, PC app, web), and **active TCP** sessions (`ss`) — without mixing it into the Telegram disk/RAID guard.
+
+- **Sidebar:** icon **🔐**, between **System & Health** and **NAS management**.  
+- **SSH required** (same session as the rest of the app). Leaving the tab **stops** live polling.  
+- **Live (default):** about every **4 s** while the tab is open; first poll sets a **baseline**, then only **new** lines. Toggle **Live** or **Refresh** resets the baseline.  
+- **History:** turn **Live** off and use **Refresh** for roughly **30 days** of SSH journal plus UGOS log tails (`log_serv`, `ctl_serv`, …).  
+- **List:** read-only columns **Time | IP | Source | Outcome | User | Detail**, separator lines between rows; header shows host, mode, sort, and short **diagnostics** (which log sections were read).  
+- **Sort by** date/time (calendar day, then time of day; rows without a timestamp stay at the **bottom**), IP, user, source, outcome; **Newest / Z–A first** reverses order.  
+- **Hide app session pings** (default on) trims UGOS VerifyToken/session noise; real logins stay visible.  
+- **Export…** saves the **visible** report to a text file on the PC.  
+- **Block IP…** or **right-click** a row — adds an IPv4 to **`/ugreen/.config/block_ip_list`** on the NAS (not the NAS IP or loopback).  
+- **Full manual:** handbook **§14 Login Track** in **Info → Manual** (`HANDBUCH.pdf` / `HANDBOOK_EN.pdf` after rebuild).
 
 ### 7) Storage (Speicher / Storage)
 
@@ -432,12 +455,13 @@ python ugreen_nas_admin.py
 5. **Netzwerkgeräte** — Geräte, die der **NAS über SSH** sieht (LAN/USB; siehe eigener Abschnitt).  
 6. **Docker** — Container, Logs, Compose, Katalog/Assistent.  
 7. **System Health** — Last, RAID/SMART/Speicher, Telegram/E-Mail-Wächter, Deploy-Helfer.  
-8. **NAS-Verwaltung** — aktive Wartung: Energie/WoL, geplanter Shutdown, USB (UGOS), SMART (+ Log), RAID/mdcheck/TRIM/Scrub, SSH-Drop-in, Kern-Dienste, NGINX, earlyOOM, Samba, LED & Summer (**Volle Rechte** + sudo für Schreibaktionen).  
-9. **Speicher** — Volumes, Freigaben, Platz-Top, Imaging/Wiederherstellung.  
-10. **Benutzer (ACL)** — Rechte/ chmod-chown-Helfer.  
-11. **Snapshots** — btrfs/ZFS/Snapper je nach System.  
-12. **Backup & Wiederherstellen** — **Docker+Skripte**, **Nutzerdaten**, **alle Nutzerdaten** als Archive; Ziel **NAS-intern**, **PC-Ordner**, **USB am NAS** oder **Zweit-NAS (SMB)**; **geplante Aufträge per Cron auf dem NAS** (PC kann aus sein) — Details im Abschnitt **10)**.  
-13. **Settings** — Verbindung, Sprache, Pfade, Telegram/SMTP, Benachrichtigungen, SMB-Peers.
+8. **Login Track** — **Client-IP**-Zugriffe (SSH, SMB, UGOS App/Web, `ss`); **Echtzeit** (seit Tab-Start) oder **Historie** per Aktualisieren; Sortieren, Export, optional **IP sperren** auf dem NAS.  
+9. **NAS-Verwaltung** — aktive Wartung: Energie/WoL, geplanter Shutdown, USB (UGOS), SMART (+ Log), RAID/mdcheck/TRIM/Scrub, SSH-Drop-in, Kern-Dienste, NGINX, earlyOOM, Samba, LED & Summer (**Volle Rechte** + sudo für Schreibaktionen).  
+10. **Speicher** — Volumes, Freigaben, Platz-Top, Imaging/Wiederherstellung.  
+11. **Benutzer (ACL)** — Rechte/ chmod-chown-Helfer.  
+12. **Snapshots** — btrfs/ZFS/Snapper je nach System.  
+13. **Backup & Wiederherstellen** — **Docker+Skripte**, **Nutzerdaten**, **alle Nutzerdaten** als Archive; Ziel **NAS-intern**, **PC-Ordner**, **USB am NAS** oder **Zweit-NAS (SMB)**; **geplante Aufträge per Cron auf dem NAS** (PC kann aus sein) — Details im Abschnitt **10)**.  
+14. **Settings** — Verbindung, Sprache, Pfade, Telegram/SMTP, Benachrichtigungen, SMB-Peers.
 
 Darunter in der Sidebar: **Hilfswerkzeuge** (z. B. alles neu laden) sowie (je nach Version) **Webcam** und **Live Monitor**.
 
@@ -547,6 +571,21 @@ E-Mail- oder **kombinierter** Ablauf mit denselben **SMTP**-Einstellungen.
    **Falls nein:** Token/Zeichenfehler, Chat-ID, privatem Chat **Start** fehlt, **Firewall** zu `api.telegram.org`, auf dem NAS: **Skript/Runner**-Pfad prüfen.
 
 **Skript-Benachrichtigungen** und **NAS-Runner** nutzen **dieselbe** Bot-Konfiguration. Nach Token-Wechsel **neu speichern** und **Runner synchronisieren**, wenn Cron Nachts laufen soll.
+
+### 6d) Login Track (Client-IP)
+
+**Ziel:** **Zugriffe nach Client-IP** an einem Ort — **SSH**, **SMB**, **UGOS** (iPhone-App, PC-App, Web) und **aktive TCP-Verbindungen** (`ss`) — getrennt vom Telegram-Platten-/RAID-Wächter in System Health.
+
+- **Sidebar:** Icon **🔐**, zwischen **System & Health** und **NAS-Verwaltung**.  
+- **SSH** wie in der restlichen App; beim **Tab-Wechsel** endet die Live-Abfrage.  
+- **Echtzeit (Standard):** ca. alle **4 s**; erste Runde = **Baseline**, danach nur **Delta**. **Echtzeit** erneut aktivieren oder **Aktualisieren** setzt die Baseline zurück.  
+- **Historie:** **Echtzeit** aus, dann **Aktualisieren** — ca. **30 Tage** SSH-Journal plus UGOS-Log-Tails.  
+- **Liste:** nur lesen; Spalten **Zeit | IP | Quelle | Ergebnis | Benutzer | Detail**; Trennlinien; Kopf mit Host, Modus, Sortierung, **Diagnose** (gelesene Log-Abschnitte).  
+- **Sortieren:** **Datum/Uhrzeit** (Tag, dann Uhrzeit; ohne Zeitstempel **am Ende**), IP, Benutzer, Quelle, Ergebnis; **Neueste / Z–A zuerst** kehrt die Reihenfolge um.  
+- **App-Session-Pings ausblenden** (Standard an) filtert UGOS-VerifyToken-Rauschen; echte Logins bleiben.  
+- **Export …** speichert den **sichtbaren** Bericht als Textdatei auf dem PC.  
+- **IP sperren …** oder **Rechtsklick** — IPv4 in **`/ugreen/.config/block_ip_list`** (nicht NAS-IP/Loopback).  
+- **Ausführlich:** Handbuch **§14 Login Track** über **Info → Handbuch** (PDF nach `python tools/build_handbuch_pdf.py`).
 
 ### 7) Speicher
 

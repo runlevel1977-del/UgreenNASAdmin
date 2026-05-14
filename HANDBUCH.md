@@ -1,6 +1,6 @@
 # Ugreen NAS Admin – Komplettes Handbuch zur App und Benutzung
 
-> **Tab „NAS-Verwaltung“:** Eigenes Kapitel **`## 14. Tab NAS-Verwaltung komplett`** in **diesem** Handbuch (blaue Hauptüberschrift in der PDF wie bei den anderen Tabs). Nicht in `HANDBUCH_STRUKTURIERT.md`. **ℹ Info → Handbuch** öffnet **`HANDBUCH.pdf`** — neu bauen mit `python tools/build_handbuch_pdf.py`, sonst fehlen neue Kapitel.
+> **Tab „Login Track“:** Eigenes Kapitel **`## 14. Tab Login Track komplett`**. **Tab „NAS-Verwaltung“:** **`## 15. Tab NAS-Verwaltung komplett`** (blaue Hauptüberschriften in der PDF wie bei den anderen Tabs). Kurzfassungen teils in `HANDBUCH_STRUKTURIERT.md`. **ℹ Info → Handbuch** öffnet **`HANDBUCH.pdf`** — neu bauen mit `python tools/build_handbuch_pdf.py`, sonst fehlen neue Kapitel.
 
 Diese Ausgabe ist tab-zentriert aufgebaut: Pro Bereich stehen Beschreibung, Buttons, Bedienung, Workflows und Fehlerfälle direkt zusammen – ohne verstreute Nachträge am Ende.
 
@@ -165,6 +165,8 @@ Links befindet sich die feste Navigation mit allen Haupttabs.
 - Geräte
 - Docker
 - System Health
+- Login Track
+- NAS-Verwaltung
 - Speicher
 - Benutzer
 - Snapshots
@@ -1211,30 +1213,141 @@ Buttons:
 
 ---
 
-## 14. Tab NAS-Verwaltung komplett (aktive Aktionen per SSH/sudo)
+## 14. Tab Login Track komplett
 
-Eigenständiger Tab **zwischen** „System & Health“ und „Speicher & Freigaben“. Hier werden **keine reinen Diagnosen** gezeigt, sondern **gezielte Aktionen** am NAS ausgeführt (SSH mit **sudo**).
+### Aus dem Bereich: Login Track — Zugriffe nach Client-IP
 
-### 14.1 Aufbau, Scrollen und Fenstergröße
+Der Tab **Login Track** (Sidebar-Icon **🔐**, zwischen **System & Health** und **NAS-Verwaltung**) zeigt **Anmeldungen, fehlgeschlagene Logins und aktive Verbindungen** zum NAS — **fokussiert auf die Client-IP** (nicht auf interne NAS-Dienste). Die App liest dazu per **SSH** mehrere Log- und Statusquellen auf dem NAS, normalisiert die Zeilen zu **Einträgen** und listet sie in einem **nur lesbaren** Protokoll (Textfeld). **Echtzeit** ist standardmäßig aktiv: Es werden vor allem **neue** Ereignisse seit **Öffnen des Tabs** bzw. seit **Aktivieren von Echtzeit** angezeigt; mit **Aktualisieren** bzw. abgeschalteter Echtzeit-Option lässt sich stattdessen eine **Historie** (ca. **30 Tage** `journalctl`-Fenster plus Log-Tails) laden.
+
+### 14.1 Zweck und typische Nutzung
+
+- **Wer** hat sich **wann** per **SSH**, **SMB**, **UGOS-App** (iPhone/PC), **UGOS-Web** oder **offener TCP-Verbindung** am NAS gemeldet?
+- **Live-Überwachung** während du testweise von Handy/PC aus anmeldest (Echtzeit-Modus).
+- **Nachverfolgung** älterer Zugriffe nach **Aktualisieren** mit deaktivierter Echtzeit-Option.
+- **Sortieren** nach **Datum/Uhrzeit**, **IP**, **Benutzer**, **Quelle** oder **Ergebnis**; **Export** als Textdatei; optional **IP sperren** über UGOS-Blockliste.
+
+**Abgrenzung:** Login Track ersetzt **nicht** den Telegram-/E-Mail-**Wächter** im Tab **System & Health** (Schwellen, RAID, Temperatur). Es ist ein **eigenes Logbuch** für Zugriffe — ähnlich wie du in der NAS-Oberfläche „Anmeldungen“ siehst, aber **zusammengeführt** und **filterbar** in der App.
+
+### 14.2 Voraussetzungen
+
+- **NAS-IP** (und SSH-Zugang) im **Header** bzw. **Settings** — ohne gültige Verbindung erscheint ein Hinweis statt Einträgen.
+- **Lesen** der Logs reicht für die Anzeige; **IP sperren** schreibt auf dem NAS in **`/ugreen/.config/block_ip_list`** und nutzt die App-SSH-Sitzung mit **sudo** (wie andere schreibende Aktionen). **NAS-eigene IP** und **Loopback** lassen sich nicht sperren.
+- Beim **Verlassen** des Tabs stoppt die **Live-Abfrage** (kein dauerhaftes Polling im Hintergrund).
+
+### 14.3 Aufbau des Tabs
+
+**Oben**
+
+- **Titel** und **Untertitel** (Kurzbeschreibung der Quellen und des Echtzeit-Modus).
+- **Aktualisieren** — bei **Echtzeit an**: setzt die Live-Baseline neu und leert die Liste (wartet auf neue Zeilen). Bei **Echtzeit aus**: einmaliger **Historien-Collect** (mehrere Log-Quellen, ca. 30-Tage-Fenster bei `journalctl`).
+- **Export …** — speichert den **aktuell sichtbaren** Bericht (inkl. Kopfzeilen, Sortierung, Diagnosezeilen) als **Textdatei** auf dem PC.
+- **IP sperren …** — Dialog zur Eingabe einer **IPv4**; schreibt die Adresse in die UGOS-**Sperrliste** (siehe **14.9**).
+
+**Sortierung und Filter**
+
+- **Sortieren:** Dropdown **Datum / Uhrzeit**, **IP-Adresse**, **Benutzer**, **Quelle**, **Ergebnis**.
+- Checkbox **Neueste / Z–A zuerst** — bei **Datum/Uhrzeit** bedeutet aktiv: **neueste** Einträge oben; ohne Häkchen: **älteste** oben. Bei **Datum/Uhrzeit** gilt: zuerst **Kalendertag**, innerhalb desselben Tages **Uhrzeit**; Einträge **ohne** erkennbares Datum bleiben **am Ende** der Liste (auch bei absteigender Sortierung).
+- **Echtzeit (nur seit Tab-Start)** — Standard **an**. Nur **neue** Zeilen seit Aktivierung; erste SSH-Runde setzt eine **Baseline** (im Kopf als Diagnosezeile erkennbar).
+- **App-Session-Pings ausblenden** — Standard **an**. Blendet **wiederholte UGOS-Sitzungs-/VerifyToken-Rauschen** aus, behält aber **echte Logins** (z. B. „logged in successfully“, **verify/login**).
+
+**Liste (Protokoll)**
+
+- **Nur lesen** (Tastatur blockiert Bearbeitung); **Text markieren** und **Rechtsklick** möglich.
+- **Spalten:** `Zeit | IP | Quelle | Ergebnis | Benutzer | Detail`
+- Zwischen Einträgen: **Trennlinie** zur besseren Lesbarkeit.
+- Kopf: Host, Modus (Live vs. Zeitraum), **Eintragszahl**, **Sortierung**, optional **Diagnose** (gelesene Log-Abschnitte, letzte Live-Delta-Zahlen), bei Problemen **SSH-/Hinweisblock**.
+
+### 14.4 Datenquellen auf dem NAS (technisch)
+
+Die App führt **einen gebündelten SSH-Befehl** aus; Antworten sind in Abschnitte mit Markern **`@@SOURCE:…@@`** gegliedert. Auszug (je nach Modus **Historie** vs. **Live**):
+
+| Abschnitt | Inhalt (Kurz) |
+|-----------|----------------|
+| `ssh_journal` / `auth_log` | **OpenSSH**: Accepted/Failed/Invalid user, Session open/close, Disconnect |
+| `log_serv` | UGOS **log_serv.slog**: `insertLog login`, Samba-Audit |
+| `ctl_serv` / `entry_serv` | UGOS **ctl_serv** / **entry_serv**: App/Web-Login, VerifyToken, Biometrie, User-Agent |
+| `gateway_serv` | **gateway_serv_gin.slog** (Login/Session-relevante Zeilen) |
+| `journal_ctl` | Kurzes **journalctl**-Fenster (Live) |
+| `nas_conn` | **`ss`**: etablierte TCP-Verbindungen zu typischen Dienst-Ports (22, 80, 443, 445, …) |
+| `last` / `lastlog` | Klassische **last**-Ausgabe (Historien-Modus) |
+
+Eigene **Collect-Befehle** der App (grep/journalctl mit `UGR_LOGIN`-Markern) werden beim Parsen **herausgefiltert**, damit die Live-Ansicht nicht mit **sudo/journalctl-Echo** der App selbst geflutet wird.
+
+### 14.5 Quellen-Spalte (Anzeige)
+
+Typische Werte in **Quelle** (aus Log-Zeilen abgeleitet):
+
+- **SSH** — SSH-Anmeldung / Fehlversuch / Trennung
+- **UGOS Samba** — SMB-Anmeldung laut UGOS-Log
+- **UGOS iPhone** / **UGOS PC App** / **UGOS Web** — UGOS-Client anhand User-Agent / Modul (Biometrie, Electron, Browser)
+- **UGOS login** — sonstige UGOS-Login-Zeilen
+- **NAS connection** — aktive Verbindung aus **`ss`** (kein klassischer Login-Logeintrag)
+- **last** — Zeile aus **`last`**
+
+**Ergebnis:** u. a. `ok`, `failed`, `info`, `session` — je nach Parser und Rohzeile.
+
+### 14.6 Echtzeit vs. Historie
+
+| Einstellung | Verhalten |
+|-------------|-----------|
+| **Echtzeit an** (Standard) | Beim **Tab-Betreten** startet Polling (ca. alle **4 s**). Erste Runde = **Baseline**; danach nur **Delta**. Checkbox **Echtzeit** erneut aktivieren oder **Aktualisieren** setzt Baseline zurück. |
+| **Echtzeit aus** | **Aktualisieren** lädt **Historie**; Liste bleibt bis zum nächsten Refresh bestehen. Beim erneuten Tab-Betreten ohne gespeicherte Events: automatischer Refresh. |
+
+**Live-Filter:** Nur Ereignisse mit **Ergebnis** `ok`/`failed` oder Zeitstempel **nahe** Tab-Start (Toleranz ca. **2 Minuten**) werden als „neu“ gezählt — verhindert, dass alte Journal-Zeilen die Echtzeit-Liste fluten.
+
+### 14.7 Sortierung im Detail
+
+- **Datum / Uhrzeit:** gemeinsame **chronologische** Sortierung über gemischte Formate (`YYYY-MM-DD HH:MM:SS`, ISO mit `T` und Zeitzone, Journal `Mon DD HH:MM:SS` mit **Jahresannahme**). **Sekundär** stabil über den Original-Zeitstring.
+- **IP:** numerisch (IPv4), dann Zeit.
+- **Benutzer / Quelle / Ergebnis:** alphabetisch, dann Zeit.
+- **Neueste / Z–A zuerst:** kehrt die **Hauptsortierung** um; **ohne Zeitstempel** bleiben **unten**.
+
+### 14.8 Export
+
+- **Export …** — Dateidialog; leerer Inhalt → Hinweis „zuerst laden“.
+- Exportiert den **sichtbaren** Bericht (nach Filtern/Sortierung), nicht eine separate Roh-SSH-Datei.
+
+### 14.9 IP sperren
+
+- Button **IP sperren …** oder **Rechtsklick** auf eine Zeile mit erkennbarer IP → **IP sperren**.
+- Bestätigungsdialog; Schreiben per **Python** auf dem NAS in **`/ugreen/.config/block_ip_list`** (JSON-Liste). **Doppelte** IPs werden nicht erneut angehängt.
+- **Nicht** sperrbar: **127.0.0.1** und die **NAS-IP** aus dem Header.
+- Wirkung hängt von **UGOS/Firewall** ab, die diese Liste auswertet — bei Problemen NAS-Logs und UGOS-Dokumentation prüfen.
+
+### 14.10 Fehlerfälle und Tipps
+
+- **„SSH-Antwort ohne erwartete Log-Abschnitte“** — Verbindung/ Rechte / abweichende UGOS-Pfade; SSH-Ausgabe im Hinweisblock lesen.
+- **Leere Liste bei Echtzeit** — nach Baseline noch **kein** neuer Login; Test von externem Client; Filter **App-Session-Pings** testweise **aus**.
+- **UGOS-App-Login fehlt** — manche Sessions loggen nur **verify/is_login**; Filter kann Rauschen ausblenden, echte Logins sollten in **ctl_serv** / **log_serv** erscheinen.
+- **Viele SSH-Zeilen von diesem PC** — eigene Admin-Session erzeugt Log-Einträge; für Fremdzugriffe **IP-Spalte** nutzen.
+- **Max. Einträge** in der Session: intern begrenzt (großer Puffer); bei sehr langen Live-Sessions ggf. **Export** zwischenspeichern.
+
+---
+
+## 15. Tab NAS-Verwaltung komplett (aktive Aktionen per SSH/sudo)
+
+Eigenständiger Tab **zwischen** „System & Health“, **Login Track** und „Speicher & Freigaben“. Hier werden **keine reinen Diagnosen** gezeigt, sondern **gezielte Aktionen** am NAS ausgeführt (SSH mit **sudo**).
+
+### 15.1 Aufbau, Scrollen und Fenstergröße
 
 - **Zwei Spalten:** Links alle Bediengruppen (Aktionen), rechts ein **Protokoll** mit der SSH-Ausgabe der jeweiligen Befehle.
 - **Scrollen (links):** Der linke Bereich ist **länger als der sichtbare Bereich** — vertikal mit dem **Mausrad** scrollen, während der Mauszeiger **über der linken Spalte** (Formularfelder, Schaltflächen, Überschriften) liegt. Zusätzlich ist die **Scrollleiste** am rechten Rand des linken Bereichs nutzbar (Ziehen/klicken wie gewohnt). Der **Scrollbereich** wird bei jedem Rad-Schritt **direkt** nachgezogen, damit es sich nicht „festfährt“.
 - **Protokollbreite / Knopfzeilen:** Zwischen linker Spalte und Protokoll liegt ein **Splitter** (schmale Trennlinie). Per Maus **ziehen**, um die Aufteilung anzupassen. Beim Öffnen erhält die **linke Spalte etwa 85 %** der Breite; mehrzeilige Blöcke und **jeder Schaltfläche eigener Platz** verhindern, dass lange Beschriftungen die ganze Zeile „aufblasen“. Das Protokoll kann schmal starten und bei Bedarf verbreitert werden.
 
-### 14.2 Voraussetzungen und „Volle Rechte“
+### 15.2 Voraussetzungen und „Volle Rechte“
 
 - **Schreibende oder riskante Aktionen** (Dateien ändern, Dienste neu laden, Tests/Wartung starten, USB auswerfen, SSH-Profile, Samba, earlyOOM, NGINX-Recovery, …): Im Header **„Volle Rechte“** aktiv und SSH-Benutzer mit **sudo** (analog Health: Neustart/Herunterfahren).
 - **Nur lesen / Listen / Status ohne Systemeingriff:** z. B. „USB-Liste“, „Laufwerke“, „LED-Slots“, „Freigaben einlesen“, „Cron lesen“, „power.conf lesen“, Anzeige **RAID-Check Status** — oft schon **ohne** freigeschaltete Gefahrenaktionen möglich, sofern **SSH verbunden** ist.
 - **Immer:** Ausgaben und Fehlermeldungen im **Protokoll** prüfen; bei unsicherem Zustand zuerst **lesende** Schritte ausführen.
 
-### 14.3 Empfohlene allgemeine Vorgehensweise
+### 15.3 Empfohlene allgemeine Vorgehensweise
 
 1. Oben im Tab Kurzinfo lesen (Hinweis auf sudo / erweiterte Funktionen).
 2. Zuerst **Listen aktualisieren** (USB, Laufwerke, Freigaben, …), dann **Auswahl** im Dropdown treffen.
 3. Vor **Schreibzugriffen** die angezeigten **Bestätigungsdialoge** lesen.
 4. Nach Aktion **Protokoll** prüfen — Exit-Codes und Meldungen von `systemctl`, `smartctl`, `testparm` usw. beachten.
 
-### 14.4 Bereiche: Was macht was? (Kurzüberblick)
+### 15.4 Bereiche: Was macht was? (Kurzüberblick)
 
 | Bereich | Zweck (kurz) | Typische NAS-Objekte |
 |--------|----------------|------------------------|
@@ -1250,31 +1363,31 @@ Eigenständiger Tab **zwischen** „System & Health“ und „Speicher & Freigab
 | Samba | Freigaben, Papierkorb leeren, Schnellanlage | `smb.conf`, `testparm` |
 | LED & Summer | Gehäuse-Identifikation | `/sys/class/leds/diskN`, `ugbeep` |
 
-### 14.5 Energie & Wake-on-LAN
+### 15.5 Energie & Wake-on-LAN
 
 - **Lesen:** Liest `power_boot` und `wake_on` (Bereich `[power]`) aus `/etc/power.conf` und zeigt die Komboboxen an; optional Rohauszug im Protokoll.
 - **Speichern:** Schreibt die gewählten Werte (typ. `true`/`false`) per **sudo** nach `/etc/power.conf`. Nur ausführen, wenn du die Bedeutung der Optionen kennst (Handbuch des NAS / UGOS).
 - **WoL in power.conf:** Übernimmt die **aktuelle Wake-on-LAN-Auswahl** in die Datei (separater Schritt, falls du nur WoL ändern willst).
 
-### 14.6 Geplanter täglicher Shutdown
+### 15.6 Geplanter täglicher Shutdown
 
 - **App-eigene Datei:** **„Cron schreiben“** legt (oder überschreibt) nur **`/etc/cron.d/nas_admin_timed_shutdown`**. Wenn du den Shutdown **nie über diese Schaltfläche** gesetzt hast, fehlt diese Datei trotzdem — UGOS kann die Uhrzeit z. B. in **anderen** Dateien unter `/etc/cron.d/`, in der **root-crontab**, unter **`/var/spool/cron/...`** oder in **`/etc/crontab`** speichern (die **klassische System-Oberfläche** des NAS nutzt oft **keine** App-Datei).
 - **„Cron lesen“** zeigt deshalb mehrere Blöcke: die App-Datei (falls vorhanden), **Inhalt von `/etc/cron.d/`**, **grep** nach shutdown/poweroff/halt/**TimedShutdown** (UGOS nutzt oft **`/sbin/TimedShutdown`** in der **root-Crontab**, nicht in `/etc/cron.d`), direktes Lesen der **Spool-Dateien** (falls `crontab -l` per SSH leer ist) sowie **`/etc/crontab`** und **systemd-Timers**. Wenn alles leer ist oder nur generische Timer erscheinen: der geplante Shutdown sitzt ggf. **nur in der UGOS-GUI** oder in einem **anderen** Mechanismus — dann dort prüfen. **SSH muss verbunden sein** (sonst siehst du nur „Nicht verbunden“). Die erste erkannte Cron-Zeile mit Herunterfahren-Keyword (inkl. **TimedShutdown**) wird **in die Felder übernommen** (Checkbox aktiv), sofern die App Minute/Stunde parsen kann (bei mehreren Wochentags-Zeilen entspricht das der ersten Treffer-Zeile in der Ausgabe).
 - **Aktivieren (über diese App):** Tageszeit im Format **HH:MM** (24 h), dann **Cron schreiben** — wie oben. **Wirkliches Herunterfahren** — Wartungsfenster und Benutzer beachten.
 - **Deaktivieren:** nur die **App-Datei** entfernen (Bestätigung) — ein in UGOS anderswo konfigurierter Shutdown läuft dann ggf. **weiter**, bis du ihn auf dem NAS dort änderst.
 
-### 14.7 USB (UGOS)
+### 15.7 USB (UGOS)
 
 1. **USB-Liste:** Sucht typische USB-Mounts (Pfade mit `usb`, `@usb`, Volume-USB, …).
 2. Mount wählen, dann **UGOS auswerfen:** Zeigt **lsof/fuser**, warnt bei erkennbarer Nutzung; bei Bestätigung **`USBDiskStop`** (sofern vorhanden), danach **`sync`** und **`umount`**. Vorher alle Anwendungen schließen, die auf den Stick zugreifen.
 
-### 14.8 SMART
+### 15.8 SMART
 
 - **Laufwerke:** Liste der Blockgeräte aktualisieren, Zielplatte wählen.
 - **Test:** *short* (Minuten), *long* (sehr lange, hohe Last), *conveyance* (Transportcheck) — je nach Firmware/Platte.
 - **Self-Test Log:** Zeigt relevante SMART-/Test-Historie aus den Logs/aus `smartctl`, abhängig vom System.
 
-### 14.9 RAID & Dateisystem-Wartung
+### 15.9 RAID & Dateisystem-Wartung
 
 - **RAID-Check starten:** Startet den vorgesehenen systemd-Job für den geplanten RAID-Check (`mdcheck_start`), so wie UGOS ihn vorsieht.
 - **Status / Fortschritt:** Nur Anzeige — einliest aktuellen Bearbeitungsstand bzw. md/mdadm-relevante Infos, ohne zu schreiben.
@@ -1289,29 +1402,29 @@ Eigenständiger Tab **zwischen** „System & Health“ und „Speicher & Freigab
 
 **Wichtig:** Vor *high* immer prüfen, ob alle Clients (SSH-Versionen) mit den Algorithmen klarkommen.
 
-### 14.11 UGOS-Core-Dienste
+### 15.11 UGOS-Core-Dienste
 
 - **Dropdown:** Enthält eine **fest definierte Kernliste** typischer `*_serv`-Namen (storage, docker, gateway, …). Nach jedem erfolgreichen **„Alles aktualisieren“** (Sidebar) hängt die App **alle weiteren auf dem NAS aktiven** Units an, deren Name auf **`_serv.service`** endet (alphabetisch sortiert, ohne Duplikate) — so erscheinen z. B. zusätzliche UGOS-Paket-Dienste, ohne auf eine App-Aktualisierung zu warten.
 - **Start / Stop / Neustart:** `systemctl`-Aktion — kann Verbindungen oder Dienste kurz unterbrechen.
 - **Journal:** Letzte Journalzeilen der gewählten Unit — Diagnose bei Fehlern.
 - **Support-Snapshot** (neben **Journal**, nur Lesen): Schreibt ins **rechte Protokoll** des Tabs u. a. **`uname -a`**, einen Auszug aus **`/etc/os-release`**, ein kurzes **`journalctl`**-Stück zu **`entry_serv`**, sowie **Tail-Auszüge** aus typischen UGOS-Logs (`storage_serv`, `gateway_serv`, `docker_serv`, `networking.log`, `syslog`). **Kein** Schreibzugriff auf dem NAS; dient der **Einsammel-Hilfe** für Support (Text kopieren). **Voraussetzung:** NAS-IP im Header und SSH; bei fehlender IP erscheint ein Hinweisdialog.
 
-### 14.12 NGINX
+### 15.12 NGINX
 
 - **Reload:** Führt den UGOS-**reload**-Pfad aus (oder Fallback `systemctl reload nginx`) und zeigt Kurzstatus.
 - **Config-Recovery:** Nur nach bewusster Bestätigung: Dialog verlangt die Eingabe **`RESTORE`**; spielt die **ROM-/Standard-Konfiguration** nach `/etc/nginx` ein — **bestehende Anpassungen gehen an der Stelle verloren**. Nur mit Backup-Strategie nutzen.
 
-### 14.13 earlyOOM
+### 15.13 earlyOOM
 
 - **Laden / Speichern:** Bearbeitet `/etc/default/earlyoom` und startet den Dienst neu. Syntax der Kernel-Parameter beachten — Fehler können OOM-Verhalten verschlechtern.
 
-### 14.14 Samba
+### 15.14 Samba
 
 1. **Freigaben einlesen:** Füllt die Liste aus `testparm`/`smb.conf` (ohne `global` als Ziel).
 2. **Papierkorb leeren:** Ermittelt den Pfad der Freigabe und leert typische **Recycle-Ordner** (`@recycle`, …) — **unwiderruflich** für diese Dateien.
 3. **Schnell-Freigabe:** Hängt einen **einfachen** Block an `smb.conf` an, prüft mit `testparm`, lädt **`smbd`** neu. Pfad muss zu einem **UGOS-Volume** passen (z. B. `/volume1/...`).
 
-### 14.15 LED & Summer
+### 15.15 LED & Summer
 
 - **LED-Slots** aktualisieren, `diskN` wählen, **Identify:** kurzes Blinken (~12 s) zur Gehäusezuordnung.
 - **Summer:** Testton über UGOS-**beep**-Werkzeug (modellabhängig).
@@ -1396,7 +1509,7 @@ Aktiviere zunaechst die sicherheits- und verfuegbarkeitskritischen Checks. Danac
 
 ---
 
-## 15. Tab Speicher & Freigaben komplett
+## 16. Tab Speicher & Freigaben komplett
 
 ### Aus dem Bereich: 32. Vollständige Referenz: Storage-Tab
 
@@ -1444,7 +1557,7 @@ Vor jeder Image-/Restore-Aktion:
 
 ---
 
-## 16. Tab ACL komplett
+## 17. Tab ACL komplett
 
 ### Aus dem Bereich: 33. Vollständige Referenz: ACL-Tab
 
@@ -1487,7 +1600,7 @@ Regel:
 
 ---
 
-## 17. Tab Snapshots komplett
+## 18. Tab Snapshots komplett
 
 ### Aus dem Bereich: 34. Vollständige Referenz: Snapshots-Tab
 
@@ -1530,7 +1643,7 @@ Nur mit klarer Identifikation des Snapshots und Rückfallplan.
 
 ---
 
-## 18. Tab Backup komplett (Backup + Restore + Schedules zusammen)
+## 19. Tab Backup komplett (Backup + Restore + Schedules zusammen)
 
 ### Aus dem Bereich: 35. Vollständige Referenz: Backup-Tab
 
@@ -1701,7 +1814,7 @@ Ein Backup gilt erst dann als verlässlich, wenn ein Restore erfolgreich geteste
 
 ---
 
-## 19. Info-Dialog komplett
+## 20. Info-Dialog komplett
 
 ### Aus dem Bereich: 54. Info-Dialog komplett
 
@@ -1722,7 +1835,7 @@ Weitere Elemente:
 
 ---
 
-## 20. Gesamtbetrieb, Checklisten, Troubleshooting
+## 21. Gesamtbetrieb, Checklisten, Troubleshooting
 
 ### Aus dem Bereich: 19. Vollständige Betriebsreihenfolge (empfohlen)
 
@@ -2067,7 +2180,7 @@ Nacharbeit:
 
 ---
 
-## 21. Abschluss
+## 22. Abschluss
 
 ### Aus dem Bereich: 21. Schluss
 

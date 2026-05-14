@@ -1,6 +1,6 @@
 # Ugreen NAS Admin - Komplettes Handbuch (strukturierte Edition)
 
-> **Tab „NAS-Verwaltung“ (komplett):** Die ausführliche Anleitung steht **nicht** in dieser Datei, sondern in **`HANDBUCH.md` → `## 14. Tab NAS-Verwaltung komplett`** (blaue PDF-Überschrift wie andere Tabs). Die App öffnet bei **Info → Handbuch** die **`HANDBUCH.pdf`** (neben der .exe) aus **`HANDBUCH.md`**. **Kurzfassung:** hier **12.6**; PDF aktualisieren: `python tools/build_handbuch_pdf.py`.
+> **Tab „Login Track“ (komplett):** **`HANDBUCH.md` → `## 14. Tab Login Track komplett`**. **Tab „NAS-Verwaltung“ (komplett):** **`HANDBUCH.md` → `## 15. Tab NAS-Verwaltung komplett`** (blaue PDF-Überschriften wie andere Tabs). Kurzfassungen hier **12.6** / **12.7**. Die App öffnet bei **Info → Handbuch** die **`HANDBUCH.pdf`** (neben der .exe) aus **`HANDBUCH.md`**. PDF aktualisieren: `python tools/build_handbuch_pdf.py`.
 
 ## 1. Ziel dieses Handbuchs
 
@@ -515,9 +515,19 @@ Buttons:
 - `Test senden`
 - Der auf dem NAS laufende Bericht enthält seit v23.8.1 einen Block **OS / UGOS** (Auszug aus **`/etc/os-release`**: u. a. `PRETTY_NAME`, `VERSION_ID`, `OS_VERSION`, `OS_IS_BETA`).
 
-### 12.6 Tab NAS-Verwaltung (aktive Aktionen, SSH/sudo)
+### 12.6 Tab Login Track (Zugriffe nach Client-IP)
 
-**Sidebar:** Zwischen **System & Health** und **Speicher & Freigaben**. Zwei Spalten: links alle Funktionsblöcke (scrollbar), rechts SSH-Protokoll; dazwischen **Splitter** ziehen, wenn die Konsole zu breit ist.
+**Sidebar:** Zwischen **System & Health** und **NAS-Verwaltung** (Icon **🔐**).
+
+**Zweck:** Anmeldungen und Verbindungen zum NAS **nach Client-IP** — SSH, SMB, UGOS-App (iPhone/PC), UGOS-Web, aktive TCP-Verbindungen (`ss`). **Echtzeit** (Standard): nur **neue** Zeilen seit Tab-Start/Baseline; **Aktualisieren** mit abgeschalteter Echtzeit lädt **Historie** (ca. 30 Tage Journal + Log-Tails).
+
+**Bedienung:** Sortierung (**Datum/Uhrzeit** zuerst Tag, dann Uhrzeit; ohne Zeitstempel am Ende), Filter **App-Session-Pings ausblenden**, **Export …**, **IP sperren …** (Rechtsklick auf Zeile) → **`/ugreen/.config/block_ip_list`**. Liste nur lesen, Trennlinien zwischen Einträgen.
+
+**Vollständig:** **`HANDBUCH.md` → `## 14. Tab Login Track komplett`**.
+
+### 12.7 Tab NAS-Verwaltung (aktive Aktionen, SSH/sudo)
+
+**Sidebar:** Zwischen **Login Track** und **Speicher & Freigaben**. Zwei Spalten: links alle Funktionsblöcke (scrollbar), rechts SSH-Protokoll; dazwischen **Splitter** ziehen, wenn die Konsole zu breit ist.
 
 **Rolle:** Gezielte **Aktionen** am NAS (Wartung, Dienste, Konfig), nicht nur Diagnose. Schreibende Schaltflächen brauchen **„Volle Rechte“** im Header und **sudo** für den SSH-User (wie Neustart/Herunterfahren im Health-Tab).
 
@@ -525,7 +535,7 @@ Buttons:
 
 **„Cron lesen“ beim geplanten Shutdown:** Die App verwaltet die Datei **`/etc/cron.d/nas_admin_timed_shutdown`** nur dann, wenn du hier **„Cron schreiben“** genutzt hast. **UGOS** kann das tägliche Herunterfahren (z. B. 23:00) in **anderen** Cron-Dateien, der **root-crontab** oder **`/etc/crontab`** eintragen — **„Cron lesen“** sucht deshalb dort mit und zeigt alle passenden Zeilen im Protokoll. Wird eine **tägliche** Shutdown-Zeile gefunden, übernimmt die App **Stunde/Minute** in die Felder.
 
-Details, Tabellen und sichere Abläufe: **`HANDBUCH.md` → `## 14. Tab NAS-Verwaltung komplett`** (vollständig).
+Details, Tabellen und sichere Abläufe: **`HANDBUCH.md` → `## 15. Tab NAS-Verwaltung komplett`** (vollständig).
 
 ---
 

@@ -32,6 +32,7 @@ from ugreen_app._paramiko import _paramiko
 from ugreen_app.mixin_safety_lock import MixinSafetyLock
 from ugreen_app.mixin_theme_ui import MixinThemeUI
 from ugreen_app.mixin_tabs_setup import MixinTabsSetup
+from ugreen_app.mixin_login_track import MixinLoginTrack
 from ugreen_app.mixin_nas_admin import MixinNasAdmin
 from ugreen_app.mixin_storage_acl_snap import MixinStorageAclSnap
 from ugreen_app.mixin_config_telegram import MixinConfigTelegram
@@ -44,12 +45,13 @@ from ugreen_app.mixin_editor_cron import MixinEditorCron
 from ugreen_app.mixin_update_check import MixinUpdateCheck
 from ugreen_app.i18n import cron_mappings_for_lang, translate
 
-__version__ = "23.8.1"
+__version__ = "23.8.2"
 
 class NASManager(
     MixinSafetyLock,
     MixinThemeUI,
     MixinTabsSetup,
+    MixinLoginTrack,
     MixinNasAdmin,
     MixinStorageAclSnap,
     MixinConfigTelegram,
