@@ -9,7 +9,6 @@ Nicht mitnehmen: Cursor-Regeln, interne Release-Notizen, Forum-Entwürfe, Dev-He
 from __future__ import annotations
 
 import argparse
-import os
 import shutil
 import subprocess
 import sys
@@ -55,6 +54,18 @@ TOOL_FILES = frozenset(
 
 SKIP_DIR_NAMES = frozenset({"__pycache__", ".mypy_cache", "output", ".git"})
 
+REMOVE_REL_PATHS = frozenset(
+    {
+        ".cursorrules",
+        "FORUM_CHANGELOG_v23.8.1_DE.md",
+        "RELEASE_LINKS.md",
+        "setup_public_remote.ps1",
+        "tools/_check_nas_locale.py",
+        "tools/_list_nas_admin_keys.py",
+        "tools/translate_handbook_en.py",
+    }
+)
+
 SENSITIVE_UGREEN_FILES = frozenset(
     {
         "app_settings.json",
@@ -79,28 +90,6 @@ def _ensure_worktree() -> None:
     WORKTREE.parent.mkdir(parents=True, exist_ok=True)
     _run(["git", "fetch", "public"])
     _run(["git", "worktree", "add", str(WORKTREE), "public/main"])
-
-
-def _allowed_rel(rel: str) -> bool:
-    rel = rel.replace("\\", "/").lstrip("./")
-    if not rel or rel.startswith(".cursor"):
-        return False
-    if rel in TOP_FILES:
-        return True
-    if rel.startswith("ugreen_app/"):
-        if Path(rel).name in SENSITIVE_UGREEN_FILES:
-            return False
-        return True
-    if rel.startswith("images/"):
-        return True
-    if rel.startswith("installer/"):
-        return True
-    if rel == ".github/FUNDING.yml":
-        return True
-    if rel.startswith("tools/"):
-        name = Path(rel).name
-        return name in TOOL_FILES
-    return False
 
 
 def _copy_tree(src: Path, dst: Path) -> None:
@@ -166,27 +155,21 @@ def _sync_content() -> None:
 
 def _prune_foreign() -> list[str]:
     removed: list[str] = []
-    for dirpath, _dirnames, filenames in os.walk(WORKTREE, topdown=False):
-        base = Path(dirpath)
-        for name in filenames:
-            path = base / name
-            rel = path.relative_to(WORKTREE).as_posix()
-            if rel == ".git" or rel.startswith(".git/"):
-                continue
-            if not _allowed_rel(rel):
+    for rel in REMOVE_REL_PATHS:
+        path = WORKTREE / rel
+        if path.is_file():
+            path.unlink()
+            removed.append(rel)
+    tools_dir = WORKTREE / "tools"
+    if tools_dir.is_dir():
+        for path in tools_dir.glob("*.py"):
+            if path.name not in TOOL_FILES:
                 path.unlink()
-                removed.append(rel)
-    for dirpath, dirnames, _filenames in os.walk(WORKTREE, topdown=False):
-        base = Path(dirpath)
-        for name in dirnames:
-            path = base / name
-            if path.name == ".git":
-                continue
-            try:
-                if not any(path.iterdir()):
-                    path.rmdir()
-            except OSError:
-                pass
+                removed.append(path.relative_to(WORKTREE).as_posix())
+    for path in (WORKTREE / "ugreen_app").rglob("*"):
+        if path.is_file() and path.name in SENSITIVE_UGREEN_FILES:
+            path.unlink()
+            removed.append(path.relative_to(WORKTREE).as_posix())
     return removed
 
 
