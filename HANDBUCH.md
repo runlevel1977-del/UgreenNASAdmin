@@ -226,6 +226,19 @@ Beide sind vor/nach Änderungen sehr wertvoll.
 - `SSH-Key nutzen`
 - `SSH-Key-Pfad`
 - `Passphrase`
+- **UGOS API:** Port, HTTPS, SSL prüfen (Dashboard-Button „UGOS API“)
+- **SSH-Befehl:** **Standard (s)** und **Lang (s)** — siehe **§79**
+
+### 23.3.1 SSH-Befehl-Timeouts (Kurzüberblick)
+
+Unter **Settings → Verbindung**, Zeile **SSH-Befehl:**
+
+| Feld | Standard | Bedeutung |
+|------|----------|-----------|
+| **Standard (s)** | 120 | Kurze Befehle (`ls`, `df`, Listen aktualisieren) — bei Überschreitung Abbruch mit Meldung |
+| **Lang (s)** | 0 | rsync, `du` Top-20, Backup — **0 = unbegrenzt** (empfohlen für große Migrationen) |
+
+Nach Änderung **Speichern** klicken. Ausführliche Anleitung: **§79**.
 
 ### 23.4 Verbindungsbuttons (inkl. neuer SSH-Funktionen)
 
@@ -269,6 +282,16 @@ Beide sind vor/nach Änderungen sehr wertvoll.
 - Nach Key-Umstellung kein altes/falsches Passwort im Formular belassen.
 - Bei QNAP unbedingt den tatsaechlichen SSH-Port angeben (nicht immer 22).
 - Bei Problemen zuerst pruefen: SSH-Dienst aktiv, User korrekt, Home-Verzeichnis beschreibbar.
+
+### 23.4.5 UGOS: SSH-Key dauerhaft (nach Reboot)
+
+Auf **UGOS** kann ein per App installierter Public Key nach **Neustart** oder Aenderungen in der **UGOS-Weboberfläche** wieder abgelehnt werden (Berechtigungen unter `~/.ssh`).
+
+**Symptom:** Key-Login funktionierte, danach wieder nur Passwort.
+
+**Loesung (Community, MIT):** In [UGOS_scripts — ssh_public_key](https://github.com/ln-12/UGOS_scripts/tree/main/ssh_public_key) ist ein **systemd-Dienst** (`ssh-permission-monitor`) beschrieben, der die SSH-Ordnerrechte stabil haelt. Die App zeigt nach erfolgreicher Key-Installation auf dem UGREEN-Ziel einen Hinweis mit diesem Link.
+
+**Hinweis:** Skripte dort sind Community-Inhalte — vor Anwendung Backup der Systemkonfiguration; Nutzung auf eigenes Risiko.
 
 ### 23.5 SMB-Zweitprofil
 
@@ -351,6 +374,8 @@ Dieser Abschnitt erklaert die beiden neuen SSH-Buttons unter `Settings -> Verbin
 5. `Verbindung speichern` klicken.
 6. `Oeffentlichen Key auf NAS installieren` klicken und Zielsystem waehlen.
 7. Erfolgsdialog pruefen; danach werden spaetere SSH-Aktionen ueber den privaten Key ausgefuehrt.
+
+**UGOS (Dauerhaftigkeit):** Siehe Abschnitt **23.4.5** — bei abgelehntem Key nach Reboot ggf. `ssh-permission-monitor` aus [UGOS_scripts](https://github.com/ln-12/UGOS_scripts) einrichten.
 
 **Wichtige Regeln**
 - Niemals den privaten Key weitergeben oder auf NAS hochladen.
@@ -1061,7 +1086,30 @@ Fehlerfall:
 - Docker Katalog
 - Neuer Docker
 
-Nutze Katalog für Image-Recherche, Erstellen für konkrete Definition.
+Nutze **Katalog** fuer Image-Recherche; waehle **Compose** fuer Stacks mit UGREEN-Pfaden. Fertige Presets (Auswahl) u. a. fuer:
+
+| Suche / Image | Zweck | Typische Ports |
+|---------------|--------|----------------|
+| **MeTube** (`alexta69/metube`, `ghcr.io/alexta69/metube`) | Video/Audio-Download (yt-dlp, Web-UI) | 8081 |
+| **Scrutiny** | SMART-Festplatten-Ueberwachung | 8080 |
+| **Dozzle** | Docker-Container-Logs im Browser | 8080 |
+| **Jellyfin / Plex** | Medienstreaming | 8096 / 32400 |
+| **Uptime Kuma** | Erreichbarkeits-Monitoring | 3001 |
+| **Homepage** | Homelab-Dashboard | 3000 |
+| **Portainer** | Docker-GUI | 9000 |
+| **Sonarr / Radarr / Prowlarr** | Media-Automation | 8989 / 7878 / 9696 |
+
+Presets legen Volumes unter **`/volume1/docker/<name>/…`** an — im Assistenten Pfade anpassen, dann deployen.
+
+**Fehlt im App Center** (15 Rezepte): Docker-Tab → **Fehlt im App Center** — kuratierte Stacks für Dienste ohne UGOS-App-Center-Eintrag (MeTube, Jellyfin, Immich, Paperless-ngx, Vaultwarden, Nextcloud, AdGuard Home, Sonarr/Radarr/Prowlarr, qBittorrent, Uptime Kuma, Home Assistant, Syncthing, Portainer). Suche nach Name/Tag; Doppelklick oder **Im Assistenten öffnen**. **Ausführliche Schritt-für-Schritt-Anleitung: §77.**
+
+**Homelab-Stapel** (mehrere Dienste, ein Compose): Docker-Tab → **Homelab-Stapel** → z. B. Monitoring (Uptime Kuma + Dozzle + Homepage) oder Media-Download (MeTube + qBittorrent).
+
+**Compose von GitHub:** Docker-Assistent → **Von GitHub…** — URL zu `raw.githubusercontent.com` oder `github.com/…/blob/…/docker-compose.yml`.
+
+**UGOS API (Dashboard):** Button **UGOS API** — liest Live-Daten über die Web-UI-API (wie die UGOS-App), nicht per SSH. Port/HTTPS: Settings → Verbindung (Standard HTTPS-Port **9443**). Für den Login wird **`cryptography`** benötigt (`pip install cryptography`).
+
+**SSH-Timeouts / Exit-Codes:** Settings → Verbindung → **SSH-Befehl** — **§79**. Migration inkl. Vorab-Prüfung: **§78**. Storage Top-20: **§80**.
 
 ### 48.2 Update und Massenaktionen
 
@@ -1122,6 +1170,91 @@ Ziel: Ein vorhandener Container soll aktualisiert werden, ohne unkontrollierte S
 Warum diese Reihenfolge wichtig ist:
 
 Ohne Baseline aus Inspect/Logs ist spaeter oft unklar, ob der Fehler aus dem Update stammt oder vorher schon vorhanden war.
+
+---
+
+### Aus dem Bereich: 77. Praxisanleitung: Docker-Rezepte (Fehlt im App Center)
+
+Ziel: Einen Dienst installieren, der im UGOS App Center nicht angeboten wird — mit fertiger Compose-Vorlage und UGREEN-Pfaden unter `/volume1/docker/…`.
+
+**Voraussetzungen**
+
+1. SSH-Verbindung zur NAS in der App steht (grüner Verbindungsstatus).
+2. Docker läuft auf der NAS (Docker-Tab → **Liste** zeigt Container oder leere, aber fehlerfreie Liste).
+3. Du kennst den gewünschten Dienst (z. B. Jellyfin, Immich, Vaultwarden).
+
+**Schritt 1 — Rezept öffnen**
+
+1. Sidebar → **Docker Manager** (Tab Docker).
+2. In der oberen Werkzeugleiste auf **Fehlt im App Center** klicken.
+3. Es öffnet sich ein Fenster mit der Liste aller **15 Rezepte** und einem Suchfeld oben.
+
+**Schritt 2 — Rezept auswählen**
+
+1. Optional im Suchfeld tippen (z. B. `jellyfin`, `photo`, `password`, `8081`) — die Liste filtert sofort.
+2. Ein Rezept in der Liste anklicken — darunter erscheint eine **Kurzbeschreibung** (Zweck, Port-Hinweis).
+3. Rezept bestätigen mit **Im Assistenten öffnen** (oder **Doppelklick** auf den Listeneintrag).
+4. Das Rezept-Fenster schließt sich; der **Docker-Assistent** (Erstellen) öffnet sich mit der fertigen **Compose-YAML** im Editor.
+
+**Schritt 3 — Compose prüfen und anpassen**
+
+1. Im Editor die YAML durchlesen — besonders:
+   - **ports:** Host-Port → Container-Port (z. B. `"8096:8096"`). Port-Konflikte mit anderen Diensten vermeiden.
+   - **volumes:** Pfade beginnen mit `/volume1/docker/<dienst>/…` — bei Bedarf auf `/volume2/…` ändern, wenn Docker dort liegen soll.
+   - **environment:** Passwörter, Secret Keys, `PUID`/`PGID`, Zeitzone (`TZ=Europe/Berlin`).
+2. Bei **Immich** und **Paperless-ngx:** unbedingt `change_me_db`, `change_me_secret` o. ä. durch sichere Werte ersetzen.
+3. Bei **AdGuard Home:** Port **53** nur nutzen, wenn kein anderer DNS-Dienst auf der NAS oder im Router den Port blockiert.
+4. Medienpfade anpassen (z. B. Jellyfin `/volume1/media` — Ordner muss existieren oder wird beim Deploy angelegt).
+
+**Schritt 4 — Variablen scannen (empfohlen)**
+
+1. Im Docker-Assistenten auf **Variablen scannen** klicken.
+2. Erkannte Platzhalter, Volume-Host-Pfade und Ports im Formular prüfen.
+3. Häkchen **Host-Ordner auf NAS anlegen (chmod 777)** setzen, wenn die App leere Docker-Ordner anlegen soll.
+4. **Weiter** — die Werte werden in die YAML eingetragen.
+
+**Schritt 5 — Deployen**
+
+1. Compose prüfen (optional **config**-Schritt im Assistenten, falls angeboten).
+2. Deployment starten (**up -d** / Start im Assistenten — je nach UI-Stand des Wizards).
+3. Warten, bis die Ausgabe im Log ohne Fehler durchläuft.
+4. Docker-Tab → **Liste** — Container sollte **running** sein.
+
+**Schritt 6 — Funktionstest**
+
+1. Im Browser `http://<NAS-IP>:<Port>` aufrufen (Port aus Rezept, z. B. Jellyfin **8096**, MeTube **8081**, Vaultwarden **8222**).
+2. Ersteinrichtung im Web-UI des Dienstes durchführen (Admin-Konto, Bibliotheken, etc.).
+3. Bei Problemen: Docker-Tab → Container markieren → **Logs** und **Inspect**.
+
+**Schritt 7 — Nach dem ersten Start (Best Practice)**
+
+1. Passwörter/Secrets notieren (Passwortmanager — nicht nur in der Compose lassen).
+2. Optional Snapshot im Tab **Snapshots** für den Docker-Datenordner.
+3. Compose-Datei auf der NAS dokumentieren (z. B. unter `/volume1/docker/<dienst>/docker-compose.yml` ablegen).
+
+**Rezept-Übersicht (Ports)**
+
+| Rezept | Typischer Port | Besonderheit |
+|--------|----------------|--------------|
+| MeTube | 8081 | Downloads unter `/volume1/docker/metube/downloads` |
+| Jellyfin | 8096 | Medienordner `/volume1/media` |
+| Immich | 2283 | Mehrere Container + Postgres — DB-Passwort setzen |
+| Paperless-ngx | 8000 | Redis + Postgres — Secret Key setzen |
+| Vaultwarden | 8222 | Keine Registrierung (`SIGNUPS_ALLOWED=false`) |
+| Nextcloud | 443 | linuxserver-Image, HTTPS |
+| AdGuard Home | 3000 (+53 DNS) | DNS-Port prüfen |
+| Sonarr / Radarr / Prowlarr | 8989 / 7878 / 9696 | *arr-Stack, gemeinsame `/volume1`-Daten |
+| qBittorrent | 8080 | Downloads `/volume1/downloads` |
+| Uptime Kuma | 3001 | Monitoring-Dashboard |
+| Home Assistant | 8123 | Config persistent |
+| Syncthing | 8384 | Sync-Ordner `/volume1/sync` |
+| Portainer | 9000 / 9443 | Docker-Socket-Zugriff — nur vertrauenswürdiges Netz |
+
+**Typische Fehler**
+
+- **Port belegt:** Anderen Host-Port in der YAML wählen (z. B. `"8097:8096"`).
+- **Permission denied:** PUID/PGID an NAS-User anpassen oder Host-Ordner mit **Host-Ordner anlegen** erzeugen.
+- **Container startet nicht:** Logs lesen; bei DB-Images (Immich/Paperless) erst Postgres/Redis healthy abwarten.
 
 ---
 
@@ -1539,9 +1672,13 @@ Felder:
 
 Buttonreihe für Zustandserfassung.
 
-### 50.2 Top20
+### 50.2 Top 20 Ordner
 
-Pfadbasiert die größten Verzeichnisse finden.
+Findet die **größten Unterordner** unter einem Pfad (typisch `/volume1`). Lauf kann bis **~5 Minuten** dauern — ab Version **23.8.5** im **Hintergrund**, die App bleibt bedienbar.
+
+**Kurz:** Storage-Tab → Pfad eintragen → **Top 20 Ordner** → Ergebnis erscheint unten im Log.
+
+**Ausführliche Schritt-für-Schritt-Anleitung: §80.**
 
 ### 50.3 Disk-Image-Operationen
 
@@ -1653,6 +1790,15 @@ Nur mit klarer Identifikation des Snapshots und Rückfallplan.
 - User Data Backup
 - All Data Backup
 - Refresh Lists
+- **Migrations-Assistent** (rsync für Volume-/NAS-Umzug; auch im Tab NAS↔NAS)
+
+### 35.1a Migrations-Assistent
+
+Szenarien: gleiche NAS (andere Volumes), Push auf andere NAS, Pull von anderer NAS, Vorlage Synology/QNAP. Erzeugt ein Bash-Skript mit `rsync -aHAX` (Dry-Run standardmäßig). Speichern unter `/volume1/scripts/ugreen_migration_rsync.sh`. Für interaktives Kopieren weiterhin **NAS ↔ NAS**.
+
+**Buttons im Dialog:** Skript aktualisieren · **Vorab-Prüfung** · Auf NAS speichern · Auf NAS ausführen · Tab NAS ↔ NAS · Schließen. Lange Läufe (rsync, Speichern) blockieren die UI **nicht** — Buttons sind währenddessen kurz deaktiviert.
+
+**Ausführliche Schritt-für-Schritt-Anleitung: §78.** SSH-Timeouts: **§79.**
 
 ### 35.2 Backup-Felder
 
@@ -1761,6 +1907,267 @@ Komplette Jobverwaltung mit Cronlogik.
 - Health Refresh
 - betroffene App/Container testen
 - optional Snapshot fuer neuen stabilen Stand
+
+---
+
+### Aus dem Bereich: 78. Praxisanleitung: Migrations-Assistent (Volume / NAS / Synology)
+
+Ziel: Daten kontrolliert umziehen — auf ein anderes Volume derselben UGREEN-NAS, auf eine zweite NAS, oder von Synology/QNAP importieren — ohne blindes Kopieren.
+
+**Wann welches Werkzeug?**
+
+| Aufgabe | Empfehlung |
+|---------|------------|
+| Einzelne Ordner/Dateien per GUI zwischen NAS und PC/Peer | Tab **NAS ↔ NAS** oder **Explorer** |
+| Große, wiederholbare Datenmigration mit Protokoll | **Migrations-Assistent** (rsync-Skript) |
+| Vollbackup als Archiv | Tab **Backup** (tar/Backup-Buttons) |
+
+**Voraussetzungen**
+
+1. SSH-Verbindung zur **Ziel-UGREEN** steht.
+2. Genug **freier Speicher** am Ziel (Storage-Tab prüfen).
+3. **Snapshot oder Backup** der Quelldaten (Tab Snapshots oder Backup) — vor jedem Live-rsync.
+4. Für NAS↔NAS per SSH: **SSH-Key** auf beiden Systemen (Settings → SSH-Key installieren) oder Passwort-SSH möglich.
+5. Betroffene **Docker-Container stoppen**, wenn Docker-Volumes migriert werden (Docker-Tab → Stop).
+
+**Schritt 1 — Assistent öffnen**
+
+1. **Backup-Tab** → Button **Migrations-Assistent**, **oder**
+2. **NAS ↔ NAS**-Tab → gleicher Button in der linken Toolbar.
+3. Fenster **Migrations-Assistent** erscheint mit Szenario-Auswahl, Pfadfeldern und Skript-Vorschau unten.
+
+**Schritt 2 — Szenario wählen**
+
+Eines der vier Optionsfelder aktivieren:
+
+1. **Gleiche NAS — anderes Volume/Pfad**  
+   Beispiel: Docker von `/volume1/docker` nach `/volume2/docker`.  
+   rsync läuft **lokal auf der NAS** (kein Remote-Host nötig).
+
+2. **Auf andere NAS kopieren (Push)**  
+   Daten **von dieser UGREEN weg** auf eine andere NAS.  
+   Remote-Host/IP und SSH-Benutzer der **Ziel-NAS** eintragen.
+
+3. **Von anderer NAS importieren (Pull)**  
+   Daten **von einer anderen NAS** auf diese UGREEN holen.  
+   Remote-Host/IP = **Quell-NAS**, Quellpfad = Pfad auf der Quell-NAS.
+
+4. **Von Synology/QNAP — Vorlage**  
+   Wie Pull, aber Pfade manuell an Synology/QNAP anpassen (z. B. `/volume1/photo` → `/volume1/photos` auf UGREEN).
+
+**Schritt 3 — Pfade eintragen**
+
+1. **Quellpfad:** Absoluter Pfad mit führendem `/`, z. B. `/volume1/docker/jellyfin` oder `/volume1/@home/user/Drive`.
+2. **Zielpfad:** Absoluter Pfad auf der NAS, die **empfängt** (bei Push: Pfad auf der **Remote-NAS**).
+3. **Remote-Host/IP:** Nur bei Push, Pull oder Synology/QNAP — IP oder Hostname der **anderen** NAS.
+4. **SSH-Benutzer:** Meist `admin` oder dein NAS-Admin (gleicher Name wie für SSH-Login).
+
+**Schritt 4 — Optionen setzen**
+
+1. **Dry-Run (-n)** — standardmäßig **aktiv**. Erst damit testen; es werden **keine** Dateien geändert, nur simuliert.
+2. **--delete** — nur aktivieren, wenn das Ziel **exakt** wie die Quelle werden soll (Extra-Dateien am Ziel werden gelöscht). **Vorsicht** — nur nach erfolgreichem Dry-Run.
+
+**Schritt 5 — Skript erzeugen und prüfen**
+
+1. **Skript aktualisieren** klicken (beim Öffnen schon vorbefüllt).
+2. Im Textfeld unten das Bash-Skript lesen:
+   - `rsync -aHAX --info=progress2 --numeric-ids`
+   - bei Dry-Run: `-n` in der rsync-Zeile
+   - Quelle und Ziel mit trailing `/` (kopiert **Inhalt** des Ordners)
+   - Variablen `SRC=` / `DST=` / `RSYNC_SRC=` — **Auf NAS ausführen** startet das **gesamte Skript**, nicht nur die rsync-Zeile
+3. Checkliste im Dialog beachten: Snapshot → Apps stoppen → Dry-Run → Live → Pfade in Compose anpassen → Dienste starten.
+
+**Schritt 5a — Alle Schaltflächen im Dialog (Referenz)**
+
+| Button | Funktion |
+|--------|----------|
+| **Skript aktualisieren** | Baut das Bash-Skript aus Szenario, Pfaden und Optionen neu und zeigt es im Textfeld |
+| **Vorab-Prüfung** | Prüft Pfade, Speicher und (bei Remote) SSH — Ergebnis im Textfeld + Dialog; läuft im Hintergrund |
+| **Auf NAS speichern** | Schreibt das Skript nach `/volume1/scripts/ugreen_migration_rsync.sh` (ausführbar); Hintergrund |
+| **Auf NAS ausführen** | Führt **Vorab-Prüfung** aus, dann das Skript per SSH auf der NAS — Hintergrund, kann sehr lange dauern |
+| **Tab NAS ↔ NAS** | Schließt den Assistenten und wechselt zum GUI-Kopier-Tab |
+| **Schließen** | Dialog schließen ohne weiteren Lauf |
+
+Während ein Hintergrund-Job läuft, sind die Aktions-Buttons kurz **ausgegraut**; die Statuszeile zeigt z. B. „Vorab-Prüfung läuft…“ oder „Migration/rsync läuft…“.
+
+**Schritt 6 — Vorab-Prüfung (empfohlen, auch automatisch vor Ausführen)**
+
+1. **Vorab-Prüfung** klicken (oder direkt **Auf NAS ausführen** — dann läuft die Prüfung zuerst automatisch).
+2. Die App prüft per SSH auf der UGREEN (und ggf. per SSH zur Remote-NAS):
+   - **Quellpfad vorhanden** (`test -d`)
+   - **Zielpfad erreichbar** (Ordner anlegbar)
+   - **Quellgröße** (`du -sk`) und **freier Speicher am Ziel** (`df`)
+   - bei Push/Pull/Synology: **SSH zur Remote-NAS** (SSH-Key von UGREEN zur anderen NAS nötig — siehe Settings §23.4)
+3. Ergebnis unten im Textfeld unter `=== Vorab-Prüfung ===` — jede Zeile mit `•`.
+4. Dialog **bestanden** → weiter mit Dry-Run oder Live. Dialog **fehlgeschlagen** → Pfade/Key/Speicher korrigieren, erneut prüfen.
+
+**Was die Vorab-Prüfung meldet**
+
+| Meldung | Bedeutung | Maßnahme |
+|---------|-----------|----------|
+| Quellpfad vorhanden | OK | — |
+| Quellpfad fehlt | Pfad falsch oder nicht gemountet | Pfad im Explorer prüfen |
+| Zielpfad erreichbar | OK | — |
+| Zielpfad fehlt | Kein Schreibrecht oder falscher Pfad | sudo/ACL, Pfad korrigieren |
+| Quellgröße ca. … | Grobe Datenmenge | — |
+| Freier Speicher am Ziel ca. … | Platz auf Ziel-Volume | Storage-Tab, anderes Volume |
+| Warnung: weniger freier Speicher als Quelle | Migration würde vermutlich scheitern | Speicher freimachen oder anderes Ziel |
+| SSH zur Remote-NAS OK | Key/Netzwerk stimmt | — |
+| SSH zur Remote-NAS fehlgeschlagen | Kein Key, Firewall, falscher Host | Key auf UGREEN für Remote-NAS, Port 22 |
+| Remote-Host/IP fehlt | Bei Push/Pull Host leer | IP eintragen |
+
+**Schritt 7 — Dry-Run auf der NAS ausführen**
+
+1. Sicherstellen: Häkchen **Dry-Run** ist **gesetzt**.
+2. **Skript aktualisieren** (damit `-n` in der rsync-Zeile steht).
+3. **Auf NAS ausführen** klicken — zuerst Vorab-Prüfung, dann rsync-Simulation.
+4. Ausgabe unter `--- NAS ---` im Textfeld prüfen — was **kopiert würde**, ohne zu schreiben.
+5. Bei Fehlern: Exit-Code und Text in der Meldung lesen; ggf. **§79** (Timeout) und SSH-Key prüfen.
+
+**Schritt 8 — Live-Migration**
+
+1. Docker/Dienste, die auf die Quelle zugreifen, **gestoppt** lassen.
+2. Häkchen **Dry-Run** **entfernen**.
+3. **Skript aktualisieren** — `-n` verschwindet aus der rsync-Zeile.
+4. **Auf NAS ausführen** — Bestätigungsdialog bei Live-Lauf lesen und bestätigen.
+5. rsync kann **Stunden** dauern — Fenster offen lassen; UI bleibt bedienbar (andere Tabs möglich). **Lang-Timeout** in Settings auf **0** lassen (§79).
+6. Bei Erfolg: Dialog „rsync abgeschlossen“; bei Fehler: Exit-Code-Meldung — Log unten prüfen.
+
+**Schritt 9 — Skript für später speichern (optional)**
+
+1. **Auf NAS speichern** — legt `/volume1/scripts/ugreen_migration_rsync.sh` an (ausführbar); läuft im Hintergrund.
+2. Wiederholung oder Cron: Skript-Tab → Datei öffnen, anpassen, im Scheduler planen.
+
+**Schritt 10 — Nach der Migration**
+
+1. **Compose-/App-Pfade** anpassen, wenn sich Volume geändert hat (Docker-Assistent, Pfade in YAML).
+2. Container/Dienste **neu starten** (Docker-Tab → Start).
+3. Stichprobe: Dateien am Ziel zählen, App öffnen, Health-Tab aktualisieren.
+4. Erst wenn alles läuft: Quelldaten **optional** löschen (nicht sofort — Sicherheitsreserve).
+
+**Beispiel A: Docker von volume1 nach volume2 (gleiche NAS)**
+
+| Feld | Wert |
+|------|------|
+| Szenario | Gleiche NAS — anderes Volume |
+| Quellpfad | `/volume1/docker` |
+| Zielpfad | `/volume2/docker` |
+| Dry-Run | an → testen → aus für Live |
+
+**Beispiel B: Pull von Synology auf UGREEN**
+
+| Feld | Wert |
+|------|------|
+| Szenario | Von anderer NAS importieren |
+| Quellpfad | `/volume1/photo` (Synology Shared Folder) |
+| Zielpfad | `/volume1/photos` |
+| Remote-Host | `192.168.1.50` |
+| SSH-Benutzer | `admin` |
+
+Synology: SSH unter Systemsteuerung aktivieren; ggf. Pfad `/volume1/<Freigabe>` statt `@home` verwenden.
+
+**GUI-Alternative**
+
+Für kleinere Mengen ohne Skript: Assistent → **Tab NAS ↔ NAS** — dort UGREEN links, Peer rechts, Ordner markieren, Kopieren (SMB). Der Migrations-Assistent ist für **große, vollständige Baum-Kopien** mit rsync gedacht.
+
+**Typische Fehler**
+
+- **Dry-Run vergessen abzuschalten:** Live-Lauf mit `-n` kopiert nichts — Häkchen entfernen, Skript aktualisieren.
+- **Trailing Slash:** `/volume1/data/` kopiert den **Inhalt**; Assistent setzt `/` konsistent.
+- **SSH zur Remote-NAS fehlgeschlagen:** Key von UGREEN aus auf Remote-NAS eintragen (Settings §23.4), Firewall Port 22.
+- **SSH-Befehl abgebrochen (Timeout):** Standard-Timeout zu niedrig — **Lang (s) = 0** für rsync (§79).
+- **Befehl fehlgeschlagen (Exit …):** Meldung enthält Exit-Code und Auszug — Pfade, sudo, Speicher prüfen.
+- **Vorab-Prüfung: weniger Speicher am Ziel:** Andere Platte/Volume oder Daten vorher löschen/archivieren.
+
+---
+
+### Aus dem Bereich: 79. Praxisanleitung: SSH-Befehl-Timeouts (Settings)
+
+Ziel: Kurze SSH-Aktionen sollen nicht ewig hängen; lange Jobs (rsync, `du`, Backup) dürfen dagegen unbegrenzt laufen.
+
+**Wo einstellen**
+
+1. Tab **Settings** (⚙️).
+2. Bereich **Verbindung** — unter UGOS API die Zeile **SSH-Befehl:**.
+3. Felder:
+   - **Standard (s)** — Timeout für normale Befehle (Listen, Health, Explorer-`ls`, …).
+   - **Lang (s)** — Timeout für **Langläufer**; **0 = unbegrenzt** (Standard, empfohlen).
+4. Oben **Speichern** klicken (nicht nur „Auf aktuelle UI anwenden“), damit Werte in `app_settings.json` persistieren.
+
+**Empfohlene Werte**
+
+| Situation | Standard (s) | Lang (s) |
+|-----------|--------------|----------|
+| Normal / Homelab | 120 | 0 |
+| Sehr langsame NAS / VPN | 180–300 | 0 |
+| Nur kleine Befehle, nie rsync in App | 60 | 3600 (1 h) |
+
+**Welche Aktionen nutzen welchen Timeout?**
+
+| Timeout | Beispiele in der App |
+|---------|----------------------|
+| **Standard** | Explorer-Verzeichnisliste, Docker-Liste, Health-Einzelbefehle, Vorab-Prüfung (~90 s fest), Skript speichern |
+| **Lang** | Migrations-Assistent rsync, Storage **Top 20**, Backup-Läufe |
+
+**Was passiert bei Timeout?**
+
+- Meldung: **„SSH-Befehl abgebrochen (Timeout)…“**
+- Die App friert **nicht** ein (Hintergrund-Threads bei Migration/Top-20).
+- Verbindung wird ggf. neu aufgebaut beim nächsten Befehl.
+- **Maßnahme:** Standard-Wert erhöhen **oder** für den konkreten Langläufer **Lang = 0** setzen.
+
+**Exit-Code-Meldungen (ab 23.8.5)**
+
+Bei fehlgeschlagenen Befehlen (Migration, Top-20) erscheint z. B.:
+
+`Befehl fehlgeschlagen (Exit 23): …`
+
+| Exit | Typische Ursache |
+|------|------------------|
+| 1 | Allgemeiner Fehler (rsync, Skript) |
+| 2 | Syntax / Skript-Fehler |
+| 23 | rsync: teilweise Übertragung (Platz, Rechte, unterbrochen) |
+| 255 | SSH-Verbindung abgebrochen |
+
+Log-Text unter dem Dialog immer mitlesen.
+
+---
+
+### Aus dem Bereich: 80. Praxisanleitung: Storage Top-20 Ordner
+
+Ziel: Herausfinden, **welche Ordner** unter `/volume1` (oder anderem Pfad) am meisten Platz belegen — z. B. vor Migration oder Aufräumen.
+
+**Schritt 1 — Storage-Tab öffnen**
+
+1. Sidebar → **Storage** (Speicher).
+2. Nach unten scrollen, falls nötig — Bereich **Top 20** / Pfadfeld.
+
+**Schritt 2 — Pfad setzen**
+
+1. Feld **Pfad für Top-20** (z. B. `/volume1` oder `/volume1/docker`).
+2. Nur Pfade verwenden, die auf der NAS existieren; mit **Volumes (df -h)** oben grob prüfen.
+
+**Schritt 3 — Analyse starten**
+
+1. Button **Top 20 Ordner** klicken.
+2. Im Log erscheint eine Überschrift `=== TOP 20 (du unter …) ===`.
+3. Statuszeile: **„Berechne größte Ordner (Hintergrund)…“** — App bleibt **bedienbar** (ab 23.8.5).
+4. Während des Laufs erneuter Klick auf Top-20 wird ignoriert (Schutz vor Doppelstart).
+
+**Schritt 4 — Ergebnis lesen**
+
+1. Nach Abschluss: Status **„Top-20 fertig“**.
+2. Liste sortiert nach Größe (größte zuerst), typisch bis Tiefe 3.
+3. Größen in KB/MB/GB — größte Kandidaten für Archiv, Migration (§78) oder Löschen identifizieren.
+
+**Schritt 5 — Bei leerer oder fehlerhafter Ausgabe**
+
+1. Meldung **Exit-Code** oder Timeout lesen (§79).
+2. **Permission denied:** App versucht automatisch mit sudo — NAS-User braucht sudo-Rechte.
+3. Pfad zu tief/groß: engeren Pfad wählen (z. B. `/volume1/docker` statt `/volume1`).
+4. Timeout bei Standard statt Lang: **Lang (s) = 0** in Settings; Top-20 nutzt Lang-Timeout.
+
+**Hinweis:** `du` kann auf sehr großen Bäumen **mehrere Minuten** dauern (NAS-seitig `timeout 300`). Geduld oder kleinerer Startpfad.
 
 ---
 

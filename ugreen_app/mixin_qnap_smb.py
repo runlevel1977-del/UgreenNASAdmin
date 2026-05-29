@@ -142,6 +142,13 @@ class MixinQnapSmb:
             self.color_btn_blue,
             **_n2n_btn_kw,
         ).pack(side=tk.TOP, fill=tk.X)
+        self.create_modern_btn(
+            btn_col,
+            self.t("migration.open_btn"),
+            self.open_migration_assistant,
+            self.color_btn_purple,
+            **_n2n_btn_kw,
+        ).pack(side=tk.TOP, fill=tk.X, pady=(5, 0))
         if sys.platform == "win32":
             self.create_modern_btn(
                 btn_col,

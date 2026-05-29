@@ -822,6 +822,7 @@ class MixinThemeUI:
             width=6,
         )
         self.btn_header_info.pack(side=tk.RIGHT, padx=(4, 0))
+        self._setup_handbook_header_button(hdr_right)
         self.btn_header_screenshot = self.create_modern_btn(
             hdr_right,
             self.t("header.screenshot"),

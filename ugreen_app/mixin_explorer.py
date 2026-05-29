@@ -696,6 +696,34 @@ class MixinExplorer:
                 ),
             ),
             (
+                ("metube", "alexta69"),
+                _mk(
+                    "metube",
+                    ports=["8081:8081"],
+                    volumes=["/volume1/docker/metube/downloads:/downloads"],
+                ),
+            ),
+            (
+                ("scrutiny", "analogic"),
+                _mk(
+                    "scrutiny",
+                    ports=["8080:8080"],
+                    volumes=[
+                        "/volume1/docker/scrutiny/config:/opt/scrutiny/config",
+                        "/run/udev:/run/udev:ro",
+                    ],
+                    extra=["    cap_add:", "      - SYS_RAWIO"],
+                ),
+            ),
+            (
+                ("dozzle",),
+                _mk(
+                    "dozzle",
+                    ports=["8080:8080"],
+                    volumes=["/var/run/docker.sock:/var/run/docker.sock"],
+                ),
+            ),
+            (
                 ("minio",),
                 _mk(
                     "minio",
@@ -750,6 +778,142 @@ class MixinExplorer:
             ports=["8080:80"],
             volumes=[f"/volume1/docker/{svc}:/data"],
         )
+
+    @staticmethod
+    def _github_to_raw_url(url: str) -> str:
+        u = (url or "").strip()
+        if not u:
+            raise ValueError("empty url")
+        if u.startswith("raw.githubusercontent.com"):
+            u = "https://" + u
+        if "raw.githubusercontent.com" in u:
+            return u.split("?")[0].split("#")[0]
+        m = re.match(
+            r"^https?://github\.com/([^/]+)/([^/]+)/blob/([^/]+/.+)$",
+            u.split("?")[0].split("#")[0],
+        )
+        if m:
+            return f"https://raw.githubusercontent.com/{m.group(1)}/{m.group(2)}/{m.group(3)}"
+        m2 = re.match(r"^https?://github\.com/([^/]+)/([^/]+)/tree/([^/]+/.+)$", u)
+        if m2:
+            raise ValueError("tree link — bitte eine konkrete Datei (blob/…/docker-compose.yml) angeben")
+        if u.startswith("https://") or u.startswith("http://"):
+            return u
+        raise ValueError("unsupported url")
+
+    def _docker_homelab_stack_presets(self) -> list[tuple[str, str]]:
+        monitoring = """services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: uptime-kuma
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      - /volume1/docker/uptime-kuma:/app/data
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: dozzle
+    restart: unless-stopped
+    ports:
+      - "8888:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: homepage
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - /volume1/docker/homepage:/app/config
+"""
+        media = """services:
+  metube:
+    image: ghcr.io/alexta69/metube:latest
+    container_name: metube
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    volumes:
+      - /volume1/docker/metube/downloads:/downloads
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Berlin
+      - WEBUI_PORT=8080
+    ports:
+      - "8080:8080"
+      - "6881:6881"
+      - "6881:6881/udp"
+    volumes:
+      - /volume1/docker/qbittorrent/config:/config
+      - /volume1/downloads:/downloads
+"""
+        return [
+            (self.t("docker.stack_monitoring"), monitoring),
+            (self.t("docker.stack_media_download"), media),
+        ]
+
+    def open_docker_homelab_stacks(self) -> None:
+        cw = tk.Toplevel(self.root)
+        cw.title(self.t("docker.homelab_stacks_title"))
+        cw.geometry("640x420")
+        cw.minsize(480, 320)
+        cw.configure(bg=self.color_surface_alt)
+        cw.transient(self.root)
+        tk.Label(
+            cw,
+            text=self.t("docker.homelab_stacks_hint"),
+            bg=self.color_surface_alt,
+            fg=self.color_text,
+            font=("Segoe UI", 9),
+            anchor="w",
+            justify=tk.LEFT,
+            wraplength=580,
+        ).pack(fill=tk.X, padx=14, pady=(12, 8))
+        lb = tk.Listbox(
+            cw,
+            font=self.font_base,
+            bg=self.color_input_bg,
+            fg=self.color_input_fg,
+            selectbackground=self.color_btn_blue,
+            height=8,
+        )
+        lb.pack(fill=tk.BOTH, expand=True, padx=14, pady=(0, 8))
+        presets = self._docker_homelab_stack_presets()
+        for title, _yml in presets:
+            lb.insert(tk.END, title)
+
+        def _pick():
+            sel = lb.curselection()
+            if not sel:
+                messagebox.showinfo(cw.title(), self.t("docker.homelab_stacks_pick"), parent=cw)
+                return
+            _title, yml = presets[int(sel[0])]
+            cw.destroy()
+            self.open_docker_creator(initial_text=yml)
+
+        btns = tk.Frame(cw, bg=self.color_surface_alt, padx=14, pady=10)
+        btns.pack(fill=tk.X)
+        tk.Button(
+            btns,
+            text=self.t("docker.homelab_stacks_use"),
+            command=_pick,
+            font=self.font_bold,
+            padx=12,
+            pady=6,
+        ).pack(side=tk.LEFT)
+        tk.Button(
+            btns,
+            text=self.t("docker.wizard.btn_close"),
+            command=cw.destroy,
+            font=self.font_base,
+            padx=12,
+            pady=6,
+        ).pack(side=tk.RIGHT)
 
     def open_docker_catalog(self):
         cw = tk.Toplevel(self.root)
@@ -1142,6 +1306,28 @@ class MixinExplorer:
             except OSError as e:
                 messagebox.showerror(self.t("docker.wizard.load_title"), str(e))
 
+        def load_github():
+            raw_in = simpledialog.askstring(
+                self.t("docker.wizard.github_title"),
+                self.t("docker.wizard.github_prompt"),
+                parent=dw,
+            )
+            if not raw_in:
+                return
+            try:
+                raw_url = self._github_to_raw_url(raw_in.strip())
+                req = urllib.request.Request(raw_url, headers={"User-Agent": "UgreenNASAdmin"})
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    body = resp.read().decode("utf-8", errors="replace")
+                if len(body) > 500_000:
+                    raise ValueError(self.t("docker.wizard.github_too_large"))
+                txt.delete("1.0", tk.END)
+                txt.insert("1.0", body)
+                if hasattr(self, "log"):
+                    self.log(self.t("docker.wizard.github_ok", url=raw_url))
+            except Exception as e:
+                messagebox.showerror(self.t("docker.wizard.github_title"), str(e), parent=dw)
+
         def open_vars_window(vl):
             _close_vars_win()
             vw = tk.Toplevel(dw)
@@ -1286,6 +1472,7 @@ class MixinExplorer:
             self.root.after(2000, self.refresh_docker_list)
 
         _dock_btn(tools, self.t("docker.wizard.load_file"), load_file).pack(side=tk.LEFT, padx=(0, 8))
+        _dock_btn(tools, self.t("docker.wizard.load_github"), load_github).pack(side=tk.LEFT, padx=(0, 8))
         _dock_btn(tools, self.t("docker.wizard.scan"), scan_vars).pack(side=tk.LEFT, padx=(0, 8))
         tk.Checkbutton(
             tools,

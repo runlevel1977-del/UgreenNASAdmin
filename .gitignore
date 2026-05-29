@@ -23,4 +23,15 @@ nas_admin_connection.json
 app_settings.json
 telegram_notify.json
 nas_watch_local.json
+nas_daily_report_local.json
+qnap_smb_prefs.json
+transfer_log.txt
 last_github_update_check.txt
+ugreen_app/app_settings.json
+ugreen_app/nas_admin_connection.json
+ugreen_app/telegram_notify.json
+ugreen_app/nas_watch_local.json
+ugreen_app/nas_daily_report_local.json
+ugreen_app/qnap_smb_prefs.json
+ugreen_app/transfer_log.txt
+ugreen_app/last_github_update_check.txt

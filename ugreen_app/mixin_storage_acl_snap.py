@@ -447,20 +447,56 @@ class MixinStorageAclSnap:
             return
         if not hasattr(self, "storage_output"):
             return
+        if getattr(self, "_storage_top20_busy", False):
+            return
         base = self.entry_storage_top_path.get().strip() or "/volume1"
         sq = self._shell_quote(base)
         self.storage_output.insert(tk.END, f"\n\n=== TOP 20 (du unter {base}, max. ~5 Min) ===\n\n")
-        self.set_status("Berechne größte Ordner …")
-        self.root.update_idletasks()
-        cmd = f"timeout 300 sh -c 'du -x --max-depth=3 {sq} 2>/dev/null | sort -nr | head -n 21'"
-        out = self.run_ssh_cmd(cmd, False)
-        if not out.strip() or "Permission denied" in out:
-            out = self.run_ssh_cmd(cmd, True)
-        if not out.strip():
-            out = self.run_ssh_cmd(f"timeout 300 sh -c 'du -x -d 3 {sq} 2>/dev/null | sort -nr | head -n 21'", True)
-        self.storage_output.insert(tk.END, out or "(Keine Ausgabe — Pfad prüfen oder sudo)\n")
         self.storage_output.see(tk.END)
-        self.set_status("Top-20 fertig")
+        self._storage_top20_busy = True
+        self.set_status(self.t("storage.top20_running"))
+
+        def worker():
+            err = None
+            out = ""
+            res = None
+            try:
+                cmd = f"timeout 300 sh -c 'du -x --max-depth=3 {sq} 2>/dev/null | sort -nr | head -n 21'"
+                res = self.run_ssh_cmd_ex(cmd, False, update_status=False, long_running=True)
+                out = res.output or ""
+                if not out.strip() or "Permission denied" in out or not res.ok:
+                    res = self.run_ssh_cmd_ex(cmd, True, update_status=False, long_running=True)
+                    out = res.output or ""
+                if not out.strip():
+                    res = self.run_ssh_cmd_ex(
+                        f"timeout 300 sh -c 'du -x -d 3 {sq} 2>/dev/null | sort -nr | head -n 21'",
+                        True,
+                        update_status=False,
+                        long_running=True,
+                    )
+                    out = res.output or ""
+                if not res.ok and res.timed_out:
+                    err = self.t("ssh.timeout")
+                elif not res.ok and out.strip():
+                    err = self.t("ssh.exit_code", code=res.exit_code, msg=out.strip()[:300])
+            except Exception as ex:
+                err = str(ex)
+
+            def done():
+                self._storage_top20_busy = False
+                if err and not out.strip():
+                    self.storage_output.insert(tk.END, f"{err}\n")
+                else:
+                    self.storage_output.insert(
+                        tk.END,
+                        out or self.t("storage.top20_empty") + "\n",
+                    )
+                self.storage_output.see(tk.END)
+                self.set_status(self.t("storage.top20_done"))
+
+            self.root.after(0, done)
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def _acl_target_path(self):
         if not hasattr(self, "entry_acl_path"):

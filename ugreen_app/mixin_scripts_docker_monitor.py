@@ -783,8 +783,30 @@ class MixinScriptsDockerMonitor:
 
             threading.Thread(target=worker, daemon=True).start()
 
-    def run_ssh_cmd(self, cmd, use_sudo=False, *, update_status=True):
+    def _get_ssh_cmd_timeout(self) -> int:
+        """Standard-Timeout für kurze SSH-Befehle (Sekunden)."""
+        try:
+            cfg = self._load_app_settings()
+            raw = int((cfg.get("ssh") or {}).get("cmd_timeout_sec", 120))
+            return max(5, min(3600, raw))
+        except Exception:
+            return 120
+
+    def _get_ssh_long_timeout(self) -> int:
+        """Timeout für rsync/du/Backup — 0 = unbegrenzt."""
+        try:
+            cfg = self._load_app_settings()
+            raw = int((cfg.get("ssh") or {}).get("long_timeout_sec", 0))
+            if raw <= 0:
+                return 0
+            return max(60, min(86400, raw))
+        except Exception:
+            return 0
+
+    def run_ssh_cmd(self, cmd, use_sudo=False, *, update_status=True, long_running=False, command_timeout=None):
         auth = self._ssh_auth_payload()
+        if command_timeout is None:
+            command_timeout = self._get_ssh_long_timeout() if long_running else self._get_ssh_cmd_timeout()
         return self._ssh_mgr.run(
             self.entry_ip.get(),
             self.entry_user.get(),
@@ -795,10 +817,34 @@ class MixinScriptsDockerMonitor:
             ssh_key_path=auth["ssh_key_path"],
             ssh_key_passphrase=auth["ssh_key_passphrase"],
             use_sudo=use_sudo,
+            command_timeout=command_timeout,
             set_status=self.set_status if update_status else None,
             status_connected=self.t("status.ssh_connected"),
             status_failed=self.t("status.ssh_failed"),
             error_message_fmt=self.t("ssh.error"),
+            timeout_message=self.t("ssh.timeout"),
+        )
+
+    def run_ssh_cmd_ex(self, cmd, use_sudo=False, *, update_status=True, long_running=False, command_timeout=None) -> nas_ssh.SSHRunResult:
+        auth = self._ssh_auth_payload()
+        if command_timeout is None:
+            command_timeout = self._get_ssh_long_timeout() if long_running else self._get_ssh_cmd_timeout()
+        return self._ssh_mgr.run_ex(
+            self.entry_ip.get(),
+            self.entry_user.get(),
+            self.entry_pwd.get(),
+            cmd,
+            ssh_port=auth["ssh_port"],
+            ssh_use_key=auth["ssh_use_key"],
+            ssh_key_path=auth["ssh_key_path"],
+            ssh_key_passphrase=auth["ssh_key_passphrase"],
+            use_sudo=use_sudo,
+            command_timeout=command_timeout,
+            set_status=self.set_status if update_status else None,
+            status_connected=self.t("status.ssh_connected"),
+            status_failed=self.t("status.ssh_failed"),
+            error_message_fmt=self.t("ssh.error"),
+            timeout_message=self.t("ssh.timeout"),
         )
 
     def add_grid_field(self, parent, label, default, col, is_pwd=False, row=0, width=16, *, justify="center", padx=5):

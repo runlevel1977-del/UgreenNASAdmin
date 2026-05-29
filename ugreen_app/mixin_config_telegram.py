@@ -684,7 +684,7 @@ class MixinConfigTelegram:
             return
         messagebox.showinfo(
             self.t("msg.connection"),
-            self.t("settings.install_pubkey_ok", target=host, out=raw[:800]),
+            self.t("settings.install_pubkey_ok_ugreen", target=host, out=raw[:800]),
             parent=getattr(self, "root", None),
         )
 
@@ -899,6 +899,15 @@ class MixinConfigTelegram:
                 "fan_slot1_use_pwm_secondary": True,
                 "fan_slot0_rpm_key": "",
                 "fan_slot1_rpm_key": "",
+            },
+            "ugos_api": {
+                "port": 9443,
+                "use_https": True,
+                "verify_ssl": False,
+            },
+            "ssh": {
+                "cmd_timeout_sec": 120,
+                "long_timeout_sec": 0,
             },
         }
 
@@ -1636,6 +1645,7 @@ if __name__ == "__main__":
                         "script_notifications",
                         "docker_update",
                         "dashboard",
+                        "ugos_api",
                     ):
                         if isinstance(raw.get(sec), dict):
                             data[sec].update(raw[sec])
@@ -1699,6 +1709,58 @@ if __name__ == "__main__":
             "second_nas_smb_active_peer": ai,
             "docker_update": docker_prev,
             "dashboard": dash_prev,
+            "ugos_api": {
+                "port": max(
+                    1,
+                    min(
+                        65535,
+                        int(
+                            (
+                                self.entry_settings_ugos_api_port.get().strip()
+                                if hasattr(self, "entry_settings_ugos_api_port")
+                                else "9443"
+                            )
+                            or "9443"
+                        ),
+                    ),
+                ),
+                "use_https": bool(self.var_settings_ugos_api_https.get())
+                if hasattr(self, "var_settings_ugos_api_https")
+                else True,
+                "verify_ssl": bool(self.var_settings_ugos_api_verify_ssl.get())
+                if hasattr(self, "var_settings_ugos_api_verify_ssl")
+                else False,
+            },
+            "ssh": {
+                "cmd_timeout_sec": max(
+                    5,
+                    min(
+                        3600,
+                        int(
+                            (
+                                self.entry_settings_ssh_cmd_timeout.get().strip()
+                                if hasattr(self, "entry_settings_ssh_cmd_timeout")
+                                else "120"
+                            )
+                            or "120"
+                        ),
+                    ),
+                ),
+                "long_timeout_sec": max(
+                    0,
+                    min(
+                        86400,
+                        int(
+                            (
+                                self.entry_settings_ssh_long_timeout.get().strip()
+                                if hasattr(self, "entry_settings_ssh_long_timeout")
+                                else "0"
+                            )
+                            or "0"
+                        ),
+                    ),
+                ),
+            },
         }
 
     def _settings_status_snapshot(self, cfg=None):
@@ -1995,6 +2057,21 @@ if __name__ == "__main__":
         if hasattr(self, "entry_settings_path_screenshot_dir"):
             self.entry_settings_path_screenshot_dir.delete(0, tk.END)
             self.entry_settings_path_screenshot_dir.insert(0, str(cfg["paths"].get("screenshot_dir") or ""))
+        ua = dict(cfg.get("ugos_api") or {})
+        if hasattr(self, "entry_settings_ugos_api_port"):
+            self.entry_settings_ugos_api_port.delete(0, tk.END)
+            self.entry_settings_ugos_api_port.insert(0, str(int(ua.get("port") or 9443)))
+        if hasattr(self, "var_settings_ugos_api_https"):
+            self.var_settings_ugos_api_https.set(bool(ua.get("use_https", True)))
+        if hasattr(self, "var_settings_ugos_api_verify_ssl"):
+            self.var_settings_ugos_api_verify_ssl.set(bool(ua.get("verify_ssl", False)))
+        sh = dict(cfg.get("ssh") or {})
+        if hasattr(self, "entry_settings_ssh_cmd_timeout"):
+            self.entry_settings_ssh_cmd_timeout.delete(0, tk.END)
+            self.entry_settings_ssh_cmd_timeout.insert(0, str(int(sh.get("cmd_timeout_sec") or 120)))
+        if hasattr(self, "entry_settings_ssh_long_timeout"):
+            self.entry_settings_ssh_long_timeout.delete(0, tk.END)
+            self.entry_settings_ssh_long_timeout.insert(0, str(int(sh.get("long_timeout_sec") or 0)))
         self._script_notify_rules = self._script_notify_rules_normalize(cfg)
         self._script_notify_rules_refresh_ui()
         self._script_notify_refresh_script_choices()

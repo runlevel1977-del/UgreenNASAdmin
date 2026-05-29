@@ -11,6 +11,7 @@ in denselben PDF-Stil.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -22,7 +23,7 @@ from reportlab.lib.units import cm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas as pdfcanvas
-from reportlab.platypus import HRFlowable, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import HRFlowable, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle, Flowable
 
 # ── Palette & Maße (wie generate_handbuch_v2) ────────────────────────────────
 PAGE_W, PAGE_H = A4
@@ -199,6 +200,25 @@ def cover_page(version: str, *, lang: str, st: dict[str, ParagraphStyle]) -> lis
     return [_sp(2.2), bg, PageBreak()]
 
 
+class _ChapterPageMarker(Flowable):
+    """Unsichtbarer Marker — Seitennummer pro ##-Kapitel beim PDF-Build."""
+
+    def __init__(self, chapter: str, page_index: dict[str, int]):
+        Flowable.__init__(self)
+        self.chapter = str(chapter)
+        self.page_index = page_index
+        self.width = 0
+        self.height = 0
+
+    def draw(self):
+        try:
+            pg = int(self.canv.getPageNumber())
+        except Exception:
+            pg = 0
+        if pg > 0 and self.chapter not in self.page_index:
+            self.page_index[self.chapter] = pg
+
+
 class HandbuchPageFrame(pdfcanvas.Canvas):
     """Kopf-/Fußzeile + linke Akzentlinie ab Seite 2 (Seite 1 = Deckblatt)."""
 
@@ -264,7 +284,7 @@ def _md_inline_bold(s: str) -> str:
     return "".join(parts)
 
 
-def md_to_story(md_text: str, st: dict[str, ParagraphStyle]) -> list:
+def md_to_story(md_text: str, st: dict[str, ParagraphStyle], *, page_index: dict[str, int] | None = None) -> list:
     story: list = []
     h1, h2, h3, body, bullet, bq = (
         st["h1"],
@@ -297,6 +317,9 @@ def md_to_story(md_text: str, st: dict[str, ParagraphStyle]) -> list:
             continue
         if line.startswith("## "):
             flush_paragraph()
+            m_ch = re.match(r"^##\s+(\d+)\.", line.strip())
+            if page_index is not None and m_ch:
+                story.append(_ChapterPageMarker(m_ch.group(1), page_index))
             story.append(Spacer(1, 3))
             story.append(Paragraph(_md_inline_bold(line[3:].strip()), h2))
             continue
@@ -351,10 +374,11 @@ def build_pdf(
     raw = src.read_text(encoding="utf-8", errors="replace")
     base_font, bold_font = register_fonts()
     st = make_styles(base_font, bold_font)
+    chapter_pages: dict[str, int] = {}
 
     story: list = []
     story.extend(cover_page(version, lang=lang, st=st))
-    story.extend(md_to_story(raw, st))
+    story.extend(md_to_story(raw, st, page_index=chapter_pages))
 
     left_m = MARGIN + 0.25 * cm
     if lang == "de":
@@ -378,5 +402,18 @@ def build_pdf(
         story,
         canvasmaker=canvas_factory(version, hdr_r, foot),
     )
+    index_path = ROOT / "handbook_page_index.json"
+    merged: dict = {}
+    if index_path.is_file():
+        try:
+            merged = json.loads(index_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            merged = {}
+    if not isinstance(merged, dict):
+        merged = {}
+    merged[lang] = {str(k): int(v) for k, v in sorted(chapter_pages.items(), key=lambda x: int(x[0]))}
+    merged["version"] = version
+    index_path.write_text(json.dumps(merged, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"written: {index_path}")
     print(f"written: {out}")
     return 0

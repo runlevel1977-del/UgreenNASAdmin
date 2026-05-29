@@ -12,4 +12,6 @@ Pillow>=9.0
 pyinstaller>=6.0
 
 # Optional: Passwort im OS-Tresor (🔐 PW Tresor) — pip install keyring
+# Optional: UGOS-API-Login (RSA) — pip install cryptography
 # Optional: store password in OS vault — pip install keyring
+# Optional: UGOS API login (RSA) — pip install cryptography

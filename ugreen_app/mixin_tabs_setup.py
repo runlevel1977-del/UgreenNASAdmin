@@ -169,6 +169,13 @@ class MixinTabsSetup:
             self.color_btn_purple,
         )
         webcam_btn.grid(row=0, column=1, sticky="e", padx=(8, 0))
+        ugos_btn = self.create_modern_btn(
+            hdr_row,
+            self.t("ugos_api.btn"),
+            self.open_ugos_api_snapshot,
+            self.color_btn_blue,
+        )
+        ugos_btn.grid(row=0, column=2, sticky="e", padx=(8, 0))
 
         metrics_card = self._ui_rounded_card_pack(root, fill=tk.BOTH, expand=True, padx=20, pady=(0, 12))
         tk.Label(
@@ -884,6 +891,8 @@ class MixinTabsSetup:
         rt_cat = tk.Frame(tool_top, bg=self.color_surface)
         rt_cat.pack(fill=tk.X)
         _dock_btn(rt_cat, self.t("docker.catalog"), self.open_docker_catalog, getattr(self, "color_btn_dark", self.color_btn_secondary)).pack(**_dock_l)
+        _dock_btn(rt_cat, self.t("docker.app_center"), self.open_docker_app_center_recipes, self.color_btn_purple).pack(**_dock_l)
+        _dock_btn(rt_cat, self.t("docker.homelab_stacks"), self.open_docker_homelab_stacks, self.color_btn_secondary).pack(**_dock_l)
         self._register_danger_rounded(_dock_btn(rt_cat, self.t("docker.new"), self.open_docker_creator, "#3b82f6")).pack(**_dock_l)
         self._register_danger_rounded(_dock_btn(rt_cat, self.t("docker.update"), self.docker_update_selected, self.color_btn_blue)).pack(**_dock_l)
 
@@ -1462,6 +1471,15 @@ class MixinTabsSetup:
             justify=tk.LEFT,
             wraplength=980,
         ).pack(fill=tk.X, pady=(6, 10))
+
+        mig_row = tk.Frame(inner, bg=self.color_surface)
+        mig_row.pack(fill=tk.X, pady=(0, 10))
+        self.create_modern_btn(
+            mig_row,
+            self.t("migration.open_btn"),
+            self.open_migration_assistant,
+            self.color_btn_purple,
+        ).pack(side=tk.LEFT)
 
         top = tk.Frame(inner, bg=self.color_surface, highlightbackground=self.color_border, highlightthickness=1, padx=12, pady=10)
         top.pack(fill=tk.X, pady=(0, 10))
@@ -3333,6 +3351,114 @@ class MixinTabsSetup:
             self._settings_install_pubkey_dialog,
             self.color_btn_secondary,
             width=26,
+        ).pack(side=tk.LEFT)
+        conn_row3 = tk.Frame(conn_btns, bg=self.color_surface)
+        conn_row3.pack(anchor="w", fill=tk.X, pady=(6, 0))
+        tk.Label(
+            conn_row3,
+            text=self.t("settings.ugos_api_title"),
+            bg=self.color_surface,
+            fg=self.color_text_muted,
+            font=("Segoe UI", 8, "bold"),
+        ).pack(side=tk.LEFT, padx=(0, 8))
+        tk.Label(
+            conn_row3,
+            text=self.t("settings.ugos_api_port"),
+            bg=self.color_surface,
+            fg=self.color_text_muted,
+            font=("Segoe UI", 8),
+        ).pack(side=tk.LEFT)
+        self.entry_settings_ugos_api_port = tk.Entry(
+            conn_row3,
+            width=6,
+            font=self.font_mono,
+            relief="flat",
+            highlightbackground=self.color_border,
+            highlightthickness=1,
+            bg=self.color_input_bg,
+            fg=self.color_input_fg,
+            insertbackground=self.color_input_fg,
+        )
+        self.entry_settings_ugos_api_port.pack(side=tk.LEFT, padx=(4, 12), ipady=3)
+        self.entry_settings_ugos_api_port.insert(0, "9443")
+        self.var_settings_ugos_api_https = tk.BooleanVar(value=True)
+        tk.Checkbutton(
+            conn_row3,
+            text=self.t("settings.ugos_api_https"),
+            variable=self.var_settings_ugos_api_https,
+            bg=self.color_surface,
+            fg=self.color_text,
+            selectcolor=self.color_surface,
+            activebackground=self.color_surface,
+            font=("Segoe UI", 8),
+        ).pack(side=tk.LEFT, padx=(0, 8))
+        self.var_settings_ugos_api_verify_ssl = tk.BooleanVar(value=False)
+        tk.Checkbutton(
+            conn_row3,
+            text=self.t("settings.ugos_api_verify_ssl"),
+            variable=self.var_settings_ugos_api_verify_ssl,
+            bg=self.color_surface,
+            fg=self.color_text_muted,
+            selectcolor=self.color_surface,
+            activebackground=self.color_surface,
+            font=("Segoe UI", 8),
+        ).pack(side=tk.LEFT)
+
+        conn_row4 = tk.Frame(conn_btns, bg=self.color_surface)
+        conn_row4.pack(anchor="w", fill=tk.X, pady=(6, 0))
+        tk.Label(
+            conn_row4,
+            text=self.t("settings.ssh_timeout_title"),
+            bg=self.color_surface,
+            fg=self.color_text_muted,
+            font=("Segoe UI", 8, "bold"),
+        ).pack(side=tk.LEFT, padx=(0, 8))
+        tk.Label(
+            conn_row4,
+            text=self.t("settings.ssh_cmd_timeout"),
+            bg=self.color_surface,
+            fg=self.color_text_muted,
+            font=("Segoe UI", 8),
+        ).pack(side=tk.LEFT)
+        self.entry_settings_ssh_cmd_timeout = tk.Entry(
+            conn_row4,
+            width=5,
+            font=self.font_mono,
+            relief="flat",
+            highlightbackground=self.color_border,
+            highlightthickness=1,
+            bg=self.color_input_bg,
+            fg=self.color_input_fg,
+            insertbackground=self.color_input_fg,
+        )
+        self.entry_settings_ssh_cmd_timeout.pack(side=tk.LEFT, padx=(4, 12), ipady=3)
+        self.entry_settings_ssh_cmd_timeout.insert(0, "120")
+        tk.Label(
+            conn_row4,
+            text=self.t("settings.ssh_long_timeout"),
+            bg=self.color_surface,
+            fg=self.color_text_muted,
+            font=("Segoe UI", 8),
+        ).pack(side=tk.LEFT)
+        self.entry_settings_ssh_long_timeout = tk.Entry(
+            conn_row4,
+            width=5,
+            font=self.font_mono,
+            relief="flat",
+            highlightbackground=self.color_border,
+            highlightthickness=1,
+            bg=self.color_input_bg,
+            fg=self.color_input_fg,
+            insertbackground=self.color_input_fg,
+        )
+        self.entry_settings_ssh_long_timeout.pack(side=tk.LEFT, padx=(4, 8), ipady=3)
+        self.entry_settings_ssh_long_timeout.insert(0, "0")
+        tk.Label(
+            conn_row4,
+            text=self.t("settings.ssh_long_timeout_hint"),
+            bg=self.color_surface,
+            fg=self.color_text_muted,
+            font=("Segoe UI", 7),
         ).pack(side=tk.LEFT)
 
         # Zweites NAS (SMB) — Zugangsdaten zentral unterhalb SSH/Ugreen

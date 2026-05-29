@@ -2,7 +2,7 @@
 ; Build: installer\BUILD_INSTALLER.ps1 (nach python builder.py im Projektroot)
 
 #ifndef MyAppVersion
-#define MyAppVersion "23.8.2"
+#define MyAppVersion "23.8.6"
 #endif
 
 #define MyAppName "Ugreen NAS Admin"

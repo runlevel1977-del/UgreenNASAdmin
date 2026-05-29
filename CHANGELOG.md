@@ -2,7 +2,58 @@
 
 ## Unreleased
 
-_(noch nicht veröffentlicht)_
+_(keine offenen Änderungen — aktuell **v23.8.6**)_
+
+## 23.8.6 — 2026-05-19
+
+### Deutsch
+
+- **Handbuch-Kontext:** Button **📖 Handbuch** in der **Kopfzeile** (zwischen Info und Screenshot) — öffnet das passende Kapitel zum **aktuell aktiven Tab** (PDF-Seite via `handbook_page_index.json`, sonst Markdown-Auszug im Dialog). Keine Überlappung mit Tab-Buttons (Webcam, UGOS API, …).
+- **PDF-Seitenindex:** Beim Handbuch-PDF-Build wird `handbook_page_index.json` erzeugt (DE/EN, Kapitel → Seite); in der EXE enthalten.
+- Siehe auch **23.8.5** (SSH-Timeouts, Migration Pre-flight, Top-20 Hintergrund), **23.8.4** (Migrations-Assistent, 15 Docker-Rezepte), **23.8.3** (UGOS API, Homelab-Stapel).
+
+### English (short)
+
+- **Context manual button** in the header opens the handbook chapter for the **active tab** (PDF page jump or MD excerpt); no overlap with tab toolbar buttons.
+- **`handbook_page_index.json`** maps chapters to PDF pages (DE/EN), bundled in the EXE.
+- See also **23.8.5** (SSH timeouts, migration pre-flight), **23.8.4** (migration assistant, Docker recipes), **23.8.3** (UGOS API).
+
+## 23.8.5 — 2026-05-19
+
+### Deutsch
+
+- **SSH:** Konfigurierbare Timeouts (Settings → Verbindung: Standard/Lang); `run_ssh_cmd_ex` mit Exit-Code; Timeout-Meldung statt UI-Freeze.
+- **Migrations-Assistent:** rsync/Speichern im Hintergrund; **Vorab-Prüfung** (Pfade, Speicher, Remote-SSH); Exit-Code-Auswertung.
+- **Storage Top-20:** `du` läuft im Hintergrund (UI bleibt bedienbar).
+- **Handbuch:** **§78** (Migration inkl. Vorab-Prüfung/Buttons), **§79** (SSH-Timeouts), **§80** (Top-20); Settings **§23.3.1**; DE/EN + PDFs.
+
+### English (short)
+
+- Configurable SSH timeouts + exit codes; migration pre-flight + background rsync; storage top-20 in background thread.
+
+## 23.8.4 — 2026-05-19
+
+### Deutsch
+
+- **Migrations-Assistent (neu):** Backup-Tab und NAS↔NAS — rsync-Skripte für Volume-Umzug, NAS→NAS (Push/Pull) oder Synology/QNAP-Vorlage; Dry-Run, Speichern unter `/volume1/scripts/`, optional Ausführung per SSH.
+- **Docker — Fehlt im App Center:** 15 Compose-Rezepte (MeTube, Jellyfin, Immich, Paperless-ngx, Vaultwarden, Nextcloud, AdGuard, Sonarr/Radarr/Prowlarr, qBittorrent, Uptime Kuma, Home Assistant, Syncthing, Portainer) mit UGREEN-Pfaden `/volume1/docker/…`.
+- **Handbuch:** Ausführliche Schritt-für-Schritt-Praxisanleitungen **§77** (Docker-Rezepte) und **§78** (Migrations-Assistent), DE/EN.
+
+### English (short)
+
+- **Migration assistant** (rsync scripts for volume/NAS moves); **15 Docker App Center recipes** with UGREEN paths.
+
+## 23.8.3 — 2026-05-19
+
+### Deutsch
+
+- **UGOS API (neu):** Dashboard-Button **„UGOS API“** — Live-Snapshot über die **offizielle UGOS-Web-API** (CPU/RAM, Pools, Disks) ohne SSH-Parsing; Port/HTTPS unter Settings → Verbindung. Benötigt `pip install cryptography` für RSA-Login.
+- **Docker:** **Homelab-Stapel** (Monitoring: Uptime Kuma + Dozzle + Homepage; Media: MeTube + qBittorrent); **Compose von GitHub laden** im Docker-Assistenten; Presets **MeTube**, **Scrutiny**, **Dozzle**.
+- **Settings / SSH:** UGOS-Hinweis nach Key-Install (UGOS_scripts); Handbuch **§23.4.5**, Docker **§48.1**.
+
+### English (short)
+
+- **UGOS API** dashboard snapshot via official web API; **Homelab stacks** + **GitHub compose import**; MeTube/Scrutiny/Dozzle presets; UGOS SSH key persistence hint.
 
 ## 23.8.2 — 2026-05-14
 

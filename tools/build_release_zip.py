@@ -45,6 +45,7 @@ ROOT_FILES = (
     "HANDBOOK_EN.md",
     "HANDBUCH.pdf",
     "HANDBOOK_EN.pdf",
+    "handbook_page_index.json",
 )
 
 

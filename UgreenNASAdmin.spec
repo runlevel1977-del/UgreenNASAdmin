@@ -14,6 +14,7 @@ MANUAL_DE_PDF = os.path.join(PROJECT, "HANDBUCH.pdf")
 MANUAL_EN_PDF = os.path.join(PROJECT, "HANDBOOK_EN.pdf")
 MANUAL_DE_MD = os.path.join(PROJECT, "HANDBUCH.md")
 MANUAL_EN_MD = os.path.join(PROJECT, "HANDBOOK_EN.md")
+HANDBOOK_PAGE_INDEX = os.path.join(PROJECT, "handbook_page_index.json")
 
 _DATAS = [
     (ICON, "."),
@@ -35,6 +36,8 @@ if os.path.isfile(MANUAL_DE_MD):
     _DATAS.append((MANUAL_DE_MD, "."))
 if os.path.isfile(MANUAL_EN_MD):
     _DATAS.append((MANUAL_EN_MD, "."))
+if os.path.isfile(HANDBOOK_PAGE_INDEX):
+    _DATAS.append((HANDBOOK_PAGE_INDEX, "."))
 
 a = Analysis(
     [MAIN],
@@ -75,6 +78,15 @@ a = Analysis(
         "ugreen_app.tooltip",
         "ugreen_app.mixin_update_check",
         "ugreen_app.update_check",
+        "ugreen_app.mixin_ugos_api",
+        "ugreen_app.ugos_api_client",
+        "ugreen_app.mixin_migration_assistant",
+        "ugreen_app.mixin_handbook_tab",
+        "ugreen_app.handbook_nav",
+        "ugreen_app.docker_app_center_recipes",
+        "cryptography",
+        "cryptography.hazmat.primitives.asymmetric.padding",
+        "cryptography.hazmat.primitives.serialization",
     ],
     hookspath=[],
     hooksconfig={},

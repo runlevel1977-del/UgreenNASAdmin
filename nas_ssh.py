@@ -10,7 +10,9 @@ import posixpath
 import shlex
 import threading
 import uuid
+from dataclasses import dataclass
 from typing import Callable, Optional
+import time
 
 _paramiko_mod = None
 
@@ -33,6 +35,41 @@ def _decode_out(data: bytes) -> str:
 def quote_remote_bash_lc(script: str) -> str:
     """Einfachquoting für bash -lc auf dem *Linux-NAS* — unabhängig vom Client-OS (Windows-shlex.quote ist für cmd.exe und zerstört sudo-Pipelines)."""
     return "'" + script.replace("'", "'\"'\"'") + "'"
+
+
+@dataclass(frozen=True)
+class SSHRunResult:
+    output: str
+    exit_code: int
+    ok: bool
+    timed_out: bool = False
+    connection_error: bool = False
+
+
+def _read_stdout_stderr_with_timeout(stdout, stderr, *, deadline: float | None) -> tuple[str, str]:
+    ch = stdout.channel
+    out_chunks: list[bytes] = []
+    err_chunks: list[bytes] = []
+    while True:
+        if deadline is not None and time.monotonic() > deadline:
+            try:
+                ch.close()
+            except Exception:
+                pass
+            raise TimeoutError("SSH command timed out")
+        if ch.recv_ready():
+            out_chunks.append(ch.recv(65536))
+        if ch.recv_stderr_ready():
+            err_chunks.append(ch.recv_stderr(65536))
+        if ch.exit_status_ready():
+            while ch.recv_ready():
+                out_chunks.append(ch.recv(65536))
+            while ch.recv_stderr_ready():
+                err_chunks.append(ch.recv_stderr(65536))
+            break
+        if not ch.recv_ready() and not ch.recv_stderr_ready():
+            time.sleep(0.05)
+    return _decode_out(b"".join(out_chunks)), _decode_out(b"".join(err_chunks))
 
 
 class SSHManager:
@@ -116,7 +153,7 @@ class SSHManager:
         self._client = ssh
         self._last_key = key
 
-    def run(
+    def run_ex(
         self,
         host: str,
         user: str,
@@ -128,16 +165,21 @@ class SSHManager:
         ssh_key_path: str = "",
         ssh_key_passphrase: str = "",
         use_sudo: bool = False,
+        command_timeout: int | None = 120,
         set_status: Optional[Callable[[str, object], None]] = None,
         connected_flag: bool = True,
         status_connected: Optional[str] = None,
         status_failed: Optional[str] = None,
         error_message_fmt: Optional[str] = None,
-    ) -> str:
-        """Führt Befehl aus. Bei sudo: Passwort über stdin an sudo -S (nicht in der Shell-Zeile)."""
+        timeout_message: Optional[str] = None,
+    ) -> SSHRunResult:
+        """Führt Befehl aus; liefert Exit-Code. command_timeout: Sekunden, 0/None = unbegrenzt."""
         ok_msg = status_connected or "SSH verbunden"
         fail_msg = status_failed or "SSH Fehler"
         err_fmt = error_message_fmt or "Fehler bei SSH-Verbindung: {err}"
+        to_msg = timeout_message or "SSH-Befehl abgebrochen (Timeout)."
+        unlimited = command_timeout is None or int(command_timeout) <= 0
+        deadline = None if unlimited else time.monotonic() + max(1, int(command_timeout))
         with self._lock:
             try:
                 self._ensure_client(
@@ -167,15 +209,20 @@ class SSHManager:
                         stdin.close()
                     except Exception:
                         pass
-                out_b = stdout.read() or b""
-                err_b = stderr.read() or b""
+                try:
+                    decoded_out, decoded_err = _read_stdout_stderr_with_timeout(stdout, stderr, deadline=deadline)
+                except TimeoutError:
+                    return SSHRunResult(
+                        output=to_msg,
+                        exit_code=-1,
+                        ok=False,
+                        timed_out=True,
+                    )
                 code = stdout.channel.recv_exit_status()
-                decoded_out = _decode_out(out_b)
-                decoded_err = _decode_out(err_b)
-                # sudo -S schreibt u. a. "[sudo] password for …:" auf stderr — nicht an echten Dateiinhalt hängen.
                 if use_sudo and code == 0:
-                    return decoded_out
-                return decoded_out + decoded_err
+                    return SSHRunResult(output=decoded_out, exit_code=code, ok=True)
+                combined = decoded_out + decoded_err
+                return SSHRunResult(output=combined, exit_code=code, ok=(code == 0))
             except Exception as e:
                 try:
                     self.close()
@@ -183,7 +230,53 @@ class SSHManager:
                     pass
                 if set_status:
                     set_status(fail_msg, connected=False)
-                return err_fmt.format(err=str(e))
+                return SSHRunResult(
+                    output=err_fmt.format(err=str(e)),
+                    exit_code=-1,
+                    ok=False,
+                    connection_error=True,
+                )
+
+    def run(
+        self,
+        host: str,
+        user: str,
+        password: str,
+        cmd: str,
+        *,
+        ssh_port: int = 22,
+        ssh_use_key: bool = False,
+        ssh_key_path: str = "",
+        ssh_key_passphrase: str = "",
+        use_sudo: bool = False,
+        command_timeout: int | None = 120,
+        set_status: Optional[Callable[[str, object], None]] = None,
+        connected_flag: bool = True,
+        status_connected: Optional[str] = None,
+        status_failed: Optional[str] = None,
+        error_message_fmt: Optional[str] = None,
+        timeout_message: Optional[str] = None,
+    ) -> str:
+        """Führt Befehl aus. Bei sudo: Passwort über stdin an sudo -S (nicht in der Shell-Zeile)."""
+        res = self.run_ex(
+            host,
+            user,
+            password,
+            cmd,
+            ssh_port=ssh_port,
+            ssh_use_key=ssh_use_key,
+            ssh_key_path=ssh_key_path,
+            ssh_key_passphrase=ssh_key_passphrase,
+            use_sudo=use_sudo,
+            command_timeout=command_timeout,
+            set_status=set_status,
+            connected_flag=connected_flag,
+            status_connected=status_connected,
+            status_failed=status_failed,
+            error_message_fmt=error_message_fmt,
+            timeout_message=timeout_message,
+        )
+        return res.output
 
     def pull_remote_file_via_exec(
         self,

@@ -28,6 +28,7 @@ TOP_FILES = frozenset(
         "HANDBUCH_STRUKTURIERT.md",
         "HANDBUCH.pdf",
         "HANDBOOK_EN.pdf",
+        "handbook_page_index.json",
         "builder.py",
         "create_icon.py",
         "UgreenNASAdmin.spec",
@@ -173,7 +174,21 @@ def _prune_foreign() -> list[str]:
     return removed
 
 
+def _assert_worktree_safe() -> None:
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from tools.secret_scan import scan_tree
+
+    issues = scan_tree(WORKTREE)
+    if issues:
+        print("ABBRUCH: Öffentlicher Export enthält Zugangsdaten oder verbotene Dateien:", file=sys.stderr)
+        for line in issues:
+            print(f"  - {line}", file=sys.stderr)
+        raise SystemExit(3)
+
+
 def _git_commit_push(*, message: str, push: bool) -> None:
+    _assert_worktree_safe()
     _run(["git", "add", "-A"], cwd=WORKTREE)
     status = subprocess.run(
         ["git", "status", "--porcelain"],
