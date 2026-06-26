@@ -8,6 +8,8 @@ import sys
 import threading
 import tkinter as tk
 import webbrowser
+import base64
+import shlex
 from dataclasses import replace
 from tkinter import messagebox, ttk
 
@@ -519,53 +521,50 @@ class MixinRunlevelApps:
 
         threading.Thread(target=worker, daemon=True).start()
 
+    def _runlevel_icon_remote_candidates(self, row: rlas.RunlevelAppRow) -> list[str]:
+        app_id = row.app_id
+        out: list[str] = []
+        for c in (
+            f"/var/packages/{app_id}/icon.png",
+            f"/var/packages/{app_id}/rootfs/icon.png",
+            f"/var/packages/{app_id}/target/icon.png",
+            f"/var/packages/{app_id}/target/rootfs/icon.png",
+            (row.icon_path or "").strip(),
+            f"/ugreen/static/icons/{app_id}.png",
+        ):
+            if c and c.startswith("/") and c not in out:
+                out.append(c)
+        return out
+
+    def _fetch_runlevel_icon_bytes(self, row: rlas.RunlevelAppRow) -> bytes | None:
+        for path in self._runlevel_icon_remote_candidates(row):
+            q = shlex.quote(path)
+            res = self._runlevel_ssh_run(
+                f"sudo test -r {q} && sudo cat {q} | base64",
+                timeout=18,
+            )
+            if not res.ok:
+                continue
+            blob = (res.output or "").strip()
+            if not blob:
+                continue
+            try:
+                data = base64.b64decode(blob.replace("\r", "").replace("\n", ""), validate=False)
+            except ValueError:
+                continue
+            if len(data) >= 32 and data[:4] == b"\x89PNG":
+                return data
+        return None
+
     def _fetch_runlevel_icons_ssh(self, rows: list[rlas.RunlevelAppRow]) -> dict[str, bytes]:
         out: dict[str, bytes] = dict(getattr(self, "_runlevel_apps_icon_cache", {}) or {})
         missing = [r for r in rows if r.app_id not in out]
         if not missing:
             return out
-        ssh = None
-        sftp = None
-        try:
-            pk = __import__("ugreen_app._paramiko", fromlist=["_paramiko"])._paramiko()
-            ssh = pk.SSHClient()
-            ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
-            ssh.connect(
-                self.entry_ip.get(),
-                **self._ssh_connect_kwargs(timeout=8, banner_timeout=20, auth_timeout=20),
-            )
-            self._ssh_transport_keepalive(ssh)
-            sftp = ssh.open_sftp()
-            for row in missing:
-                remote_candidates = [
-                    f"/var/packages/{row.app_id}/icon.png",
-                    (row.icon_path or "").strip(),
-                    f"/ugreen/static/icons/{row.app_id}.png",
-                ]
-                for candidate in remote_candidates:
-                    if not candidate or not candidate.startswith("/"):
-                        continue
-                    try:
-                        with sftp.open(candidate, "rb") as rf:
-                            data = rf.read()
-                        if data:
-                            out[row.app_id] = data
-                            break
-                    except OSError:
-                        continue
-        except Exception:
-            pass
-        finally:
-            if sftp is not None:
-                try:
-                    sftp.close()
-                except Exception:
-                    pass
-            if ssh is not None:
-                try:
-                    ssh.close()
-                except Exception:
-                    pass
+        for row in missing:
+            data = self._fetch_runlevel_icon_bytes(row)
+            if data:
+                out[row.app_id] = data
         return out
 
     def _runlevel_icon_photo(self, row: rlas.RunlevelAppRow, icons: dict[str, bytes]) -> ImageTk.PhotoImage | None:

@@ -4,6 +4,16 @@
 
 _(keine offenen Änderungen)_
 
+## 23.8.22 — 2026-05-19
+
+### Deutsch
+
+- **Runlevel Apps:** App-Icons vom NAS per `sudo cat` (Paket-Pfade unter `/var/packages/…` sind ohne root nicht per SFTP lesbar) — kein generisches 🔑 mehr nach dem Laden.
+
+### English (short)
+
+- **Runlevel Apps:** fetch tile icons via sudo over SSH; fixes missing icons on installed EXE.
+
 ## 23.8.21 — 2026-05-19
 
 ### Deutsch
