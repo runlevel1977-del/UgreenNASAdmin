@@ -15,6 +15,7 @@ Cron (Beispiel):  */5 * * * * /usr/bin/python3 /volume1/scripts/ugreen_watch.py 
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import os
 import re
@@ -153,11 +154,19 @@ def _parse_fan_rpms(raw: str) -> list[tuple[str, int]]:
     return out
 
 
-def _send_telegram(token: str, chat_id: str, text: str) -> tuple[bool, str]:
+def _send_telegram(
+    token: str,
+    chat_id: str,
+    text: str,
+    *,
+    parse_mode: str | None = None,
+) -> tuple[bool, str]:
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    body = urllib.parse.urlencode(
-        {"chat_id": chat_id, "text": text[:4000]}
-    ).encode("utf-8")
+    payload: dict[str, str] = {"chat_id": chat_id, "text": text[:4096]}
+    if parse_mode:
+        payload["parse_mode"] = parse_mode
+        payload["disable_web_page_preview"] = "true"
+    body = urllib.parse.urlencode(payload).encode("utf-8")
     req = urllib.request.Request(url, data=body, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=25) as resp:
@@ -237,7 +246,8 @@ def _send_email(cfg: dict[str, Any], subject: str, body: str) -> tuple[bool, str
 
 
 def _notify(cfg: dict[str, Any], host: str, lines: list[str]) -> None:
-    text = f"{'='*40}\n{host}\n" + "\n".join(lines)
+    plain = f"{'='*40}\n{host}\n" + "\n".join(lines)
+    tg_text, tg_mode = _format_notify_telegram(cfg, host, lines)
     alert_word = _tr(cfg, "Alarm", "Alert")
     first = (lines[0] if lines else alert_word).splitlines()
     first_snip = (first[0] if first else alert_word)[:120]
@@ -250,13 +260,17 @@ def _notify(cfg: dict[str, Any], host: str, lines: list[str]) -> None:
         tok = (cfg.get("bot_token") or "").strip()
         cid = str(cfg.get("chat_id") or "").strip()
         if tok and cid:
-            ok, err = _send_telegram(tok, cid, text)
-            if not ok:
+            ok, err = _send_telegram(tok, cid, tg_text, parse_mode=tg_mode)
+            if not ok and tg_mode == "HTML":
+                ok2, err2 = _send_telegram(tok, cid, plain[:4000], parse_mode=None)
+                if not ok2:
+                    print(f"telegram failed: {err} / fallback: {err2}", file=sys.stderr)
+            elif not ok:
                 print(f"telegram failed: {err}", file=sys.stderr)
         elif ch != "both":
             print("telegram: token/chat_id missing", file=sys.stderr)
     if ch in ("email", "both"):
-        ok, err = _send_email(cfg, subject, text)
+        ok, err = _send_email(cfg, subject, plain)
         if not ok:
             print(f"email failed: {err}", file=sys.stderr)
 
@@ -317,10 +331,88 @@ def _ssh_failed_login_count(window_min: int) -> int:
     return _grep_fail_count("\n".join(lines))
 
 
+def _he(s: str) -> str:
+    return html.escape(str(s or ""), quote=False)
+
+
 def _svc_state(name: str) -> tuple[str, str]:
     _, a = _run(f"systemctl is-active {shlex.quote(name)} 2>/dev/null || echo unknown", 10)
     _, e = _run(f"systemctl is-enabled {shlex.quote(name)} 2>/dev/null || echo unknown", 10)
-    return (a or "").strip(), (e or "").strip()
+    a0 = ((a or "").strip().split() or ["unknown"])[0]
+    e0 = ((e or "").strip().split() or ["unknown"])[0]
+    return a0, e0
+
+
+def _alert_icon(msg: str) -> str:
+    m = (msg or "").lower()
+    if "docker" in m or "container" in m:
+        return "🐳"
+    if "ups" in m or "nut" in m:
+        return "🔋"
+    if "raid" in m or "mdstat" in m:
+        return "💽"
+    if "speicher" in m or "storage" in m or "disk" in m:
+        return "💾"
+    if "smb" in m or "nfs" in m or "datei" in m or "file" in m:
+        return "📂"
+    if "smart" in m:
+        return "🛡"
+    if "temperatur" in m or "temperature" in m or "fan" in m or "lüfter" in m:
+        return "🌡"
+    if "ssh" in m or "login" in m:
+        return "🔐"
+    if "ugos" in m:
+        return "🧩"
+    if "timer" in m or "wartung" in m or "maintenance" in m:
+        return "🕒"
+    if "network" in m or "netz" in m:
+        return "🌐"
+    return "⚠️"
+
+
+def _format_alert_block_html(msg: str) -> str:
+    raw = (msg or "").strip()
+    if not raw:
+        return ""
+    parts = raw.split("\n", 1)
+    title = parts[0].strip().rstrip(":")
+    body = parts[1].strip() if len(parts) > 1 else ""
+    icon = _alert_icon(title)
+    out = f"{icon} <b>{_he(title)}</b>"
+    if body:
+        bullets: list[str] = []
+        for ln in body.splitlines():
+            s = ln.strip()
+            if not s or s == "unknown":
+                continue
+            if re.match(r"^unknown\s+enabled=", s):
+                continue
+            if s.endswith(" enabled=disabled") and "active=inactive" in s:
+                continue
+            bullets.append(_he(s))
+        if bullets:
+            out += "\n" + "\n".join(f"   • {b}" for b in bullets[:8])
+    return out
+
+
+def _format_notify_telegram(cfg: dict[str, Any], host: str, alerts: list[str]) -> tuple[str, str | None]:
+    use_html = cfg.get("telegram_html", True)
+    if use_html is False or str(cfg.get("telegram_style") or "").lower() == "plain":
+        text = f"{'='*40}\n{host}\n" + "\n".join(alerts)
+        return text[:4000], None
+    ts = time.strftime("%d.%m.%Y %H:%M")
+    head = _tr(cfg, "🚨 NAS-Wächter", "🚨 NAS watch")
+    lines = [
+        f"<b>{_he(head)} · {_he(host)}</b>",
+        f"🕐 {_he(ts)} · {len(alerts)} {_tr(cfg, 'Hinweis(e)', 'notice(s)')}",
+        "",
+    ]
+    for msg in alerts:
+        block = _format_alert_block_html(msg)
+        if block:
+            lines.append(block)
+            lines.append("")
+    return "\n".join(lines).strip()[:3900], "HTML"
 
 
 def _ignored(name: str, patterns: list[str]) -> bool:
@@ -449,19 +541,15 @@ def run_checks(cfg: dict[str, Any], state: dict[str, Any], *, force_notify: bool
                 )
 
     if cfg.get("check_ups", True):
-        _, ups = _run(
-            "for s in nut-monitor nut-server; do "
-            "A=$(systemctl is-active ${s}.service 2>/dev/null || echo unknown); "
-            "E=$(systemctl is-enabled ${s}.service 2>/dev/null || echo unknown); "
-            "echo \"$s active=$A enabled=$E\"; "
-            "done",
-            20,
-        )
-        low = (ups or "").lower()
-        if "active=active" not in low:
+        ups_bad: list[str] = []
+        for s in ("nut-monitor.service", "nut-server.service"):
+            a, e = _svc_state(s)
+            if e in ("enabled", "static") and a != "active":
+                ups_bad.append(f"{s}: {a} (enabled={e})")
+        if ups_bad:
             emit(
                 "ups_services",
-                _tr(cfg, "UPS/NUT Status auffällig:\n", "UPS/NUT status looks wrong:\n") + (ups.strip()[:700] or "no output"),
+                _tr(cfg, "UPS/NUT:\n", "UPS/NUT:\n") + "\n".join(ups_bad),
             )
 
     if cfg.get("check_ugos_core_services", True):
@@ -489,14 +577,17 @@ def run_checks(cfg: dict[str, Any], state: dict[str, Any], *, force_notify: bool
 
     if cfg.get("check_file_services", True):
         bad_fs: list[str] = []
-        for s in ("smbd.service", "nfs-server.service", "wsdd2.service"):
+        smb_a, smb_e = _svc_state("smbd.service")
+        if smb_a != "active":
+            bad_fs.append(f"smbd: {smb_a} (enabled={smb_e})")
+        for s in ("nfs-server.service", "wsdd2.service"):
             a, e = _svc_state(s)
-            if a not in ("active", "inactive"):
-                bad_fs.append(f"{s}: active={a} enabled={e}")
+            if e in ("enabled", "static") and a not in ("active",):
+                bad_fs.append(f"{s}: {a} (enabled={e})")
         if bad_fs:
             emit(
                 "file_services",
-                _tr(cfg, "SMB/NFS Dienste auffällig:\n", "SMB/NFS services look wrong:\n") + "\n".join(bad_fs),
+                _tr(cfg, "Dateidienste:\n", "File services:\n") + "\n".join(bad_fs),
             )
 
     if cfg.get("check_maintenance_timers", True):
@@ -519,13 +610,13 @@ def run_checks(cfg: dict[str, Any], state: dict[str, Any], *, force_notify: bool
 
     if cfg.get("check_smart", True):
         sm_a, sm_e = _svc_state("smartmontools.service")
-        if sm_a != "active":
+        if sm_e in ("enabled", "static") and sm_a != "active":
             emit(
                 "smart_daemon",
                 _tr(
                     cfg,
-                    f"SMART-Dienst nicht aktiv: smartmontools active={sm_a} enabled={sm_e}",
-                    f"SMART daemon not active: smartmontools active={sm_a} enabled={sm_e}",
+                    f"SMART-Dienst: smartmontools {sm_a} (enabled={sm_e})",
+                    f"SMART daemon: smartmontools {sm_a} (enabled={sm_e})",
                 ),
             )
 
@@ -582,7 +673,7 @@ def run_checks(cfg: dict[str, Any], state: dict[str, Any], *, force_notify: bool
             if bad_lines:
                 emit(
                     "docker_containers",
-                    _tr(cfg, "Docker-Container auffällig:\n", "Docker containers look wrong:\n") + "\n".join(bad_lines[:40]),
+                    _tr(cfg, "Docker-Container:\n", "Docker containers:\n") + "\n".join(bad_lines[:40]),
                 )
             if require:
                 _, running = _run("docker ps --format '{{.Names}}' 2>/dev/null", 45)

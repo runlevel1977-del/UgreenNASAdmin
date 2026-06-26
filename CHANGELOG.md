@@ -2,7 +2,20 @@
 
 ## Unreleased
 
-_(keine offenen Änderungen — aktuell **v23.8.6**)_
+_(keine offenen Änderungen)_
+
+## 23.8.21 — 2026-05-19
+
+### Deutsch
+
+- **Runlevel Apps (neu):** Eigener Tab für installierte **Runlevel-UGOS-Apps** (`com.runlevel.*`) — Kachelansicht mit Icon, Status, **Docker CPU/RAM**, **Netzwerk ↑/↓** (wie UGOS Docker, via `docker stats`), Aktivität, Start/Stop, Browser-Link.
+- **Runlevel Apps — Layout:** Drei gleich breite Kacheln nebeneinander (normal/maximiert); stabile Breite ohne „erst nach Aktualisieren“-Effekt.
+- **Runlevel Apps — Netzwerk:** Nur echte Container-Netzraten vom NAS; keine falschen Transfer-Hub-Jobwerte mehr.
+
+### English (short)
+
+- **Runlevel Apps tab:** tiles for installed Runlevel UGOS Docker apps — status, Docker CPU/RAM, network rates (UGOS-aligned), start/stop, open web UI.
+- Responsive 3-column tile layout; network metrics from `docker stats` only.
 
 ## 23.8.6 — 2026-05-19
 

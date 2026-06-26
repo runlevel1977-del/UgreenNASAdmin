@@ -18,6 +18,9 @@ __pycache__/
 # Öffentlicher Export-Worktree (privates Repo)
 .public_export/
 
+# UGREEN Developer-Arbeitsbereich — komplett lokal, nie nach GitHub
+ugreen_developer/
+
 # Sensible lokale Konfiguration (nie committen)
 nas_admin_connection.json
 app_settings.json

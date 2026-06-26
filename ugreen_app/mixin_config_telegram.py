@@ -823,12 +823,18 @@ class MixinConfigTelegram:
 
     def _on_app_close(self):
         try:
+            if hasattr(self, "_runlevel_apps_shutdown"):
+                self._runlevel_apps_shutdown()
+        except Exception:
+            pass
+        try:
             if hasattr(self, "docker_log_tail_stop"):
                 self.docker_log_tail_stop()
         except Exception:
             pass
         try:
-            self._ssh_mgr.close()
+            if hasattr(self, "_ssh_mgr") and self._ssh_mgr is not None:
+                self._ssh_mgr.close_best_effort()
         except Exception:
             pass
         try:

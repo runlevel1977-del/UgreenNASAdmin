@@ -903,6 +903,7 @@ class MixinThemeUI:
         self.tab_nas2nas = tk.Frame(self.notebook, bg=_page_bg)
         self.tab_devices = tk.Frame(self.notebook, bg=_page_bg)
         self.tab_docker = tk.Frame(self.notebook, bg=_page_bg)
+        self.tab_runlevel_apps = tk.Frame(self.notebook, bg=_page_bg)
         self.tab_health = tk.Frame(self.notebook, bg=_page_bg)
         self.tab_login_track = tk.Frame(self.notebook, bg=_page_bg)
         self.tab_nas_admin = tk.Frame(self.notebook, bg=_page_bg)
@@ -918,6 +919,7 @@ class MixinThemeUI:
         self.notebook.add(self.tab_nas2nas, text=self.t("tab.nas2nas"))
         self.notebook.add(self.tab_devices, text=self.t("tab.devices"))
         self.notebook.add(self.tab_docker, text=self.t("tab.docker"))
+        self.notebook.add(self.tab_runlevel_apps, text=self.t("tab.runlevel_apps"))
         self.notebook.add(self.tab_health, text=self.t("tab.health"))
         self.notebook.add(self.tab_login_track, text=self.t("tab.login_track"))
         self.notebook.add(self.tab_nas_admin, text=self.t("tab.nas_admin"))
@@ -950,6 +952,7 @@ class MixinThemeUI:
         self.setup_nas_to_nas_tab()
         self.setup_devices_tab()
         self.setup_docker_tab()
+        self.setup_runlevel_apps_tab()
         self.setup_health_tab()
         self.setup_login_track_tab()
         self.setup_nas_admin_tab()
@@ -994,6 +997,7 @@ class MixinThemeUI:
             ("nas2nas", "🔗", self.t("nav.nas2nas")),
             ("devices", "🖧", self.t("nav.devices")),
             ("docker", "📦", self.t("nav.docker")),
+            ("runlevel_apps", "🔑", self.t("nav.runlevel_apps")),
             ("health", "♥", self.t("nav.health")),
             ("login_track", "🔐", self.t("nav.login_track")),
             ("nas_admin", "🛠", self.t("nav.nas_admin")),
@@ -1053,7 +1057,7 @@ class MixinThemeUI:
             act_bg = getattr(self, "color_nav_active_row_bg", self.color_selected_bg)
             act_ac = getattr(self, "color_nav_active_accent", "#60a5fa")
             act_fg = getattr(self, "color_nav_active_fg", "#ffffff")
-            if idx == 13:
+            if idx == 14:
                 btn.set_theme(act_bg, act_fg, accent=act_ac)
             else:
                 btn.set_theme(nav_bg, self.color_nav_idle_fg, accent=nav_bg)
@@ -1078,7 +1082,7 @@ class MixinThemeUI:
         act_bg = getattr(self, "color_nav_active_row_bg", self.color_selected_bg)
         act_ac = getattr(self, "color_nav_active_accent", "#60a5fa")
         act_fg = getattr(self, "color_nav_active_fg", "#ffffff")
-        if idx == 13:
+        if idx == 14:
             btn.set_theme(act_bg, act_fg, accent=act_ac)
         else:
             # Sanftes Pulsieren auf Navy-Sidebar (dezentes Amber).
@@ -1155,14 +1159,15 @@ class MixinThemeUI:
             "nas2nas": 3,
             "devices": 4,
             "docker": 5,
-            "health": 6,
-            "login_track": 7,
-            "nas_admin": 8,
-            "storage": 9,
-            "acl": 10,
-            "snapshots": 11,
-            "backup": 12,
-            "settings": 13,
+            "runlevel_apps": 6,
+            "health": 7,
+            "login_track": 8,
+            "nas_admin": 9,
+            "storage": 10,
+            "acl": 11,
+            "snapshots": 12,
+            "backup": 13,
+            "settings": 14,
         }
         idx = index_map.get(key, 0)
         try:
@@ -1183,14 +1188,15 @@ class MixinThemeUI:
             3: "nas2nas",
             4: "devices",
             5: "docker",
-            6: "health",
-            7: "login_track",
-            8: "nas_admin",
-            9: "storage",
-            10: "acl",
-            11: "snapshots",
-            12: "backup",
-            13: "settings",
+            6: "runlevel_apps",
+            7: "health",
+            8: "login_track",
+            9: "nas_admin",
+            10: "storage",
+            11: "acl",
+            12: "snapshots",
+            13: "backup",
+            14: "settings",
         }
         active = rev.get(idx, "dashboard")
         nav_bg = getattr(self, "color_sidebar_bg", self.color_nav_idle_bg)
@@ -1204,13 +1210,23 @@ class MixinThemeUI:
                 btn.set_theme(nav_bg, self.color_nav_idle_fg, accent=nav_bg)
         # Nach dem normalen Sync ggf. Aufmerksamkeit auf "Settings" wieder setzen.
         self._update_settings_nav_attention()
-        if idx == 13:
+        if idx == 14:
             try:
                 if hasattr(self, "_settings_privacy_on_tab_enter"):
                     self._settings_privacy_on_tab_enter()
             except Exception:
                 pass
-        if idx == 7:
+        if idx == 6:
+            try:
+                self._runlevel_apps_on_tab_enter()
+            except Exception:
+                pass
+        elif getattr(self, "_runlevel_apps_tab_active", False):
+            try:
+                self._runlevel_apps_on_tab_leave()
+            except Exception:
+                pass
+        if idx == 8:
             try:
                 self.login_track_on_tab_enter()
             except Exception:
@@ -1241,14 +1257,15 @@ class MixinThemeUI:
             3: "nas2nas",
             4: "devices",
             5: "docker",
-            6: "health",
-            7: "login_track",
-            8: "nas_admin",
-            9: "storage",
-            10: "acl",
-            11: "snapshots",
-            12: "backup",
-            13: "settings",
+            6: "runlevel_apps",
+            7: "health",
+            8: "login_track",
+            9: "nas_admin",
+            10: "storage",
+            11: "acl",
+            12: "snapshots",
+            13: "backup",
+            14: "settings",
         }
         nav_bg = getattr(self, "color_sidebar_bg", self.color_nav_idle_bg)
         act_bg = getattr(self, "color_nav_active_row_bg", self.color_selected_bg)
@@ -1424,6 +1441,10 @@ class MixinThemeUI:
                     pass
                 try:
                     self.refresh_docker_list(ssh_output=docker_out, update_status=False)
+                except Exception:
+                    pass
+                try:
+                    self.refresh_runlevel_apps_list()
                 except Exception:
                     pass
                 try:

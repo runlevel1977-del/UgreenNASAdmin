@@ -148,6 +148,7 @@ class MixinNasWatchDeploy:
             ui = "de"
         return {
             "enabled": True,
+            "telegram_html": True,
             "message_lang": ui,
             "notify_channel": ch,
             "bot_token": tok,
@@ -344,12 +345,17 @@ class MixinNasWatchDeploy:
 
     def _daily_report_save_local(self) -> None:
         p = self._daily_report_local_path()
-        data = {"daily_report_enabled": bool(self.var_daily_enabled.get())}
+        data = {
+            "daily_report_enabled": bool(self.var_daily_enabled.get()),
+            "telegram_compact": bool(getattr(self, "var_daily_telegram_compact", tk.BooleanVar(value=True)).get()),
+        }
         with open(p, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
 
     def _daily_report_apply_local_to_ui(self, d: dict) -> None:
         self.var_daily_enabled.set(bool(d.get("daily_report_enabled", False)))
+        if hasattr(self, "var_daily_telegram_compact"):
+            self.var_daily_telegram_compact.set(d.get("telegram_compact", True))
 
     def _daily_build_remote_config(self) -> dict:
         ch = self.var_nw_channel.get().strip().lower()
@@ -374,6 +380,8 @@ class MixinNasWatchDeploy:
             ui = "de"
         return {
             "enabled": bool(self.var_daily_enabled.get()),
+            "telegram_compact": bool(getattr(self, "var_daily_telegram_compact", tk.BooleanVar(value=True)).get()),
+            "telegram_html": True,
             "message_lang": ui,
             "notify_channel": ch,
             "bot_token": tok,
@@ -519,6 +527,20 @@ class MixinNasWatchDeploy:
             r0,
             text=self.t("daily_report.enabled"),
             variable=self.var_daily_enabled,
+            bg=self.color_surface,
+            fg=self.color_text,
+            selectcolor=self.color_surface,
+            activebackground=self.color_surface,
+            font=self.font_base,
+        ).pack(side=tk.LEFT)
+
+        r0b = tk.Frame(dfr, bg=self.color_surface)
+        r0b.pack(fill=tk.X, pady=(4, 0))
+        self.var_daily_telegram_compact = tk.BooleanVar(value=True)
+        tk.Checkbutton(
+            r0b,
+            text=self.t("daily_report.telegram_compact"),
+            variable=self.var_daily_telegram_compact,
             bg=self.color_surface,
             fg=self.color_text,
             selectcolor=self.color_surface,

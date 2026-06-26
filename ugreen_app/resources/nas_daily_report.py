@@ -13,8 +13,10 @@ Trockenlauf (nur stdout, kein Versand):
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import os
+import re
 import smtplib
 import socket
 import ssl
@@ -68,12 +70,417 @@ def _hostname() -> str:
     return (line[0] if line else "NAS")[:120]
 
 
+def _telegram_compact_enabled(cfg: dict[str, Any]) -> bool:
+    style = str(cfg.get("telegram_style") or "").strip().lower()
+    if style == "full":
+        return False
+    if style == "compact":
+        return True
+    if cfg.get("telegram_compact") is False:
+        return False
+    return True
+
+
+def _he(s: str) -> str:
+    return html.escape(str(s or ""), quote=False)
+
+
+def _svc_state(unit: str) -> str:
+    _, out = _run(f"systemctl is-active {unit} 2>/dev/null || echo unknown", 8)
+    raw = (out or "").strip()
+    if not raw:
+        return "unknown"
+    return raw.split()[0].splitlines()[0]
+
+
+def _svc_enabled(unit: str) -> str:
+    _, out = _run(f"systemctl is-enabled {unit} 2>/dev/null || echo unknown", 8)
+    raw = (out or "").strip()
+    if not raw:
+        return "unknown"
+    return raw.split()[0].splitlines()[0]
+
+
 def _block(cfg: dict[str, Any], icon: str, title_de: str, title_en: str, body: str) -> str:
     b = (body or "").strip()
     if not b:
         b = _tr(cfg, "(keine Daten)", "(no data)")
     title = _tr(cfg, title_de, title_en)
     return f"━━ {icon} {title} ━━\n{b}\n"
+
+
+def _parse_os_kv(text: str) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for line in (text or "").splitlines():
+        line = line.strip()
+        if "=" not in line:
+            continue
+        k, _, v = line.partition("=")
+        out[k.strip()] = v.strip().strip('"')
+    return out
+
+
+def _parse_mem_line(cfg: dict[str, Any], free_out: str) -> str:
+    for line in (free_out or "").splitlines():
+        if line.strip().startswith("Mem:"):
+            parts = line.split()
+            if len(parts) >= 7:
+                used, total, avail = parts[2], parts[1], parts[6]
+                return f"{used} / {total} · {_tr(cfg, 'frei', 'free')} {avail}"
+            if len(parts) >= 4:
+                return f"{parts[2]} / {parts[1]}"
+    return "—"
+
+
+def _parse_volumes(df_out: str) -> list[tuple[str, str]]:
+    rows: list[tuple[str, str]] = []
+    for line in (df_out or "").splitlines():
+        if not line.strip() or line.startswith("Filesystem"):
+            continue
+        parts = line.split()
+        if len(parts) < 6:
+            continue
+        mount = parts[5]
+        if not mount.startswith("/volume"):
+            continue
+        if "overlay" in mount or "docker" in line.lower():
+            continue
+        pct = parts[4].rstrip("%")
+        rows.append((mount, pct))
+    return rows
+
+
+def _parse_raid_summary(cfg: dict[str, Any], mdstat: str) -> str:
+    lines = [ln.strip() for ln in (mdstat or "").splitlines() if ln.strip()]
+    if not lines:
+        return "—"
+    chunks: list[str] = []
+    i = 0
+    while i < len(lines):
+        ln = lines[i]
+        if ln.startswith("md") and " :" in ln:
+            name = ln.split(":", 1)[0].strip()
+            state = ln.split(":", 1)[1].strip().split()[0] if ":" in ln else ""
+            status = ""
+            if i + 1 < len(lines) and lines[i + 1].startswith("["):
+                status = lines[i + 1]
+            label = f"{name} {state}"
+            if status:
+                if "UU" in status or status == "[UU]":
+                    label += " ✅"
+                elif "_" in status or "U_" in status or status.count("U") < status.count("["):
+                    label += " ⚠️"
+            chunks.append(label.strip())
+            i += 2
+            continue
+        i += 1
+    return " · ".join(chunks) if chunks else _tr(cfg, "kein md", "no md")
+
+
+def _parse_fan_rpm(fan_out: str) -> str:
+    for line in (fan_out or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        m = re.search(r"(\d{2,5})\s*$", line)
+        if m:
+            return m.group(1)
+        parts = line.split()
+        if parts and parts[-1].isdigit():
+            return parts[-1]
+    return "—"
+
+
+def _failed_units() -> list[tuple[str, str]]:
+    """Liefert (unit_name, kurz_status) — robust gegen ●-Prefix in systemctl-Ausgabe."""
+    _, out = _run(
+        "systemctl list-units --state=failed --no-legend --no-pager 2>/dev/null",
+        15,
+    )
+    units: list[tuple[str, str]] = []
+    for line in (out or "").splitlines():
+        s = line.strip()
+        if not s or "units listed" in s.lower() or s.startswith("UNIT "):
+            continue
+        parts = s.split()
+        name = ""
+        for p in parts:
+            if any(x in p for x in (".service", ".mount", ".target", ".timer", ".socket")):
+                name = p
+                break
+        if not name:
+            for p in parts:
+                if p in ("●", "×", "failed", "loaded", "not-found", "error", "active", "inactive"):
+                    continue
+                if "." in p:
+                    name = p
+                    break
+        if not name or name in ("●", "×"):
+            continue
+        sub = "failed"
+        if "not-found" in s.lower():
+            sub = "not-found"
+        units.append((name, sub))
+    return units[:8]
+
+
+def _explain_systemd_failed(cfg: dict[str, Any], unit: str, sub: str) -> str:
+    u = _he(unit)
+    return _tr(
+        cfg,
+        f"⚙️ Dienst <code>{u}</code> meldet „{sub}“ — ein Systemdienst ist abgestürzt oder fehlt. "
+        f"Prüfen: SSH <code>systemctl status {u}</code> oder NAS-Verwaltung → Dienste.",
+        f"⚙️ Unit <code>{u}</code> reports “{sub}” — check via SSH <code>systemctl status {u}</code>.",
+    )
+
+
+def _explain_docker_stopped(cfg: dict[str, Any], name: str, status: str) -> str:
+    n = _he(name)
+    st = _he(status[:50])
+    return _tr(
+        cfg,
+        f"🐳 Container <code>{n}</code> läuft nicht ({st}). "
+        f"Nur wichtig, wenn du die App nutzt — sonst ignorieren oder in Docker starten.",
+        f"🐳 Container <code>{n}</code> is stopped ({st}). Start only if you need this app.",
+    )
+
+
+def _explain_disk_high(cfg: dict[str, Any], mount: str, pct: str) -> str:
+    return _tr(
+        cfg,
+        f"💾 Speicher <code>{_he(mount)}</code> ist zu {pct}% voll — alte Daten löschen oder Volume erweitern.",
+        f"💾 Storage <code>{_he(mount)}</code> is {pct}% full — free space or expand volume.",
+    )
+
+
+def _ugos_service_issues() -> list[str]:
+    issues: list[str] = []
+    for s in ("storage_serv", "snapshot_serv", "docker_serv", "ugbus", "syncbackup_serv"):
+        st = _svc_state(f"{s}.service")
+        if st != "active":
+            issues.append(f"{s}: {st}")
+    return issues
+
+
+def _status_icon(state: str, *, want: str = "active") -> str:
+    s = (state or "").strip().lower()
+    if s == want:
+        return "✅"
+    if s in ("inactive", "dead", "failed", "unknown"):
+        return "—"
+    return "⚠️"
+
+
+def build_report_telegram_html(cfg: dict[str, Any]) -> str:
+    """Telegram-Tagesbericht: übersichtlich, mit Symbolen (HTML)."""
+    hn = _hostname()
+    ts = time.strftime("%d.%m.%Y %H:%M")
+    warn_pct = int(cfg.get("disk_warn_percent") or 85)
+
+    _, osrel = _run(
+        "grep -E '^(PRETTY_NAME|OS_VERSION|OS_IS_BETA)=' /etc/os-release 2>/dev/null",
+        10,
+    )
+    oskv = _parse_os_kv(osrel)
+    ugos_ver = oskv.get("OS_VERSION", "—")
+    beta = oskv.get("OS_IS_BETA", "").lower() in ("true", "1", "yes")
+    os_line = f"UGOS {_he(ugos_ver)}"
+    if beta:
+        os_line += " · Beta"
+
+    _, up_p = _run("uptime -p 2>/dev/null", 10)
+    uptime = (up_p or "").strip() or "—"
+    if uptime.startswith("up "):
+        uptime = uptime[3:]
+
+    _, load = _run("cat /proc/loadavg 2>/dev/null", 5)
+    load_parts = (load or "").split()
+    load_s = f"{load_parts[0]} / {load_parts[1]} / {load_parts[2]}" if len(load_parts) >= 3 else "—"
+
+    _, mem = _run("free -h 2>/dev/null | grep -E '^(Mem|Swap):'", 10)
+    mem_lines = []
+    for line in (mem or "").splitlines():
+        if line.strip().startswith("Mem:"):
+            mem_lines.append(f"🧠 RAM: <code>{_he(_parse_mem_line(cfg, line))}</code>")
+        elif line.strip().startswith("Swap:"):
+            parts = line.split()
+            if len(parts) >= 4:
+                mem_lines.append(f"💱 Swap: <code>{_he(parts[2])} / {parts[1]}</code>")
+    if not mem_lines:
+        mem_lines.append(f"🧠 RAM: <code>—</code>")
+
+    _, df_v = _run(
+        "df -hP 2>/dev/null | awk 'NR==1 || $6 ~ /^\\/volume[0-9]+$/ {print}'",
+        15,
+    )
+    vols = _parse_volumes(df_v)
+    vol_lines: list[str] = []
+    for mount, pct in vols:
+        try:
+            pi = int(pct)
+            icon = "⚠️" if pi >= warn_pct else "✅"
+        except ValueError:
+            icon = "·"
+            pi = pct
+        vol_lines.append(f"{icon} <code>{_he(mount)}</code> {pi}%")
+
+    _, ip_d = _run(
+        "ip -4 -o addr show scope global 2>/dev/null | awk '{print $2, $4}' | head -6",
+        12,
+    )
+    ip_parts = []
+    for line in (ip_d or "").splitlines():
+        parts = line.split()
+        if len(parts) >= 2:
+            iface, addr = parts[0], parts[1].split("/")[0]
+            ip_parts.append(f"<code>{_he(iface)}</code> {_he(addr)}")
+    ip_line = " · ".join(ip_parts) if ip_parts else "—"
+
+    _, md = _run("cat /proc/mdstat 2>/dev/null | head -20", 10)
+    raid_s = _parse_raid_summary(cfg, md)
+
+    _, fan = _run(
+        "sudo -n cat /proc/it86/fan 2>/dev/null || cat /proc/it86/fan 2>/dev/null || "
+        "for f in /sys/class/hwmon/hwmon*/fan*_input; do "
+        '[ -r "$f" ] && echo "$(basename "$f") $(cat "$f")"; done 2>/dev/null | head -3',
+        12,
+    )
+    fan_rpm = _parse_fan_rpm(fan)
+
+    _, dcnt = _run("docker ps -q 2>/dev/null | wc -l", 12)
+    _, dver = _run("docker version --format '{{.Server.Version}}' 2>/dev/null", 12)
+    docker_ok = _svc_state("docker.service") == "active"
+    n_cont = (dcnt or "").strip() or "0"
+    docker_line = f"{'✅' if docker_ok else '⚠️'} {_tr(cfg, 'Container', 'Containers')}: <code>{_he(n_cont)}</code>"
+    if (dver or "").strip():
+        docker_line += f" · v{_he((dver or '').strip())}"
+
+    smb = _svc_state("smbd.service")
+    nfs = _svc_state("nfs-server.service")
+    wsdd = _svc_state("wsdd2.service")
+    fs_bits = [f"SMB {_status_icon(smb)}"]
+    if nfs == "active":
+        fs_bits.append(f"NFS ✅")
+    elif _svc_enabled("nfs-server.service") in ("enabled", "static"):
+        fs_bits.append(f"NFS ⚠️")
+    if wsdd == "active":
+        fs_bits.append("wsdd2 ✅")
+    fs_line = " · ".join(fs_bits)
+
+    ug_bits: list[str] = []
+    for s in ("storage_serv", "snapshot_serv", "docker_serv", "ugbus", "syncbackup_serv"):
+        st = _svc_state(f"{s}.service")
+        short = s.replace("_serv", "").replace("_", "")
+        ug_bits.append(f"{short} {_status_icon(st)}")
+
+    sm_a = _svc_state("smartmontools.service")
+    sm_e = _svc_enabled("smartmontools.service")
+    if sm_e in ("disabled", "masked"):
+        smart_line = f"🛡 SMART: {_tr(cfg, 'aus (normal)', 'off (normal)')}"
+    else:
+        smart_line = f"🛡 SMART: {_status_icon(sm_a)} <code>{_he(sm_a)}</code>"
+
+    _, bad_dk = _run(
+        "docker ps -a --filter 'status=exited' --format '{{.Names}}\\t{{.Status}}' 2>/dev/null | head -5",
+        15,
+    )
+    dk_stopped: list[tuple[str, str]] = []
+    for line in (bad_dk or "").splitlines():
+        if "\t" in line:
+            name, st = line.split("\t", 1)
+            dk_stopped.append((name.strip(), st.strip()[:60]))
+
+    failed = _failed_units()
+    ug_issues = _ugos_service_issues()
+    critical: list[str] = []
+    notes: list[str] = []
+    for unit, sub in failed:
+        critical.append(_explain_systemd_failed(cfg, unit, sub))
+    for u in ug_issues:
+        critical.append(
+            _tr(
+                cfg,
+                f"🧩 UGOS-Dienst <code>{_he(u)}</code> — wichtiger Hintergrunddienst der Oberfläche läuft nicht normal.",
+                f"🧩 UGOS service <code>{_he(u)}</code> is not healthy.",
+            )
+        )
+    for mount, pct in vols:
+        try:
+            if int(pct) >= warn_pct:
+                notes.append(_explain_disk_high(cfg, mount, pct))
+        except ValueError:
+            pass
+    if "⚠️" in raid_s:
+        critical.append(
+            _tr(
+                cfg,
+                "💽 RAID wirkt gestört (mdstat) — Speicher-Tab / mdadm prüfen, bevor Daten gefährdet sind.",
+                "💽 RAID may be degraded — check storage / mdstat.",
+            )
+        )
+    if not docker_ok:
+        critical.append(
+            _tr(
+                cfg,
+                "🐳 Docker-Dienst (dockerd) läuft nicht — Docker-Tab und App Center prüfen.",
+                "🐳 Docker daemon is not active.",
+            )
+        )
+    for name, st in dk_stopped:
+        notes.append(_explain_docker_stopped(cfg, name, st))
+
+    lines: list[str] = []
+    title = _tr(cfg, "📋 NAS Tagesbericht", "📋 NAS daily report")
+    lines.append(f"<b>{_he(title)}</b>")
+    lines.append(f"🖥️ <b>{_he(hn)}</b> · 🕐 {_he(ts)}")
+    lines.append(f"🧩 {os_line}")
+    lines.append("")
+
+    if critical:
+        lines.append(
+            f"🚨 <b>{_tr(cfg, 'Achtung', 'Attention')}</b> — "
+            f"{len(critical)} {_tr(cfg, 'wichtiger Punkt', 'important item(s)')}"
+        )
+    elif notes:
+        lines.append(f"⚠️ <b>{_tr(cfg, 'Hinweise', 'Notes')}</b> — {_tr(cfg, 'nichts Kritisches', 'nothing critical')}")
+    else:
+        lines.append(f"✅ <b>{_tr(cfg, 'Alles in Ordnung', 'All OK')}</b>")
+
+    lines.append(f"<b>{_tr(cfg, 'System', 'System')}</b>")
+    lines.append(f"⏱ {_tr(cfg, 'Uptime', 'Uptime')}: <code>{_he(uptime)}</code>")
+    lines.append(f"📊 Load: <code>{_he(load_s)}</code>")
+    lines.extend(mem_lines)
+
+    lines.append(f"<b>{_tr(cfg, 'Speicher & Netz', 'Storage & network')}</b>")
+    if vol_lines:
+        for vl in vol_lines:
+            lines.append(f"💾 {vl}")
+    else:
+        lines.append("💾 —")
+    lines.append(f"🌐 {ip_line}")
+    lines.append(f"💽 RAID: {_he(raid_s)}")
+
+    lines.append(f"<b>{_tr(cfg, 'Dienste', 'Services')}</b>")
+    if fan_rpm != "—":
+        lines.append(f"🌀 {_tr(cfg, 'Lüfter', 'Fan')}: <code>{_he(fan_rpm)}</code> RPM")
+    lines.append(f"🐳 {docker_line}")
+    lines.append(f"📂 {fs_line}")
+    lines.append(f"🧩 UGOS: {' · '.join(ug_bits)}")
+    lines.append(smart_line)
+
+    if critical or notes:
+        lines.append("")
+        if critical:
+            lines.append(f"<b>🚨 {_tr(cfg, 'Das bedeutet', 'What this means')}</b>")
+            for w in critical[:6]:
+                lines.append(f"• {w}")
+        if notes:
+            lines.append(f"<b>💡 {_tr(cfg, 'Optional / unkritisch', 'Optional / non-critical')}</b>")
+            for w in notes[:6]:
+                lines.append(f"• {w}")
+
+    text = "\n".join(lines)
+    return text[:3900]
 
 
 def build_report_text(cfg: dict[str, Any]) -> str:
@@ -244,9 +651,26 @@ def build_report_text(cfg: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _send_telegram(token: str, chat_id: str, text: str) -> tuple[bool, str]:
+def build_report_for_telegram(cfg: dict[str, Any]) -> tuple[str, str | None]:
+    """Returns (text, parse_mode) — parse_mode None = plain text."""
+    if _telegram_compact_enabled(cfg):
+        return build_report_telegram_html(cfg), "HTML"
+    return build_report_text(cfg)[:4000], None
+
+
+def _send_telegram(
+    token: str,
+    chat_id: str,
+    text: str,
+    *,
+    parse_mode: str | None = None,
+) -> tuple[bool, str]:
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    body = urllib.parse.urlencode({"chat_id": chat_id, "text": text[:4000]}).encode("utf-8")
+    payload: dict[str, str] = {"chat_id": chat_id, "text": text[:4096]}
+    if parse_mode:
+        payload["parse_mode"] = parse_mode
+        payload["disable_web_page_preview"] = "true"
+    body = urllib.parse.urlencode(payload).encode("utf-8")
     req = urllib.request.Request(url, data=body, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=25) as resp:
@@ -323,7 +747,7 @@ def _send_email(cfg: dict[str, Any], subject: str, body: str) -> tuple[bool, str
         return False, str(e)
 
 
-def send_digest(cfg: dict[str, Any], report: str) -> None:
+def send_digest(cfg: dict[str, Any]) -> None:
     host = _hostname()
     subj_tail = _tr(cfg, "Tagesbericht", "Daily report")
     subject = _sanitize_email_subject(f"[NAS Info] {host}: {subj_tail}")
@@ -334,13 +758,18 @@ def send_digest(cfg: dict[str, Any], report: str) -> None:
         tok = (cfg.get("bot_token") or "").strip()
         cid = str(cfg.get("chat_id") or "").strip()
         if tok and cid:
-            ok, err = _send_telegram(tok, cid, report)
-            if not ok:
+            tg_text, tg_mode = build_report_for_telegram(cfg)
+            ok, err = _send_telegram(tok, cid, tg_text, parse_mode=tg_mode)
+            if not ok and tg_mode == "HTML":
+                ok2, err2 = _send_telegram(tok, cid, build_report_text(cfg)[:4000], parse_mode=None)
+                if not ok2:
+                    print(f"telegram failed: {err} / fallback: {err2}", file=sys.stderr)
+            elif not ok:
                 print(f"telegram failed: {err}", file=sys.stderr)
         elif ch != "both":
             print("telegram: token/chat_id missing", file=sys.stderr)
     if ch in ("email", "both"):
-        ok, err = _send_email(cfg, subject, report[:500000])
+        ok, err = _send_email(cfg, subject, build_report_text(cfg)[:500000])
         if not ok:
             print(f"email failed: {err}", file=sys.stderr)
 
@@ -371,11 +800,15 @@ def main() -> int:
         print(f"config read error: {e}", file=sys.stderr)
         return 2
     if args.dry_run:
-        print(build_report_text(cfg))
+        if _telegram_compact_enabled(cfg):
+            print(build_report_telegram_html(cfg))
+            print("\n--- parse_mode: HTML (Telegram Kurzbericht) ---", file=sys.stderr)
+        else:
+            print(build_report_text(cfg))
         return 0
     if not cfg.get("enabled", False) and not args.force_send:
         return 0
-    send_digest(cfg, build_report_text(cfg))
+    send_digest(cfg)
     return 0
 
 

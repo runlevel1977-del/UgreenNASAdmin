@@ -19,6 +19,7 @@ TAB_HANDBOOK_CHAPTER: dict[str, str] = {
     "nas2nas": "10",
     "devices": "11",
     "docker": "12",
+    "runlevel_apps": "12",
     "health": "13",
     "login_track": "14",
     "nas_admin": "15",

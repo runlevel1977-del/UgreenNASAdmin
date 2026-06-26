@@ -87,6 +87,18 @@ class MixinTabsSetup:
         docker_h = getattr(self, "_dash_mw_docker_handlers", None)
         scripts_h = getattr(self, "_dash_mw_scripts_handlers", None)
         metrics_h = getattr(self, "_dash_mw_metrics_handlers", None)
+        rl_canvas = getattr(self, "runlevel_apps_canvas", None)
+        rl_handlers = getattr(self, "_runlevel_apps_wheel_handlers", None)
+        rl_tab = getattr(self, "tab_runlevel_apps", None)
+
+        # Runlevel-Apps-Tab: gesamter Tab-Bereich scrollt die Kachel-Liste
+        if (
+            rl_handlers is not None
+            and rl_canvas is not None
+            and getattr(self, "_runlevel_apps_tab_active", False)
+            and (rl_canvas in chain or (rl_tab is not None and rl_tab in chain))
+        ):
+            return rl_handlers
 
         # Docker-/Script-Unterbereiche haben Vorrang, damit keine Doppel-Reaktion aufs äußere Canvas
         if docker_h is not None and dc is not None and dc in chain:

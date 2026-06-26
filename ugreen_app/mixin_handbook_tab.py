@@ -16,6 +16,7 @@ _NOTEBOOK_TAB_KEYS: tuple[str, ...] = (
     "nas2nas",
     "devices",
     "docker",
+    "runlevel_apps",
     "health",
     "login_track",
     "nas_admin",

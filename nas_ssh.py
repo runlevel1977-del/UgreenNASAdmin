@@ -90,6 +90,21 @@ class SSHManager:
                 self._client = None
             self._last_key = None
 
+    def close_best_effort(self) -> None:
+        """Beim App-Exit: nicht ewig auf laufenden Befehl warten (Windows „keine Rückmeldung“)."""
+        acquired = self._lock.acquire(timeout=0.15)
+        try:
+            if self._client is not None:
+                try:
+                    self._client.close()
+                except Exception:
+                    pass
+                self._client = None
+            self._last_key = None
+        finally:
+            if acquired:
+                self._lock.release()
+
     def _ensure_client(
         self,
         host: str,

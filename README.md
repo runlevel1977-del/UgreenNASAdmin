@@ -20,6 +20,12 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 
 **Links (immer aktuell):** [GitHub **Latest release**](https://github.com/runlevel1977-del/UgreenNASAdmin/releases/latest) · SourceForge „latest“ (oben) · [All releases](https://github.com/runlevel1977-del/UgreenNASAdmin/releases)
 
+### What's new in v23.8.21
+
+- **Runlevel Apps tab (sidebar 🔑):** Installed **Runlevel UGOS Docker apps** as tiles — icon, running state, **Docker CPU/RAM**, **upload/download** (aligned with UGOS Docker via `docker stats`), activity line, **Start/Stop**, click to open the app in the browser.
+- **Layout:** Three equal-width tiles per row (fits normal window; spreads across the width when maximized).
+- **Deutsch (kurz):** Neuer Tab **Runlevel Apps** — Kacheln für eure Runlevel-Apps auf dem NAS mit Live-Netz und Docker-Last; Details in [`CHANGELOG.md`](CHANGELOG.md).
+
 ### What's new in v23.8.6
 
 - **Handbook from the header:** **📖 Manual / Handbuch** in the top bar (between **Info** and **Screenshot**) opens the **handbook chapter for the active tab** — e.g. Docker → chapter 12, Backup → chapter 19. Jumps to the right **PDF page** when possible (`handbook_page_index.json`); otherwise shows a **Markdown excerpt** in a dialog.
