@@ -32,7 +32,8 @@ from urllib.parse import urlencode, quote
 
 import nas_ssh
 import nas_utils
-from ugreen_app.mixin_nas_admin import _UGOS_SERV_NAMES
+from ugreen_app import keyring_helper
+from ugreen_app.mixin_nas_admin import _UGOS_SERV_LIST_CMD, _UGOS_SERV_NAMES
 from ugreen_app._paramiko import _paramiko
 from ugreen_app.rounded_ui import SidebarNavItem, create_rounded_button, create_rounded_outline_button, RoundedCard
 
@@ -438,6 +439,62 @@ class MixinThemeUI:
                 self._header_refresh_model_async()
             except Exception:
                 pass
+
+    def _ssh_probe_credentials_ready(self) -> bool:
+        """True wenn Host, User und Auth (Passwort/Keyring/SSH-Key) für einen Kurztest da sind."""
+        try:
+            host = self.entry_ip.get().strip() if hasattr(self, "entry_ip") else ""
+            user = self.entry_user.get().strip() if hasattr(self, "entry_user") else ""
+            if not host or not user:
+                return False
+            auth = self._ssh_auth_payload()
+            if auth.get("ssh_use_key"):
+                return bool(str(auth.get("ssh_key_path") or "").strip())
+            pwd = self.entry_pwd.get() if hasattr(self, "entry_pwd") else ""
+            if pwd:
+                return True
+            return bool(keyring_helper.get_ssh_password(host, user))
+        except Exception:
+            return False
+
+    def _probe_ssh_connection_async(self) -> None:
+        """Hintergrund: SSH kurz testen und Header-Badge (+ Statusleiste rechts) setzen."""
+        token = getattr(self, "_ssh_probe_token", 0) + 1
+        self._ssh_probe_token = token
+
+        def _apply(connected: bool) -> None:
+            if token != getattr(self, "_ssh_probe_token", 0):
+                return
+            try:
+                if connected:
+                    self.status_right.config(text=self.t("status.ssh_connected"), fg=self.color_user)
+                    self._update_header_ssh_badge(True)
+                else:
+                    self.status_right.config(text=self.t("status.not_connected"), fg=self.color_root)
+                    self._update_header_ssh_badge(False)
+            except Exception:
+                pass
+
+        def worker() -> None:
+            if token != getattr(self, "_ssh_probe_token", 0):
+                return
+            if not self._ssh_probe_credentials_ready():
+                try:
+                    self.root.after(0, lambda: _apply(False))
+                except Exception:
+                    pass
+                return
+            try:
+                res = self.run_ssh_cmd_ex("true", update_status=False, command_timeout=15)
+                ok = bool(res.ok) and not res.connection_error
+            except Exception:
+                ok = False
+            try:
+                self.root.after(0, lambda: _apply(ok))
+            except Exception:
+                pass
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def _sidebar_action_button(self, parent, text, command, bg, fg="white") -> tk.Button:
         btn = tk.Button(
@@ -1244,6 +1301,11 @@ class MixinThemeUI:
             self.sync_dashboard_live_for_tab_index(idx)
         except Exception:
             pass
+        if idx == 9:
+            try:
+                self.nas_admin_on_tab_enter()
+            except Exception:
+                pass
 
     def _nav_btn_leave(self, btn, key):
         try:
@@ -1409,13 +1471,19 @@ class MixinThemeUI:
                     osrel = ""
                 try:
                     services_txt = self.run_ssh_cmd(
-                        "systemctl list-units --type=service --all --no-legend 2>/dev/null | "
-                        "while read -r u _rest; do case \"$u\" in *_serv.service) printf '%s\\n' \"${u%.service}\";; esac; done | sort -u",
+                        _UGOS_SERV_LIST_CMD,
                         True,
                         update_status=False,
                     ) or ""
                 except Exception:
                     services_txt = ""
+
+            ugos_storage_txt = ""
+            if hasattr(self, "_storage_fetch_ugos_overview_text"):
+                try:
+                    ugos_storage_txt = self._storage_fetch_ugos_overview_text()
+                except Exception:
+                    ugos_storage_txt = ""
 
             def apply():
                 if token != self._refresh_all_token:
@@ -1428,7 +1496,11 @@ class MixinThemeUI:
                     cb = getattr(self, "combo_nas_service", None)
                     if cb is not None and (services_txt or batch_ok):
                         merged = nas_utils.merge_ugos_service_names(_UGOS_SERV_NAMES, services_txt)
-                        cb["values"] = tuple(f"{n}.service" for n in merged)
+                        self._nas_admin_svc_list_cached = merged
+                        if hasattr(self, "_apply_ugos_service_combobox_values"):
+                            self._apply_ugos_service_combobox_values(merged)
+                        else:
+                            cb["values"] = tuple(f"{n}.service" for n in merged)
                 except Exception:
                     pass
                 try:
@@ -1452,7 +1524,11 @@ class MixinThemeUI:
                 except Exception:
                     pass
                 try:
-                    self.storage_refresh_all(_prefetch=storage_pref, update_status=False)
+                    self.storage_refresh_all(
+                        _prefetch=storage_pref,
+                        _ugos_text=ugos_storage_txt or None,
+                        update_status=False,
+                    )
                 except Exception:
                     pass
                 self.set_status(self.t("status.refreshed"))

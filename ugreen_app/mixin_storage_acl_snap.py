@@ -28,6 +28,7 @@ import urllib.parse
 
 import nas_ssh
 import nas_utils
+from ugreen_app.ugos_api_dashboard import format_health_ugos_summary, format_storage_overview_text
 from ugreen_app._paramiko import _paramiko
 
 class MixinStorageAclSnap:
@@ -395,6 +396,90 @@ class MixinStorageAclSnap:
 
         threading.Thread(target=worker, daemon=True).start()
 
+    def _storage_ugos_overview_labels(self) -> dict[str, str]:
+        labels = {
+            "section": self.t("storage.ugos_section"),
+            "model": self.t("storage.ugos_model"),
+            "uptime": self.t("storage.ugos_uptime"),
+            "serial": self.t("storage.ugos_serial"),
+            "fan_line": self.t("storage.ugos_fan_line"),
+            "vol_api_hdr": self.t("storage.ugos_vol_api_hdr"),
+            "vol_api_line": self.t("storage.ugos_vol_api_line"),
+            "net_api_hdr": self.t("storage.ugos_net_api_hdr"),
+            "net_api_line": self.t("storage.ugos_net_api_line"),
+            "pools_hdr": self.t("storage.ugos_pools_hdr"),
+            "disks_hdr": self.t("storage.ugos_disks_hdr"),
+            "empty": self.t("storage.ugos_empty"),
+            "none": self.t("storage.ugos_empty"),
+            "pool_line": self.t("storage.ugos_pool_line"),
+            "pool_line_used": self.t("storage.ugos_pool_line_used"),
+            "pool_members": self.t("storage.ugos_pool_members"),
+            "pool_sync": self.t("storage.ugos_pool_sync"),
+            "pool_sync_delay": self.t("storage.ugos_pool_sync_delay"),
+            "pool_alloc_note": self.t("storage.ugos_pool_alloc_note"),
+            "vol_line": self.t("storage.ugos_vol_line"),
+            "vol_line_used": self.t("storage.ugos_vol_line_used"),
+            "disk_line": self.t("storage.ugos_disk_line"),
+            "disk_line_extra": self.t("storage.ugos_disk_line_extra"),
+            "disk_temp": self.t("storage.ugos_disk_temp"),
+        }
+        for kind in ("disk", "pool", "volume"):
+            for code in range(4):
+                labels[f"{kind}_status_{code}"] = self.t(f"ugos.status.{kind}.{code}")
+        for kind in ("volume",):
+            for code in range(4):
+                labels[f"{kind}_health_{code}"] = self.t(f"ugos.status.{kind}.{code}")
+        return labels
+
+    def _health_ugos_api_labels(self) -> dict[str, str]:
+        return {
+            "health_hdr": self.t("health.ugos_api_hdr"),
+            "uptime": self.t("health.ugos_uptime"),
+            "serial": self.t("health.ugos_serial"),
+            "fan_line": self.t("health.ugos_fan_line"),
+            "net_line": self.t("health.ugos_net_line"),
+            "vol_line": self.t("health.ugos_vol_line"),
+        }
+
+    def _storage_format_ugos_overview(self, metrics: dict) -> str:
+        return format_storage_overview_text(metrics, self._storage_ugos_overview_labels())
+
+    def _storage_fetch_ugos_overview_text(self) -> str:
+        if not hasattr(self, "_ugos_api_fetch_dashboard_metrics"):
+            return ""
+        try:
+            metrics = self._ugos_api_fetch_dashboard_metrics()
+        except Exception:
+            metrics = None
+        if not metrics or not metrics.get("ok"):
+            return f"=== {self.t('storage.ugos_section')} ===\n\n{self.t('storage.ugos_failed')}\n\n"
+        return self._storage_format_ugos_overview(metrics) + "\n"
+
+    def storage_refresh_ugos_pools(self) -> None:
+        if not hasattr(self, "storage_output"):
+            return
+        if getattr(self, "_storage_ugos_busy", False):
+            return
+        self._storage_ugos_busy = True
+        self.storage_output.delete("1.0", tk.END)
+        self.storage_output.insert(tk.END, self.t("storage.ugos_loading") + "\n")
+        self.storage_output.see(tk.END)
+        self.set_status(self.t("storage.ugos_loading"))
+
+        def worker() -> None:
+            body = self._storage_fetch_ugos_overview_text()
+
+            def apply() -> None:
+                self._storage_ugos_busy = False
+                self.storage_output.delete("1.0", tk.END)
+                self.storage_output.insert(tk.END, body)
+                self.storage_output.see(tk.END)
+                self.set_status(self.t("storage.ugos_done"))
+
+            self.root.after(0, apply)
+
+        threading.Thread(target=worker, daemon=True).start()
+
     def storage_refresh_volumes(self):
         if not hasattr(self, "storage_output"):
             return
@@ -417,13 +502,15 @@ class MixinStorageAclSnap:
         self.storage_output.see(tk.END)
         self.set_status("Speicher: Freigaben aktualisiert")
 
-    def storage_refresh_all(self, *, _prefetch=None, update_status=True):
+    def storage_refresh_all(self, *, _prefetch=None, _ugos_text: str | None = None, update_status=True):
         if not hasattr(self, "storage_output"):
             return
         if _prefetch is not None:
-            vol, smb, nfs = _prefetch
             self.storage_output.delete("1.0", tk.END)
+            if _ugos_text:
+                self.storage_output.insert(tk.END, _ugos_text)
             self.storage_output.insert(tk.END, "=== VOLUMES (df -h, ohne tmpfs) ===\n\n")
+            vol, smb, nfs = _prefetch
             self.storage_output.insert(tk.END, (vol or "").strip() or "(Keine Ausgabe)\n")
             self.storage_output.insert(tk.END, "\n\n=== SAMBA (testparm / smb.conf Auszug) ===\n\n")
             self.storage_output.insert(
@@ -439,8 +526,63 @@ class MixinStorageAclSnap:
             if update_status:
                 self.set_status("Speicher: aktualisiert")
             return
-        self.storage_refresh_volumes()
-        self.storage_refresh_shares()
+
+        if getattr(self, "_storage_refresh_all_busy", False):
+            return
+        self._storage_refresh_all_busy = True
+        self.storage_output.delete("1.0", tk.END)
+        self.storage_output.insert(tk.END, self.t("storage.ugos_loading") + "\n")
+        self.storage_output.see(tk.END)
+        self.set_status(self.t("status.refreshing"))
+
+        def worker() -> None:
+            ugos_txt = self._storage_fetch_ugos_overview_text()
+            vol = ""
+            smb = ""
+            nfs = ""
+            try:
+                vol = self.run_ssh_cmd(
+                    "df -h -x tmpfs -x devtmpfs 2>/dev/null || df -h 2>/dev/null",
+                    True,
+                    update_status=False,
+                ) or ""
+                smb = self.run_ssh_cmd(
+                    "testparm -s 2>/dev/null | head -250 || cat /etc/samba/smb.conf 2>/dev/null | head -250",
+                    True,
+                    update_status=False,
+                ) or ""
+                nfs = self.run_ssh_cmd(
+                    "exportfs -v 2>/dev/null; echo '---'; cat /etc/exports 2>/dev/null",
+                    True,
+                    update_status=False,
+                ) or ""
+            except Exception:
+                pass
+
+            def apply() -> None:
+                self._storage_refresh_all_busy = False
+                self.storage_output.delete("1.0", tk.END)
+                if ugos_txt:
+                    self.storage_output.insert(tk.END, ugos_txt)
+                self.storage_output.insert(tk.END, "=== VOLUMES (df -h, ohne tmpfs) ===\n\n")
+                self.storage_output.insert(tk.END, (vol or "").strip() or "(Keine Ausgabe)\n")
+                self.storage_output.insert(tk.END, "\n\n=== SAMBA (testparm / smb.conf Auszug) ===\n\n")
+                self.storage_output.insert(
+                    tk.END,
+                    smb.strip() if (smb or "").strip() else "(Nicht lesbar oder nicht installiert)\n",
+                )
+                self.storage_output.insert(tk.END, "\n\n=== NFS (exportfs / exports) ===\n\n")
+                self.storage_output.insert(
+                    tk.END,
+                    nfs.strip() if (nfs or "").strip() else "(Keine exports / kein Zugriff)\n",
+                )
+                self.storage_output.see(tk.END)
+                if update_status:
+                    self.set_status("Speicher: aktualisiert")
+
+            self.root.after(0, apply)
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def storage_top20_folders(self):
         if not self._danger_gate():
@@ -745,16 +887,32 @@ class MixinStorageAclSnap:
         )
         mdcheck_out = self.run_ssh_cmd(mdcheck_cmd, True, update_status=False)
         self._health_write((mdcheck_out or "").strip() if (mdcheck_out or "").strip() else "Keine mdcheck Daten")
+        self._health_write("\n--- UGOS API (live) ---")
+        if hasattr(self, "_ugos_api_fetch_dashboard_metrics"):
+            try:
+                ugos_m = self._ugos_api_fetch_dashboard_metrics()
+            except Exception:
+                ugos_m = None
+            if ugos_m and ugos_m.get("ok"):
+                for ln in format_health_ugos_summary(ugos_m, self._health_ugos_api_labels()):
+                    self._health_write(ln)
+            else:
+                self._health_write(self.t("health.ugos_api_unavailable"))
+        else:
+            self._health_write(self.t("health.ugos_api_unavailable"))
         self._health_write("\n--- UGOS CORE SERVICES ---")
         svc_cmd = (
-            "for s in storage_serv snapshot_serv docker_serv ugbus syncbackup_serv; do "
+            "for s in storage_serv snapshot_serv docker_serv ugbus syncbackup_serv domain_tool; do "
             "A=$(systemctl is-active ${s}.service 2>/dev/null || true); "
             "E=$(systemctl is-enabled ${s}.service 2>/dev/null || true); "
-            "printf '%s: active=%s enabled=%s\\n' \"$s\" \"$A\" \"$E\"; "
+            "F=$(systemctl is-failed ${s}.service 2>/dev/null || true); "
+            "printf '%s: active=%s enabled=%s failed=%s\\n' \"$s\" \"$A\" \"$E\" \"$F\"; "
             "done"
         )
         svc_out = self.run_ssh_cmd(svc_cmd, True, update_status=False)
         self._health_write((svc_out or "").strip() if (svc_out or "").strip() else "Keine Service-Daten")
+        if svc_out and "domain_tool" in svc_out and "failed=failed" in svc_out:
+            self._health_write(self.t("health.domain_tool_failed"))
         lbl_svc = getattr(self, "lbl_health_ugos_services", None)
         if lbl_svc is not None:
             try:

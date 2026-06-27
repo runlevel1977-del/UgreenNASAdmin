@@ -1286,6 +1286,7 @@ class MixinTabsSetup:
         s2.pack(fill=tk.X, pady=(10, 0))
         self.create_modern_btn(s1, self.t("storage.vol_df"), self.storage_refresh_volumes, self.color_btn_blue).pack(side=tk.LEFT, padx=4)
         self.create_modern_btn(s1, self.t("storage.shares"), self.storage_refresh_shares, self.color_user).pack(side=tk.LEFT, padx=4)
+        self.create_modern_btn(s1, self.t("storage.ugos_pools"), self.storage_refresh_ugos_pools, self.color_btn_blue).pack(side=tk.LEFT, padx=4)
         self.create_modern_btn(s1, self.t("storage.refresh"), self.storage_refresh_all, self.color_btn_secondary).pack(side=tk.LEFT, padx=4)
         tk.Label(s2, text=self.t("storage.top_path"), bg=self.color_surface, fg=self.color_text_muted).pack(side=tk.LEFT, padx=(0, 8))
         self.entry_storage_top_path = tk.Entry(

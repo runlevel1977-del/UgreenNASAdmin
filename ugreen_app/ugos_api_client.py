@@ -170,6 +170,10 @@ class UgosApiClient:
         snap["stat"] = self.get("/ugreen/v1/taskmgr/stat/get_all")
         snap["pools"] = self.get("/ugreen/v1/storage/pool/list")
         snap["disks"] = self.get("/ugreen/v2/storage/disk/list")
+        try:
+            snap["ifaces"] = self.get("/ugreen/v1/network/iface/list")
+        except UgosApiError:
+            snap["ifaces"] = {}
         return snap
 
 

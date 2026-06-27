@@ -32,6 +32,13 @@ import nas_utils
 from ugreen_app._paramiko import _paramiko
 from ugreen_app.dash_sparkline import DashSparkline
 from ugreen_app.rounded_ui import RoundedCard
+from ugreen_app.ugos_api_dashboard import (
+    format_dashboard_ugos_extra,
+    format_disk_line_short,
+    format_pool_line_short,
+    format_sysinfo_header,
+    merge_dashboard_snapshots,
+)
 from PIL import Image, ImageTk
 
 class MixinScriptsDockerMonitor:
@@ -2111,10 +2118,11 @@ class MixinScriptsDockerMonitor:
         self.dash_container.rowconfigure(0, weight=1)
         self.dash_container.rowconfigure(1, weight=0)
         self.dash_container.rowconfigure(2, weight=1)
-        self.dash_container.rowconfigure(3, weight=1)
+        self.dash_container.rowconfigure(3, weight=0)
         self.dash_container.rowconfigure(4, weight=1)
         self.dash_container.rowconfigure(5, weight=0)
         self.dash_container.rowconfigure(6, weight=0)
+        self.dash_container.rowconfigure(7, weight=0)
 
         def make_tile_grid(r: int, c: int, *, hug_inner: bool = False) -> tk.Frame:
             card = RoundedCard(
@@ -2200,7 +2208,7 @@ class MixinScriptsDockerMonitor:
 
         # —— Speicher-Kachel: erkannte / + /volumeN (+ USB-Zeilen) ——
         # hug_inner: sonst klemmt RoundedCard die Innenhöhe — untere Platten/USB-Zeilen werden abgeschnitten.
-        disk_in = make_tile_grid(3, 0, hug_inner=True)
+        disk_in = make_tile_grid(4, 0, hug_inner=True)
         tk.Label(
             disk_in,
             text=self.t("dash.disk_short"),
@@ -2217,7 +2225,7 @@ class MixinScriptsDockerMonitor:
         self._dash_disk_detail_labels: dict[str, tk.Label] = {}
 
         # —— Netzwerk-Kachel (Live + aktuelle Konfiguration + Filter + Bearbeiten) ——
-        net_in = make_tile_grid(3, 1, hug_inner=True)
+        net_in = make_tile_grid(4, 1, hug_inner=True)
         net_hdr = tk.Frame(net_in, bg=tile_bg)
         net_hdr.pack(fill=tk.X)
         tk.Label(net_hdr, text=self.t("dash.net_short"), bg=tile_bg, fg=fg_muted, font=("Segoe UI", 9, "bold")).pack(
@@ -2523,6 +2531,85 @@ class MixinScriptsDockerMonitor:
         )
         self._dash_fan2_card = _c2
 
+        # —— UGOS-API: Pools + physische Disks (wie UGOS-Web-UI) ——
+        ugos_card = RoundedCard(
+            self,
+            self.dash_container,
+            page_bg=tile_page,
+            fill_bg=tile_bg,
+            radius=11,
+            shadow=False,
+            outline=tile_border,
+            outline_width=2,
+            hug_inner_height=True,
+        )
+        ugos_card.grid(row=3, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
+        ugos_in = tk.Frame(ugos_card.inner, bg=tile_bg, highlightthickness=0)
+        ugos_in.pack(fill=tk.X, expand=True, padx=8, pady=(6, 8))
+        ugos_hdr = tk.Frame(ugos_in, bg=tile_bg)
+        ugos_hdr.pack(fill=tk.X)
+        tk.Label(
+            ugos_hdr,
+            text=self.t("dash.ugos_tile_title"),
+            bg=tile_bg,
+            fg=fg_muted,
+            font=("Segoe UI", 9, "bold"),
+        ).pack(side=tk.LEFT)
+        self.dash_ugos_model_lbl = tk.Label(
+            ugos_hdr,
+            text="",
+            bg=tile_bg,
+            fg=fg_muted,
+            font=("Segoe UI", 8),
+        )
+        self.dash_ugos_model_lbl.pack(side=tk.RIGHT)
+        ugos_cols = tk.Frame(ugos_in, bg=tile_bg)
+        ugos_cols.pack(fill=tk.X, pady=(4, 0))
+        ugos_cols.columnconfigure(0, weight=1)
+        ugos_cols.columnconfigure(1, weight=1)
+        ugos_left = tk.Frame(ugos_cols, bg=tile_bg)
+        ugos_left.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        ugos_right = tk.Frame(ugos_cols, bg=tile_bg)
+        ugos_right.grid(row=0, column=1, sticky="nsew")
+        tk.Label(
+            ugos_left,
+            text=self.t("dash.ugos_pools_hdr"),
+            bg=tile_bg,
+            fg=fg_muted,
+            font=("Segoe UI", 8, "bold"),
+        ).pack(anchor="w")
+        self.dash_ugos_pools_body = tk.Frame(ugos_left, bg=tile_bg)
+        self.dash_ugos_pools_body.pack(fill=tk.X, anchor="w")
+        tk.Label(
+            ugos_right,
+            text=self.t("dash.ugos_disks_hdr"),
+            bg=tile_bg,
+            fg=fg_muted,
+            font=("Segoe UI", 8, "bold"),
+        ).pack(anchor="w")
+        self.dash_ugos_disks_body = tk.Frame(ugos_right, bg=tile_bg)
+        self.dash_ugos_disks_body.pack(fill=tk.X, anchor="w")
+        self.dash_ugos_extra_lbl = tk.Label(
+            ugos_in,
+            text="",
+            bg=tile_bg,
+            fg=fg_muted,
+            font=self.font_mono,
+            anchor="w",
+            justify=tk.LEFT,
+        )
+        self.dash_ugos_extra_lbl.pack(fill=tk.X, pady=(2, 0))
+        self.dash_ugos_status_lbl = tk.Label(
+            ugos_in,
+            text=self.t("dash.ugos_waiting"),
+            bg=tile_bg,
+            fg=fg_muted,
+            font=("Segoe UI", 7),
+            anchor="w",
+            justify=tk.LEFT,
+        )
+        self.dash_ugos_status_lbl.pack(fill=tk.X, pady=(4, 0))
+
         # —— Docker-Kachel (volle Breite), flacher Kopf ——
         dock_card = RoundedCard(
             self,
@@ -2534,7 +2621,7 @@ class MixinScriptsDockerMonitor:
             outline=tile_border,
             outline_width=2,
         )
-        dock_card.grid(row=4, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
+        dock_card.grid(row=5, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
         dock_in = tk.Frame(dock_card.inner, bg=tile_bg, highlightthickness=0)
         dock_in.pack(fill=tk.BOTH, expand=True, padx=8, pady=(4, 7))
         dock_hdr = tk.Frame(dock_in, bg=tile_bg)
@@ -2585,7 +2672,7 @@ class MixinScriptsDockerMonitor:
             outline=tile_border,
             outline_width=2,
         )
-        script_card.grid(row=5, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
+        script_card.grid(row=6, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
         script_in = tk.Frame(script_card.inner, bg=tile_bg, highlightthickness=0)
         script_in.pack(fill=tk.BOTH, expand=True, padx=8, pady=(4, 7))
         tk.Label(
@@ -2624,7 +2711,7 @@ class MixinScriptsDockerMonitor:
         self.dash_script_jobs_canvas.bind("<Configure>", _script_jobs_cfg_canvas)
 
         st_row = tk.Frame(self.dash_container, bg=tile_page)
-        st_row.grid(row=6, column=0, columnspan=2, sticky="ew", padx=6, pady=(0, 4))
+        st_row.grid(row=7, column=0, columnspan=2, sticky="ew", padx=6, pady=(0, 4))
         self.dash_status_lbl = tk.Label(
             st_row,
             text=self.t("dash.ssh_needed"),
@@ -2967,6 +3054,134 @@ class MixinScriptsDockerMonitor:
             cv.configure(scrollregion=bbox)
         self._dashboard_metrics_touch_scrollregion()
 
+    def _dash_ugos_status_labels(self) -> dict[str, str]:
+        labels = {
+            "none": self.t("dash.ugos_none"),
+            "pool_line": self.t("dash.ugos_pool_line"),
+            "pool_line_used": self.t("dash.ugos_pool_line_used"),
+            "pool_alloc_short": self.t("dash.ugos_pool_alloc_short"),
+            "disk_line": self.t("dash.ugos_disk_line"),
+            "disk_temp": self.t("dash.ugos_disk_temp"),
+            "uptime": self.t("dash.ugos_uptime"),
+            "serial": self.t("dash.ugos_serial"),
+            "fan_line": self.t("dash.ugos_fan_line"),
+            "net_warn": self.t("dash.ugos_net_warn"),
+            "vol_line": self.t("dash.ugos_vol_line"),
+        }
+        for kind in ("disk", "pool", "volume"):
+            for code in range(4):
+                labels[f"{kind}_status_{code}"] = self.t(f"ugos.status.{kind}.{code}")
+        for code in range(4):
+            labels[f"volume_health_{code}"] = self.t(f"ugos.status.volume.{code}")
+        return labels
+
+    def _dash_ugos_pool_line(self, pool: dict) -> str:
+        return format_pool_line_short(pool, self._dash_ugos_status_labels())
+
+    def _dash_ugos_disk_line(self, disk: dict) -> str:
+        return format_disk_line_short(disk, self._dash_ugos_status_labels())
+
+    def _dash_refresh_ugos_storage_tile(self, snap: dict) -> None:
+        pools_body = getattr(self, "dash_ugos_pools_body", None)
+        disks_body = getattr(self, "dash_ugos_disks_body", None)
+        if pools_body is None or disks_body is None:
+            return
+        tb = getattr(self, "_dash_tile_bg", self.color_surface)
+        fg_val = getattr(self, "color_text", "#0f172a")
+        fg_muted = getattr(self, "color_text_muted", "#64748b")
+
+        for body in (pools_body, disks_body):
+            for ch in body.winfo_children():
+                ch.destroy()
+
+        if not snap.get("ugos_ok"):
+            tk.Label(
+                pools_body,
+                text=self.t("dash.ugos_none"),
+                bg=tb,
+                fg=fg_muted,
+                font=("Segoe UI", 8),
+                anchor="w",
+            ).pack(anchor="w")
+            tk.Label(
+                disks_body,
+                text=self.t("dash.ugos_none"),
+                bg=tb,
+                fg=fg_muted,
+                font=("Segoe UI", 8),
+                anchor="w",
+            ).pack(anchor="w")
+            st = getattr(self, "dash_ugos_status_lbl", None)
+            if st is not None:
+                st.config(text=self.t("dash.ugos_unavailable"), fg=fg_muted)
+            ml = getattr(self, "dash_ugos_model_lbl", None)
+            if ml is not None:
+                ml.config(text="")
+            xl = getattr(self, "dash_ugos_extra_lbl", None)
+            if xl is not None:
+                xl.config(text="")
+            return
+
+        pools = [p for p in (snap.get("ugos_pools") or []) if isinstance(p, dict)]
+        disks = [d for d in (snap.get("ugos_disks") or []) if isinstance(d, dict)]
+        if not pools:
+            tk.Label(
+                pools_body,
+                text=self.t("dash.ugos_none"),
+                bg=tb,
+                fg=fg_muted,
+                font=("Segoe UI", 8),
+                anchor="w",
+            ).pack(anchor="w")
+        else:
+            for p in pools[:8]:
+                tk.Label(
+                    pools_body,
+                    text=self._dash_ugos_pool_line(p),
+                    bg=tb,
+                    fg=fg_val,
+                    font=self.font_mono,
+                    anchor="w",
+                ).pack(anchor="w")
+
+        if not disks:
+            tk.Label(
+                disks_body,
+                text=self.t("dash.ugos_none"),
+                bg=tb,
+                fg=fg_muted,
+                font=("Segoe UI", 8),
+                anchor="w",
+            ).pack(anchor="w")
+        else:
+            for d in disks[:12]:
+                tk.Label(
+                    disks_body,
+                    text=self._dash_ugos_disk_line(d),
+                    bg=tb,
+                    fg=fg_val,
+                    font=self.font_mono,
+                    anchor="w",
+                ).pack(anchor="w")
+
+        hdr_metrics = {
+            "model": snap.get("ugos_model") or "",
+            "sysinfo": snap.get("ugos_sysinfo") or {},
+        }
+        hdr = format_sysinfo_header(hdr_metrics, self._dash_ugos_status_labels())
+        ml = getattr(self, "dash_ugos_model_lbl", None)
+        if ml is not None:
+            ml.config(
+                text=hdr.splitlines()[0] if hdr else str(snap.get("ugos_model") or "").strip()
+            )
+        xl = getattr(self, "dash_ugos_extra_lbl", None)
+        if xl is not None:
+            extra = format_dashboard_ugos_extra(snap, self._dash_ugos_status_labels())
+            xl.config(text=extra)
+        st = getattr(self, "dash_ugos_status_lbl", None)
+        if st is not None:
+            st.config(text="", fg=fg_muted)
+
     def start_dashboard_live(self):
         lk = getattr(self, "_dash_live_lock", None)
         if lk is None:
@@ -3087,7 +3302,17 @@ echo "$max"
                 "for f in /sys/class/hwmon/hwmon*/fan*_input; do "
                 '[ -r "$f" ] && echo "$(basename "$f") $(cat "$f")"; done 2>/dev/null\n'
             )
+            ugos_cache: dict | None = None
+            ugos_tick = 0
             while self.is_monitoring:
+                ugos_tick += 1
+                if ugos_tick == 1 or ugos_tick % 8 == 0:
+                    if hasattr(self, "_ugos_api_fetch_dashboard_metrics"):
+                        try:
+                            ugos_cache = self._ugos_api_fetch_dashboard_metrics()
+                        except Exception:
+                            ugos_cache = None
+
                 raw = self._dash_ssh_sudo_bash_lc(ssh, dash_cmd)
 
                 chunks: list[str] | None = []
@@ -3224,6 +3449,7 @@ echo "$max"
                     "script_running": sorted(script_running),
                     "ok": True,
                 }
+                snapshot = merge_dashboard_snapshots(snapshot, ugos_cache)
                 scopy = dict(snapshot)
                 self.root.after(0, lambda s=scopy: self._apply_dashboard_snapshot(s))
                 time.sleep(1)
@@ -3487,6 +3713,8 @@ echo "$max"
             rsnap = snap.get("script_running")
             run_set = set(rsnap) if isinstance(rsnap, list) else set()
             self._dash_refresh_script_job_rows(jobs_snap, run_set, list(snap.get("docker_names") or []))
+
+            self._dash_refresh_ugos_storage_tile(snap)
 
             self.dash_status_lbl.config(text="")
             self._dashboard_metrics_touch_scrollregion()

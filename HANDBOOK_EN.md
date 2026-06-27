@@ -661,6 +661,22 @@ Recommended process:
 4. Observe for 1–2 minutes.
 5. **Return UGOS control** if there are conflicts.
 
+### 42.7 UGOS API — storage tile
+
+In addition to SSH-based volume cards (**42.2**), the dashboard shows a **“Storage (UGOS API)”** tile — same data source as the UGOS web UI (not SSH).
+
+**Prerequisite:** Settings → Connection → **UGOS API** (HTTPS port, credentials, SSL). Package **`cryptography`** for API login.
+
+**Content (when the API is reachable):**
+
+- **Header:** model, UGOS version, uptime, optional serial number.
+- **Pools** (left) and **physical disks** (right) — usage, RAID type, sync status, pool members.
+- **Extra line:** fan RPM (API), network interfaces with **link speed** (e.g. 1000 Mbit/s), volume usage in percent.
+
+**If the API is unreachable:** message in the tile; **SSH live data** (CPU, RAM, network sparklines) continues. The **UGOS API** button (connection test / snapshot dialog) still provides a full dump.
+
+Full pool/disk report: Storage tab → **Pools (UGOS API)** (**§16**, **50.4**). Health refresh with UGOS block: **§13**, **49.3**.
+
 ---
 
 ### From the area: 62. Practical instructions: Fan control including return to UGOS
@@ -1284,6 +1300,10 @@ Note:
 - `Refresh UGOS services` reloads the current state of core NAS services.
 - This panel speeds up troubleshooting (for example, quickly seeing if a core service is down before going deeper into Docker/scripts).
 
+**UGOS API (live) on health refresh:** When the UGOS web API is configured, **Refresh Health** adds a **“UGOS API (live)”** block with model/version/uptime, fan RPM, NIC link speeds, and volume usage — complementing SSH-based checks.
+
+**domain_tool:** If **`domain_tool.service`** is failed, a **warning** appears in the health log (SMB/domain configuration). The report also includes **error signatures** for `domain_tool` / `smbftpd` from journal and log tails.
+
 ### 31.3 Telegram block
 
 Fields:
@@ -1464,7 +1484,7 @@ A dedicated tab **between** “System & Health”, **Login Track**, and “Stora
 
 - **Two columns:** All controls on the **left**, a **log** on the **right** showing SSH output for each action.
 - **Scrolling (left):** The left column is **taller than the viewport** — scroll vertically with the **mouse wheel** while the pointer is **over the left column** (fields and buttons). The **scrollbar** on the right edge of the left column still works (drag or click track). Scrolling should feel **smooth** (scroll region updates with each wheel step).
-- **Log width:** A **sash** (splitter) sits between the two panes. **Drag** it to balance width. On tab open, **~85%** goes to the **left pane**; buttons don’t share one “uniform” width per row, so long German labels cannot force an entire row to overflow. Start narrow on the log if you need more reading space.
+- **Log width:** A **sash** (splitter) sits between the two panes. **Drag** it to balance width. On tab open, width is set **50:50** between the left pane and log; each button has its own cell so long labels do not stretch an entire row. Widen or narrow the log as needed.
 
 ### 15.2 Prerequisites and “Full access”
 
@@ -1483,13 +1503,15 @@ A dedicated tab **between** “System & Health”, **Login Track**, and “Stora
 
 | Area | Purpose (short) | Typical NAS targets |
 |------|-----------------|---------------------|
-| Power & WoL | After power loss / Wake-on-LAN | `/etc/power.conf` (via `crudini`) |
-| Scheduled shutdown | Daily shutdown at fixed time | `/etc/cron.d/nas_admin_timed_shutdown` |
+| Power & WoL | After power loss / Wake-on-LAN, **HDD spin-down** | `/etc/power.conf` (via `crudini`), `internal_disk_sleep` |
+| UGOS power scheduler | Weekly power off/on like UGOS GUI | `/etc/power.conf` `[poweroff]`/`[poweron]`, `OffSched`, `OnSched` |
+| Scheduled shutdown | Daily shutdown at fixed time (cron) | `/etc/cron.d/nas_admin_timed_shutdown` |
 | USB | Safe eject (UGOS) | `USBDiskStop`, `umount`, mounts under e.g. `/mnt/@usb/…` |
 | SMART | Self-tests and log | `/dev/sd…`, `smartctl` |
 | RAID & filesystem maintenance | RAID scrub, TRIM, ext4 scrub | `mdcheck`, `fstrim`, `e2scrub_all` (systemd) |
 | SSH (drop-in) | Extra `sshd` rules with rollback | `/etc/ssh/sshd_config.d/60-ugreen-nas-admin.conf` |
-| UGOS core services | Start/stop/restart/log; combobox is **extended** with every active `*_serv` unit after **Update everything** | `*_serv.service` |
+| UGOS core services | Start/stop/status, journal, **`.slog` tail**; list extended on **Update everything** | `*_serv.service`, `/var/ugreen/log/*.slog` |
+| Network (UGOS) | Dual-NIC overview, **read-only** | `/etc/network/ugos.d/*.json`, `ip link`/`ip addr` |
 | NGINX | Reload or restore ROM config | `ugnginx-reload`, `/rom/etc/nginx`, … |
 | earlyOOM | Tune low-memory killer | `/etc/default/earlyoom` |
 | Samba | Shares, empty recycle, quick add | `smb.conf`, `testparm` |
@@ -1500,32 +1522,46 @@ A dedicated tab **between** “System & Health”, **Login Track**, and “Stora
 - **Read:** Reads `power_boot` and `wake_on` from `/etc/power.conf` and fills the combos; may show raw lines in the log.
 - **Save:** Writes selected values (usually `true`/`false`) with **sudo**. Only change what you understand (UGOS / NAS docs).
 - **Write WoL to power.conf:** Writes the **current Wake-on-LAN** selection only (shortcut if you only adjust WoL).
+- **HDD spin-down:** Combo **`internal_disk_sleep`** (minutes until internal disks spin down, `0` = off). Loaded/saved with the power group from `/etc/power.conf`. Longer idle times save power; very short values can be annoying under frequent access.
 
-### 15.6 Scheduled daily shutdown
+### 15.6 UGOS power scheduler (weekly plan)
+
+Same idea as the UGOS UI: scheduled **power off** and **wake** (rtcwake) per weekday via `/etc/power.conf` and UGOS helpers **`OffSched`** / **`OnSched`**.
+
+- **Fields:** Per day (Mon–Sun) **power off** and **power on** as **HH:MM** (24 h). Multiple times per day separated by **comma** (e.g. `22:30` or `22:00,23:30`). Empty = no entry for that day.
+- **Checkbox “Scheduled power on/off enabled”:** Maps to `enable_scheduled_power` in `power.conf`.
+- **Load:** Reads existing NAS config and fills fields (including HDD spin-down).
+- **Preview:** Shows planned values in the log **without** writing — recommended before first **Apply**.
+- **Apply:** Writes `power.conf` via `crudini` and runs **`/usr/sbin/OffSched`** and **`OnSched`**. Requires **Full access** and **sudo**. **Real shutdown** — plan maintenance windows.
+- **Regenerate:** Rebuilds scheduler lines in `power.conf` when GUI and file drift apart.
+
+**Note:** Block **“Scheduled daily shutdown”** (cron, **15.7**) uses a **different** mechanism (`/etc/cron.d/…`). Both can coexist — check which is active on your NAS before changing schedules.
+
+### 15.7 Scheduled daily shutdown
 
 - **App-managed file:** **Write cron** creates/updates only **`/etc/cron.d/nas_admin_timed_shutdown`**. If you never used that button, the file may be missing even though UGOS shuts down daily — the schedule might live in **another** `/etc/cron.d/*` file, **root’s crontab**, under **`/var/spool/cron/...`**, or **`/etc/crontab`** (often the **stock NAS UI** does **not** use the app file).
 - **Read cron** prints several blocks: the app file (if present), **listing `/etc/cron.d/`**, **grep** for shutdown/poweroff/halt/**TimedShutdown** (UGOS often uses **`/sbin/TimedShutdown`** in the **root crontab**, not under `/etc/cron.d`), **direct reads of spool files** (when `crontab -l` is empty over SSH), **`/etc/crontab`**, and **systemd timers**. If everything is empty or only generic timers appear, the schedule may exist **only in the UGOS GUI** or another mechanism — check there. **SSH must be connected** (otherwise you only see “Not connected”). The first cron line with a shutdown-related keyword (including **TimedShutdown**) updates the **time fields** (checkbox on) when minute/hour can be parsed (if multiple weekday lines exist, this reflects the first matching line in the output).
 - **Enable via this app:** **HH:MM** (24 h), then **Write cron** as above. **Real shutdown** — plan maintenance windows.
 - **Disable here:** Removes only the **app file** (with confirmation) — a schedule configured elsewhere on the NAS may **continue** until changed there.
 
-### 15.7 USB (UGOS)
+### 15.8 USB (UGOS)
 
 1. **Refresh USB list** — finds typical USB mount paths.
 2. Pick a mount, **UGOS eject:** shows **lsof/fuser**; warns if activity is seen; then **`USBDiskStop`** (if present), **`sync`**, **`umount`**. Close apps using the disk first.
 
-### 15.8 SMART
+### 15.9 SMART
 
 - **Disks:** Refresh list, select a block device.
 - **Test:** *short* (minutes), *long* (very long, heavy), *conveyance* — depends on disk/firmware.
 - **Self-test log:** Prints recent SMART / test history from logs or `smartctl` as available on the system.
 
-### 15.9 RAID & filesystem maintenance
+### 15.10 RAID & filesystem maintenance
 
 - **Start RAID check:** Starts the systemd unit used for the scheduled RAID check flow (`mdcheck_start`), as UGOS defines it.
 - **Status / Progress:** Read-only — shows current progress / md-related info.
 - **fstrim / e2scrub_all:** Starts those **systemd** units — can cause **noticeable IO**; use during quiet periods.
 
-### 14.10 SSH hardening (drop-in)
+### 15.11 SSH hardening (drop-in)
 
 - **Profile** (*high* / *middle* / *low*): Writes a **drop-in** under `sshd_config.d`, runs **`sshd -t`** and **`systemctl reload ssh`** (or restart).
 - **Auto-rollback:** If `at` exists on the NAS, schedules **delayed rollback** unless you confirm in time.
@@ -1534,29 +1570,38 @@ A dedicated tab **between** “System & Health”, **Login Track**, and “Stora
 
 **Important:** For *high*, verify all clients support the chosen algorithms.
 
-### 15.11 UGOS core services
+### 15.12 UGOS core services
 
-- **Dropdown:** Starts from a **fixed core list** of typical `*_serv` names. After each successful **Update everything** (sidebar), the app **appends every other active** unit whose name ends in **`_serv.service`** (sorted, no duplicates) — extra UGOS package services appear without waiting for an app update.
+- **Dropdown:** Fixed **core list** of typical `*_serv` names (including `storage_serv`, `docker_serv`, `gateway_serv`, `miniscreen_serv`, `player_serv`, …). After each successful **Update everything** (sidebar), the app **appends every other active** unit ending in **`_serv.service`** (sorted, no duplicates).
+- **List from NAS:** Reads active `*_serv` units over SSH and extends the combobox — useful without an immediate sidebar refresh.
+- **Show status:** Short `systemctl` status for the selected unit in the log — quick check without a journal tail.
 - **Start / Stop / Restart:** `systemctl` — may briefly interrupt services.
 - **Journal:** Recent journal lines for the selected unit.
-- **Support snapshot** (next to **Journal**, read-only): Writes to this tab’s **right-hand log** e.g. **`uname -a`**, an excerpt from **`/etc/os-release`**, a short **`journalctl`** slice for **`entry_serv`**, and **tail excerpts** from typical UGOS logs (`storage_serv`, `gateway_serv`, `docker_serv`, `networking.log`, `syslog`). **No** writes to NAS config — meant to **collect diagnostics** for support (copy text). **Requires** NAS IP in the header and SSH; if IP is missing, a warning dialog appears.
+- **UGOS service log (`.slog`):** **Refresh list** fills the combo from `/var/ugreen/log/*.slog`; **Show tail** prints the last lines of the selected file (read-only). Many UGOS services write here in addition to `journalctl`.
+- **Support snapshot** (read-only): Writes to the **right-hand log** e.g. **`uname -a`**, **`/etc/os-release`**, journal excerpt for **`entry_serv`**, tail excerpts from typical UGOS logs. **No** writes to NAS config.
 
-### 15.12 NGINX
+### 15.13 Network (UGOS, read-only)
+
+- **Load summary:** Read-only view of LAN1/LAN2 — UGOS JSON under **`/etc/network/ugos.d/`** (if readable) plus **`ip link`** and **`ip addr`** (link speed, connected/disconnected).
+- **No writes:** IP profiles, bonding, or routing are **not** changed here. For runtime `ip` changes see Dashboard **42.3**; permanent UGOS config stays in the NAS UI.
+- **Dual NIC:** Both ports appear with label (e.g. LAN1/LAN2), interface name, and link state — helpful before NAS↔NAS transfers or when a port is unexpectedly down.
+
+### 15.14 NGINX
 
 - **Reload:** Runs UGOS **reload** (or `systemctl reload nginx`) and shows short status.
 - **Config recovery:** After typing **`RESTORE`** in the dialog — copies **ROM/default nginx** into `/etc/nginx` and overwrites live config there. **Custom edits can be lost** — have backups.
 
-### 15.13 earlyOOM
+### 15.15 earlyOOM
 
 - **Load / Save:** Edits `/etc/default/earlyoom` and restarts the service. Parameter syntax matters — wrong settings can worsen OOM behavior.
 
-### 15.14 Samba
+### 15.16 Samba
 
 1. **Refresh shares** — fills list from `testparm` / `smb.conf` (not `global` as target).
 2. **Empty recycle:** Resolves share path and deletes contents of common **recycle** folders — **irreversible** for those files.
 3. **Quick share:** Appends a simple block to `smb.conf`, validates with `testparm`, reloads **`smbd`**. Path must match a **UGOS volume** (e.g. `/volume1/…`).
 
-### 15.15 LED & beeper
+### 15.17 LED & beeper
 
 - **Refresh LED slots**, pick `diskN`, **Identify:** ~12 s blink to match bay to disk.
 - **Beeper:** Short test tone via UGOS tool (model-dependent).
@@ -1583,7 +1628,7 @@ Only during the scheduled maintenance window.
 
 ### 49.3 UGOS Dashboard
 
-Quick look at core services.
+Quick view of core services — plus the **UGOS API live block** (see **31.2**): sysinfo, fan, network links, volumes. If the API is down, SSH checks (RAID, SMART, systemd failed) still run.
 
 ### 49.4 Telegram Instant Monitor
 
@@ -1688,6 +1733,20 @@ Before each image/restore action:
 1. Clearly select device.
 2. Check target path.
 3. plan enough memory/time.
+
+### 50.4 Pools (UGOS API)
+
+Button **Pools (UGOS API)** (also included in **Refresh all**): Reads pools, volumes, and physical disks via the **UGOS web API** — same view as the NAS UI.
+
+**Output includes:**
+
+- Pool name, RAID level, usage, sync/rebuild hints, pool-100% allocation note.
+- Volume list per pool with usage percent.
+- Physical disks with slot, model, temperature, short SMART status.
+
+**Prerequisite:** UGOS API in Settings (port **9443**, HTTPS, credentials). On failure: message in the log; SSH buttons **Volumes/df** and **Shares** still work independently.
+
+Dashboard short view of the same API data: **§6**, **42.7**.
 
 ---
 

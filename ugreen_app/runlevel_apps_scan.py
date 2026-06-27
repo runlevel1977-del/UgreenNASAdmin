@@ -615,6 +615,48 @@ def _port_from_cfg(cfg, app_id):
                 return p
     return str(APP_PORTS.get(app_id) or "")
 
+
+def host_port_from_cid(cid):
+    import json as _json
+    if not cid:
+        return ""
+    try:
+        raw = subprocess.check_output(
+            ["docker", "inspect", cid],
+            text=True,
+            stderr=subprocess.DEVNULL,
+            timeout=8,
+        )
+        data = _json.loads(raw)
+    except Exception:
+        return ""
+    if not isinstance(data, list) or not data:
+        return ""
+    obj = data[0] if isinstance(data[0], dict) else {}
+    ports = (obj.get("NetworkSettings") or {}).get("Ports") or {}
+    if isinstance(ports, dict):
+        for key in sorted(ports.keys()):
+            bindings = ports.get(key)
+            if not bindings or not isinstance(bindings, list):
+                continue
+            for b in bindings:
+                if isinstance(b, dict):
+                    hp = str(b.get("HostPort") or "").strip()
+                    if hp:
+                        return hp
+    pb = (obj.get("HostConfig") or {}).get("PortBindings") or {}
+    if isinstance(pb, dict):
+        for key in sorted(pb.keys()):
+            bindings = pb.get(key)
+            if not bindings or not isinstance(bindings, list):
+                continue
+            b = bindings[0]
+            if isinstance(b, dict):
+                hp = str(b.get("HostPort") or "").strip()
+                if hp:
+                    return hp
+    return ""
+
 packages = []
 running_cids = []
 for pkg in sorted(glob.glob("/var/packages/com.runlevel.*")):
@@ -632,7 +674,9 @@ for pkg in sorted(glob.glob("/var/packages/com.runlevel.*")):
     if not isinstance(cfg, dict):
         cfg = {}
     cid, running, state = container_for(app_id, pkg)
-    port = _port_from_cfg(cfg, app_id)
+    port_cfg = _port_from_cfg(cfg, app_id)
+    port_pub = host_port_from_cid(cid) if cid else ""
+    port = port_pub or port_cfg
     icon = (cfg.get("icon") or "").strip()
     if not icon:
         pkg_icon = os.path.join(pkg, "icon.png")
@@ -678,6 +722,7 @@ for app_id, pkg, cfg, cid, running, state, port, icon in packages:
         "app_id": app_id,
         "pkg_path": pkg,
         "container_id": cid,
+        "port": port,
         "cfg": cfg,
         "running": running,
         "docker_state": state,
@@ -851,6 +896,39 @@ def _web_port(cfg: dict[str, Any], app_id: str = "") -> str:
     return defaults.get(app_id, "")
 
 
+def published_host_port_from_inspect(inspect: dict[str, Any] | list[Any]) -> str:
+    """First published host port from docker inspect JSON (list or single object)."""
+    if isinstance(inspect, list):
+        if not inspect or not isinstance(inspect[0], dict):
+            return ""
+        inspect = inspect[0]
+    if not isinstance(inspect, dict):
+        return ""
+    ports = (inspect.get("NetworkSettings") or {}).get("Ports") or {}
+    if isinstance(ports, dict):
+        for key in sorted(ports.keys()):
+            bindings = ports.get(key)
+            if not bindings or not isinstance(bindings, list):
+                continue
+            for binding in bindings:
+                if isinstance(binding, dict):
+                    host_port = str(binding.get("HostPort") or "").strip()
+                    if host_port:
+                        return host_port
+    port_bindings = (inspect.get("HostConfig") or {}).get("PortBindings") or {}
+    if isinstance(port_bindings, dict):
+        for key in sorted(port_bindings.keys()):
+            bindings = port_bindings.get(key)
+            if not bindings or not isinstance(bindings, list):
+                continue
+            binding = bindings[0]
+            if isinstance(binding, dict):
+                host_port = str(binding.get("HostPort") or "").strip()
+                if host_port:
+                    return host_port
+    return ""
+
+
 def _live_fields(obj: dict[str, Any]) -> dict[str, Any]:
     live = obj.get("live")
     if not isinstance(live, dict):
@@ -906,11 +984,17 @@ def row_from_payload(obj: dict[str, Any], *, ui_lang: str = "de") -> RunlevelApp
     running = bool(obj.get("running")) or state == "running"
     icon = (obj.get("icon") or cfg.get("icon") or f"/ugreen/static/icons/{app_id}.png").strip()
     live = _live_fields(obj)
+    if "port" in obj:
+        port = str(obj.get("port") or "").strip()
+        if not port:
+            port = _web_port(cfg, app_id)
+    else:
+        port = _web_port(cfg, app_id)
     return RunlevelAppRow(
         app_id=app_id,
         name=_display_name(cfg, ui_lang, app_id=app_id),
         version=_version_label(cfg),
-        port=_web_port(cfg, app_id),
+        port=port,
         running=running,
         docker_state=state or ("running" if running else "stopped"),
         icon_path=icon,

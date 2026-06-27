@@ -263,6 +263,10 @@ class MixinConfigTelegram:
             self._ssh_mgr.close()
         except Exception:
             pass
+        try:
+            self._probe_ssh_connection_async()
+        except Exception:
+            pass
 
     def connection_profile_add(self):
         name = simpledialog.askstring(self.t("msg.connection"), self.t("header.profile_new_name"), parent=self.root)
@@ -437,6 +441,7 @@ class MixinConfigTelegram:
             self._connection_active_index = 0
             if hasattr(self, "combo_connection_profile"):
                 self._connection_refresh_profile_combo()
+            self._probe_ssh_connection_async()
             return
         try:
             # ui_lang nicht aus der Datei überschreiben: kommt von Toggle/__init__; sonst Mismatch nach rebuild_ui.
@@ -446,6 +451,7 @@ class MixinConfigTelegram:
             if hasattr(self, "entry_ip"):
                 self._connection_apply_profile_to_ui(profs[ai])
             self._connection_refresh_profile_combo()
+            self._probe_ssh_connection_async()
         except Exception:
             pass
 
@@ -813,6 +819,10 @@ class MixinConfigTelegram:
                 json.dump(payload, f, indent=2)
             self.set_status(self.t("msg.connection_saved", name=os.path.basename(p)))
             try:
+                self._probe_ssh_connection_async()
+            except Exception:
+                pass
+            try:
                 self._update_settings_nav_attention()
                 self._update_settings_status_badges()
             except Exception:
@@ -910,6 +920,7 @@ class MixinConfigTelegram:
                 "port": 9443,
                 "use_https": True,
                 "verify_ssl": False,
+                "dashboard_live": True,
             },
             "ssh": {
                 "cmd_timeout_sec": 120,

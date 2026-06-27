@@ -49,7 +49,7 @@ from ugreen_app.mixin_handbook_tab import MixinHandbookTab
 from ugreen_app.mixin_runlevel_apps import MixinRunlevelApps
 from ugreen_app.i18n import cron_mappings_for_lang, translate
 
-__version__ = "23.8.22"
+__version__ = "23.8.32"
 
 class NASManager(
     MixinSafetyLock,
@@ -116,6 +116,7 @@ class NASManager(
         self.setup_ui()
         self._load_connection_config()
         self._finalize_installer_ui_lang_hint()
+        self.root.after(250, self._probe_ssh_connection_async)
         self.root.protocol("WM_DELETE_WINDOW", self._on_app_close)
         self.root.after(1500, self.telegram_restart_monitor)
         self._schedule_update_check_delayed()

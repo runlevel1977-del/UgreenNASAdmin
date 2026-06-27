@@ -4,6 +4,22 @@
 
 _(keine offenen Änderungen)_
 
+## 23.8.32 — 2026-06-27
+
+### Deutsch
+
+- **UGOS API (erweitert):** Parser für Sysinfo, Lüfter, Netzwerk-Links, Volumes und **Pools/Disks** (wie UGOS-Web-UI); Dashboard-Kachel **„Speicher (UGOS API)“**; Speicher-Tab **„Pools (UGOS API)“**; Health-Refresh mit **UGOS-API-Liveblock**; Warnung bei **`domain_tool.service` failed**.
+- **NAS-Verwaltung:** **UGOS Power-Scheduler** (Wochenplan Aus/Ein per `power.conf` + `OffSched`/`OnSched`), **HDD-Ruhezustand** (`internal_disk_sleep`), **UGOS-Service-Logs** (`.slog`-Liste + Tail), **Netzwerk (UGOS, nur Lesen)** für LAN1/LAN2; Layout **50:50** (Bedienung links, Protokoll rechts).
+- **Header:** SSH-Status **„verbunden“** wird nach Start automatisch per Kurztest gesetzt (grün, sobald gespeicherte Verbindung erreichbar ist — nicht erst nach manuellen Klicks).
+- **Handbuch:** Kapitel **§15** (NAS-Verwaltung), **§6** (Dashboard UGOS-Kachel), **§13** (Health), **§16** (Speicher); DE/EN + PDFs neu gebaut (`handbook_page_index.json` v23.8.32).
+
+### English (short)
+
+- **UGOS API:** richer pools/disks/net/fan; dashboard storage tile; storage pools button; health live block; `domain_tool` warning.
+- **NAS management:** weekly power scheduler, HDD spin-down, `.slog` log picker, read-only dual-NIC summary; **50:50** layout.
+- **Header:** SSH connected badge auto-probes on startup after loading saved credentials.
+- **Manuals:** chapters 15/6/13/16 updated (DE/EN PDFs).
+
 ## 23.8.22 — 2026-05-19
 
 ### Deutsch

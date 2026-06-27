@@ -18,26 +18,53 @@ from ugreen_app.scroll_helpers import (
     smooth_canvas_scrollregion_cb,
     smooth_canvas_wheel_handlers,
 )
+from ugreen_app.ugos_network_summary import build_network_load_shell, format_network_summary
+from ugreen_app.ugos_power_schedule import (
+    POWER_DAY_KEYS,
+    build_offsched_only_shell,
+    build_power_schedule_apply_shell,
+    build_power_schedule_load_shell,
+    format_power_schedule_preview,
+    parse_power_schedule_load,
+    validate_schedule_field,
+)
 
-# Kern-UGOS-Dienste (*_serv.service) — Auswahl in der Service-Konsole
+# Kern-UGOS-Dienste (*_serv.service) — Auswahl in der Service-Konsole (DXP4800 / UGOS 1.16+)
 _UGOS_SERV_NAMES = (
     "entry_serv",
-    "storage_serv",
-    "app_serv",
     "gateway_serv",
+    "ugos_serv",
+    "ctl_serv",
+    "app_serv",
+    "storage_serv",
     "filemgr_serv",
-    "index_serv",
-    "search_serv",
-    "taskmgr_serv",
-    "docker_serv",
+    "vmnt_serv",
     "snapshot_serv",
     "syncbackup_serv",
     "jobmgr_serv",
-    "log_serv",
+    "taskmgr_serv",
+    "docker_serv",
+    "index_serv",
+    "search_serv",
     "discovery_serv",
-    "antivirus_serv",
-    "ai_serv",
+    "media_serv",
+    "miniscreen_serv",
+    "player_serv",
+    "photo_serv",
     "transcode_serv",
+    "thumb_serv",
+    "cloud_serv",
+    "antivirus_serv",
+    "log_serv",
+    "kvm_serv",
+    "aiconsole_serv",
+    "ai_serv",
+    "help_serv",
+)
+
+_UGOS_SERV_LIST_CMD = (
+    "systemctl list-units --type=service --all --no-legend 2>/dev/null | "
+    "while read -r u _rest; do case \"$u\" in *_serv.service) printf '%s\\n' \"${u%.service}\";; esac; done | sort -u"
 )
 
 _NAS_ADMIN_CRON_SHUTDOWN = "/etc/cron.d/nas_admin_timed_shutdown"
@@ -107,15 +134,14 @@ class MixinNasAdmin:
 
         outer = tk.Frame(root, bg=self.color_surface, highlightbackground=self.color_border, highlightthickness=1)
         outer.grid(row=1, column=0, sticky="nsew")
-        pan = tk.PanedWindow(outer, orient=tk.HORIZONTAL, sashrelief=tk.FLAT, bg=self.color_surface)
+        pan = tk.PanedWindow(outer, orient=tk.HORIZONTAL, sashrelief=tk.RAISED, sashwidth=6, bg=self.color_surface)
         pan.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self._nas_admin_pan = pan
 
         left_wrap = tk.Frame(pan, bg=self.color_bg_left)
         right = tk.Frame(pan, bg=self.color_log_bg)
-        # Schmale Mindestbreiten: bei nicht maximiertem Fenster bleiben linke Aktionen sichtbar;
-        # Protokoll kann schmal sein und per Sash verbreitert werden.
-        pan.add(left_wrap, minsize=400)
-        pan.add(right, minsize=100)
+        pan.add(left_wrap, minsize=260, stretch="always")
+        pan.add(right, minsize=260, stretch="always")
 
         left_wrap.grid_rowconfigure(0, weight=1)
         left_wrap.grid_columnconfigure(0, weight=1)
@@ -126,7 +152,14 @@ class MixinNasAdmin:
         left_win = canvas.create_window((0, 0), window=left, anchor="nw")
 
         def _canvas_width(event):
-            canvas.itemconfigure(left_win, width=max(event.width, 1))
+            w = max(event.width, 1)
+            canvas.itemconfigure(left_win, width=w)
+            wl = max(260, w - 20)
+            for lbl in getattr(self, "_nas_admin_wrap_labels", []):
+                try:
+                    lbl.config(wraplength=wl)
+                except tk.TclError:
+                    pass
 
         _scrollregion = smooth_canvas_scrollregion_cb(self.root, canvas)
         canvas.bind("<Configure>", _canvas_width)
@@ -136,7 +169,21 @@ class MixinNasAdmin:
 
         inner = tk.Frame(left, bg=self.color_bg_left, padx=4, pady=4)
         inner.pack(fill=tk.BOTH, expand=True)
+        self._nas_admin_wrap_labels: list[tk.Label] = []
 
+        def _nas_admin_hint_label(parent: tk.Widget, text: str) -> tk.Label:
+            lbl = tk.Label(
+                parent,
+                text=text,
+                bg=self.color_surface,
+                fg=self.color_text_muted,
+                font=("Segoe UI", 8),
+                wraplength=520,
+                justify=tk.LEFT,
+                anchor="w",
+            )
+            self._nas_admin_wrap_labels.append(lbl)
+            return lbl
         # ----- Power-Management -----
         pw = tk.LabelFrame(inner, text=self.t("nas_admin.section_power"), bg=self.color_surface, fg=self.color_text, font=self.font_bold, padx=10, pady=8)
         pw.pack(fill=tk.X, pady=(0, 10))
@@ -156,20 +203,103 @@ class MixinNasAdmin:
             self.nas_admin_power_read,
             self.color_btn_secondary,
             width=16,
-        ).pack()
+        ).pack(side=tk.LEFT)
         self._register_danger_rounded(
             self.create_modern_btn(
-                self._nas_admin_btn_cell(r2, padx=(0, 6)),
+                self._nas_admin_btn_cell(r2, padx=(0, 0)),
                 self.t("nas_admin.btn_power_save"),
                 self.nas_admin_power_save,
                 self.color_user,
                 width=18,
             )
-        ).pack()
+        ).pack(side=tk.LEFT)
         r2b = tk.Frame(pw, bg=self.color_surface)
         r2b.pack(fill=tk.X, pady=(6, 0))
         self._register_danger_rounded(
-            self.create_modern_btn(r2b, self.t("nas_admin.btn_wol_apply"), self.nas_admin_wol_apply_now, self.color_btn_blue, width=22)
+            self.create_modern_btn(
+                self._nas_admin_btn_cell(r2b),
+                self.t("nas_admin.btn_wol_apply"),
+                self.nas_admin_wol_apply_now,
+                self.color_btn_blue,
+                width=22,
+            )
+        ).pack(side=tk.LEFT)
+        r2c = tk.Frame(pw, bg=self.color_surface)
+        r2c.pack(fill=tk.X, pady=(8, 0))
+        tk.Label(r2c, text=self.t("nas_admin.disk_sleep"), bg=self.color_surface, fg=self.color_text_muted, font=("Segoe UI", 8)).pack(side=tk.LEFT)
+        self.combo_nas_disk_sleep = ttk.Combobox(
+            r2c,
+            width=14,
+            state="readonly",
+            values=("0", "10", "15", "30", "60", "120", "180"),
+        )
+        self.combo_nas_disk_sleep.pack(side=tk.LEFT, padx=(8, 0))
+
+        # ----- UGOS Power-Scheduler (power.conf + OffSched/OnSched) -----
+        ps = tk.LabelFrame(inner, text=self.t("nas_admin.section_power_sched"), bg=self.color_surface, fg=self.color_text, font=self.font_bold, padx=10, pady=8)
+        ps.pack(fill=tk.X, pady=(0, 10))
+        _nas_admin_hint_label(ps, self.t("nas_admin.power_sched_hint")).pack(anchor="w")
+        self.var_nas_power_sched_enable = tk.BooleanVar(value=True)
+        tk.Checkbutton(
+            ps,
+            text=self.t("nas_admin.power_sched_enable"),
+            variable=self.var_nas_power_sched_enable,
+            bg=self.color_surface,
+            fg=self.color_text,
+            selectcolor=self.color_surface,
+        ).pack(anchor="w", pady=(6, 0))
+        pgrid = tk.Frame(ps, bg=self.color_surface)
+        pgrid.pack(fill=tk.X, pady=(6, 0))
+        pgrid.columnconfigure(1, weight=1)
+        pgrid.columnconfigure(2, weight=1)
+        tk.Label(pgrid, text=self.t("nas_admin.power_sched_col_day"), bg=self.color_surface, fg=self.color_text_muted, font=("Segoe UI", 8, "bold")).grid(row=0, column=0, sticky="w", padx=(0, 6))
+        tk.Label(pgrid, text=self.t("nas_admin.power_sched_col_off"), bg=self.color_surface, fg=self.color_text_muted, font=("Segoe UI", 8, "bold")).grid(row=0, column=1, sticky="w")
+        tk.Label(pgrid, text=self.t("nas_admin.power_sched_col_on"), bg=self.color_surface, fg=self.color_text_muted, font=("Segoe UI", 8, "bold")).grid(row=0, column=2, sticky="w", padx=(8, 0))
+        self._nas_power_off_entries: list[tk.Entry] = []
+        self._nas_power_on_entries: list[tk.Entry] = []
+        day_labels = self.t("nas_admin.power_sched_days").split(",")
+        for i, _key in enumerate(POWER_DAY_KEYS):
+            dn = day_labels[i].strip() if i < len(day_labels) else str(i + 1)
+            tk.Label(pgrid, text=dn, bg=self.color_surface, fg=self.color_text, font=("Segoe UI", 9)).grid(row=i + 1, column=0, sticky="w", pady=2)
+            e_off = tk.Entry(pgrid, font=self.font_mono, width=18)
+            e_off.grid(row=i + 1, column=1, sticky="ew", pady=2)
+            e_on = tk.Entry(pgrid, font=self.font_mono, width=18)
+            e_on.grid(row=i + 1, column=2, sticky="ew", padx=(8, 0), pady=2)
+            self._nas_power_off_entries.append(e_off)
+            self._nas_power_on_entries.append(e_on)
+        psb1 = tk.Frame(ps, bg=self.color_surface)
+        psb1.pack(fill=tk.X, pady=(8, 0))
+        self.create_modern_btn(
+            self._nas_admin_btn_cell(psb1, padx=(0, 6)),
+            self.t("nas_admin.btn_power_sched_load"),
+            self.nas_admin_power_sched_load,
+            self.color_btn_secondary,
+            width=14,
+        ).pack(side=tk.LEFT)
+        self.create_modern_btn(
+            self._nas_admin_btn_cell(psb1, padx=(0, 0)),
+            self.t("nas_admin.btn_power_sched_preview"),
+            self.nas_admin_power_sched_preview,
+            self.color_btn_secondary,
+            width=14,
+        ).pack(side=tk.LEFT)
+        psb2 = tk.Frame(ps, bg=self.color_surface)
+        psb2.pack(fill=tk.X, pady=(6, 0))
+        self._register_danger_rounded(
+            self.create_modern_btn(
+                self._nas_admin_btn_cell(psb2, padx=(0, 6)),
+                self.t("nas_admin.btn_power_sched_apply"),
+                self.nas_admin_power_sched_apply,
+                self.color_user,
+                width=14,
+            )
+        ).pack(side=tk.LEFT)
+        self.create_modern_btn(
+            self._nas_admin_btn_cell(psb2),
+            self.t("nas_admin.btn_power_sched_regen"),
+            self.nas_admin_power_sched_regen,
+            self.color_cron,
+            width=18,
         ).pack(side=tk.LEFT)
 
         # ----- Zeitgesteuertes Herunterfahren (/etc/cron.d) -----
@@ -202,10 +332,16 @@ class MixinNasAdmin:
             self.nas_admin_sched_shutdown_read,
             self.color_btn_secondary,
             width=16,
-        ).pack()
+        ).pack(side=tk.LEFT)
         self._register_danger_rounded(
-            self.create_modern_btn(self._nas_admin_btn_cell(sdb), self.t("nas_admin.btn_sched_write"), self.nas_admin_sched_shutdown_write, self.color_cron, width=20)
-        ).pack()
+            self.create_modern_btn(
+                self._nas_admin_btn_cell(sdb),
+                self.t("nas_admin.btn_sched_write"),
+                self.nas_admin_sched_shutdown_write,
+                self.color_cron,
+                width=20,
+            )
+        ).pack(side=tk.LEFT)
 
         # ----- USB -----
         usb_card = tk.LabelFrame(inner, text=self.t("nas_admin.section_usb"), bg=self.color_surface, fg=self.color_text, font=self.font_bold, padx=10, pady=8)
@@ -223,10 +359,10 @@ class MixinNasAdmin:
             self.nas_admin_refresh_usb_mounts,
             self.color_btn_secondary,
             width=16,
-        ).pack()
+        ).pack(side=tk.LEFT)
         self._register_danger_rounded(
             self.create_modern_btn(self._nas_admin_btn_cell(u2), self.t("nas_admin.btn_usb_ugos_eject"), self.nas_admin_usb_ugos_eject, self.color_user, width=24)
-        ).pack()
+        ).pack(side=tk.LEFT)
 
         # ----- SMART -----
         sm_card = tk.LabelFrame(inner, text=self.t("nas_admin.section_smart"), bg=self.color_surface, fg=self.color_text, font=self.font_bold, padx=10, pady=8)
@@ -255,10 +391,10 @@ class MixinNasAdmin:
             self.nas_admin_refresh_block_disks,
             self.color_btn_secondary,
             width=14,
-        ).pack()
+        ).pack(side=tk.LEFT)
         self._register_danger_rounded(
             self.create_modern_btn(self._nas_admin_btn_cell(r3), self.t("nas_admin.btn_smart_start"), self.nas_admin_smart_start_test, self.color_btn_purple, width=18)
-        ).pack()
+        ).pack(side=tk.LEFT)
         r3b = tk.Frame(sm_card, bg=self.color_surface)
         r3b.pack(fill=tk.X, pady=(6, 0))
         self.create_modern_btn(
@@ -282,14 +418,14 @@ class MixinNasAdmin:
                 self.color_cron,
                 width=20,
             )
-        ).pack()
+        ).pack(side=tk.LEFT)
         self.create_modern_btn(
             self._nas_admin_btn_cell(m1),
             self.t("nas_admin.btn_mdcheck_status"),
             self.nas_admin_mdcheck_status,
             self.color_btn_secondary,
             width=18,
-        ).pack()
+        ).pack(side=tk.LEFT)
         m1b = tk.Frame(mt_card, bg=self.color_surface)
         m1b.pack(fill=tk.X, pady=(6, 0))
         self.create_modern_btn(
@@ -309,10 +445,10 @@ class MixinNasAdmin:
                 self.color_btn_blue,
                 width=22,
             )
-        ).pack()
+        ).pack(side=tk.LEFT)
         self._register_danger_rounded(
             self.create_modern_btn(self._nas_admin_btn_cell(m2), self.t("nas_admin.btn_e2scrub"), self.nas_admin_e2scrub_start, self.color_btn_blue, width=18)
-        ).pack()
+        ).pack(side=tk.LEFT)
 
         # ----- SSH-Härtung -----
         sshf = tk.LabelFrame(inner, text=self.t("nas_admin.section_ssh"), bg=self.color_surface, fg=self.color_text, font=self.font_bold, padx=10, pady=8)
@@ -350,15 +486,52 @@ class MixinNasAdmin:
         svc.pack(fill=tk.X, pady=(0, 10))
         sv1 = tk.Frame(svc, bg=self.color_surface)
         sv1.pack(fill=tk.X)
-        tk.Label(sv1, text=self.t("nas_admin.service_name"), bg=self.color_surface, fg=self.color_text_muted).pack(side=tk.LEFT)
-        self.combo_nas_service = ttk.Combobox(sv1, width=28, values=tuple(f"{n}.service" for n in _UGOS_SERV_NAMES), state="normal", font=self.font_mono)
-        self.combo_nas_service.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(8, 0))
+        tk.Label(sv1, text=self.t("nas_admin.service_name"), bg=self.color_surface, fg=self.color_text_muted).pack(anchor="w")
+        self.combo_nas_service = ttk.Combobox(svc, width=28, values=tuple(f"{n}.service" for n in _UGOS_SERV_NAMES), state="normal", font=self.font_mono)
+        self.combo_nas_service.pack(fill=tk.X, pady=(4, 6))
         try:
             self.combo_nas_service.set("storage_serv.service")
         except tk.TclError:
             pass
+        sv1b = tk.Frame(svc, bg=self.color_surface)
+        sv1b.pack(fill=tk.X, pady=(0, 6))
+        self.create_modern_btn(
+            self._nas_admin_btn_cell(sv1b, padx=(0, 6)),
+            self.t("nas_admin.btn_svc_status"),
+            self.nas_admin_show_service_status,
+            self.color_btn_blue,
+            width=16,
+        ).pack(side=tk.LEFT)
+        self.create_modern_btn(
+            self._nas_admin_btn_cell(sv1b, padx=(0, 0)),
+            self.t("nas_admin.btn_svc_log"),
+            self.nas_admin_service_journal,
+            self.color_btn_secondary,
+            width=14,
+        ).pack(side=tk.LEFT)
+        sv1c = tk.Frame(svc, bg=self.color_surface)
+        sv1c.pack(fill=tk.X, pady=(6, 0))
+        tk.Label(sv1c, text=self.t("nas_admin.slog_file"), bg=self.color_surface, fg=self.color_text_muted, font=("Segoe UI", 8)).pack(side=tk.LEFT)
+        self.combo_nas_slog = ttk.Combobox(sv1c, width=36, state="readonly", font=self.font_mono)
+        self.combo_nas_slog.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(8, 0))
+        sv1d = tk.Frame(svc, bg=self.color_surface)
+        sv1d.pack(fill=tk.X, pady=(6, 0))
+        self.create_modern_btn(
+            self._nas_admin_btn_cell(sv1d, padx=(0, 6)),
+            self.t("nas_admin.btn_slog_refresh"),
+            self.nas_admin_slog_refresh_list,
+            self.color_btn_secondary,
+            width=16,
+        ).pack(side=tk.LEFT)
+        self.create_modern_btn(
+            self._nas_admin_btn_cell(sv1d),
+            self.t("nas_admin.btn_slog_tail"),
+            self.nas_admin_slog_tail,
+            self.color_btn_secondary,
+            width=14,
+        ).pack(side=tk.LEFT)
         sv2 = tk.Frame(svc, bg=self.color_surface)
-        sv2.pack(fill=tk.X, pady=(8, 0))
+        sv2.pack(fill=tk.X, pady=(0, 0))
         self._register_danger_rounded(
             self.create_modern_btn(
                 self._nas_admin_btn_cell(sv2, padx=(0, 4)),
@@ -377,31 +550,38 @@ class MixinNasAdmin:
                 width=10,
             )
         ).pack()
-        sv2b = tk.Frame(svc, bg=self.color_surface)
-        sv2b.pack(fill=tk.X, pady=(6, 0))
         self._register_danger_rounded(
             self.create_modern_btn(
-                self._nas_admin_btn_cell(sv2b, padx=(0, 4)),
+                self._nas_admin_btn_cell(sv2, padx=(0, 0)),
                 self.t("nas_admin.btn_svc_restart"),
                 lambda: self.nas_admin_service_action("restart"),
                 self.color_btn_blue,
                 width=12,
             )
         ).pack()
+        sv2b = tk.Frame(svc, bg=self.color_surface)
+        sv2b.pack(fill=tk.X, pady=(6, 0))
         self.create_modern_btn(
             self._nas_admin_btn_cell(sv2b),
-            self.t("nas_admin.btn_svc_log"),
-            self.nas_admin_service_journal,
-            self.color_btn_secondary,
-            width=14,
-        ).pack(side=tk.LEFT)
-        self.create_modern_btn(
-            self._nas_admin_btn_cell(sv2b, padx=(8, 0)),
             self.t("nas_admin.btn_support_snapshot"),
             self.nas_admin_support_snapshot,
             self.color_btn_secondary,
-            width=20,
+            width=22,
         ).pack(side=tk.LEFT)
+
+        # ----- Netzwerk (UGOS, Lesen) -----
+        net_card = tk.LabelFrame(inner, text=self.t("nas_admin.section_network"), bg=self.color_surface, fg=self.color_text, font=self.font_bold, padx=10, pady=8)
+        net_card.pack(fill=tk.X, pady=(0, 10))
+        _nas_admin_hint_label(net_card, self.t("nas_admin.network_hint")).pack(anchor="w")
+        netb = tk.Frame(net_card, bg=self.color_surface)
+        netb.pack(fill=tk.X, pady=(6, 0))
+        self.create_modern_btn(
+            netb,
+            self.t("nas_admin.btn_network_load"),
+            self.nas_admin_network_load,
+            self.color_btn_secondary,
+            width=22,
+        ).pack(anchor="w")
 
         # ----- NGINX -----
         ngx = tk.LabelFrame(inner, text=self.t("nas_admin.section_nginx"), bg=self.color_surface, fg=self.color_text, font=self.font_bold, padx=10, pady=8)
@@ -501,27 +681,42 @@ class MixinNasAdmin:
         smooth_bind_mousewheel_tree(left_wrap, _wh, _wu, _wd)
         canvas.bind("<Enter>", lambda _e: canvas.focus_set())
 
-        def _nas_admin_paned_bias(_event=None):
-            try:
-                pan.update_idletasks()
-                ww = int(pan.winfo_width())
-                if ww < 80:
-                    return
-                # So viel links wie möglich (~85 %), mindestens 400 px, rechts min. ~100 px für Log.
-                left_px = max(400, min(int(ww * 0.85), ww - 100))
-                pan.sashpos(0, left_px)
-            except tk.TclError:
-                pass
+        def _nas_admin_pan_configure(_event=None):
+            job = getattr(self, "_nas_admin_pan_job", None)
+            if job is not None:
+                try:
+                    self.root.after_cancel(job)
+                except Exception:
+                    pass
+            self._nas_admin_pan_job = self.root.after(60, self._nas_admin_apply_paned_split)
 
-        pan.bind("<Map>", _nas_admin_paned_bias)
-        outer.bind("<Map>", _nas_admin_paned_bias)
-        self.root.after(50, _nas_admin_paned_bias)
-        self.root.after(200, _nas_admin_paned_bias)
-        self.root.after(450, _nas_admin_paned_bias)
+        pan.bind("<Configure>", _nas_admin_pan_configure)
+        pan.bind("<Map>", lambda _e: self._nas_admin_apply_paned_split())
+        outer.bind("<Map>", lambda _e: self._nas_admin_apply_paned_split())
+        self.root.after(50, self._nas_admin_apply_paned_split)
+        self.root.after(250, self._nas_admin_apply_paned_split)
 
         self.root.after(200, self.nas_admin_refresh_usb_mounts)
         self.root.after(250, self.nas_admin_refresh_block_disks)
         self.root.after(300, self.nas_admin_refresh_led_slots)
+
+    def _nas_admin_apply_paned_split(self) -> None:
+        """Linke Steuerung und Protokoll je 50 % (beim Tab-Wechsel und bei Größenänderung)."""
+        pan = getattr(self, "_nas_admin_pan", None)
+        if pan is None:
+            return
+        try:
+            pan.update_idletasks()
+            ww = int(pan.winfo_width())
+            if ww < 120:
+                return
+            pan.sashpos(0, ww // 2)
+        except tk.TclError:
+            pass
+
+    def nas_admin_on_tab_enter(self) -> None:
+        self.root.after(10, self._nas_admin_apply_paned_split)
+        self.root.after(150, self._nas_admin_apply_paned_split)
 
     # --- log / thread helpers ---
     def _nas_admin_log(self, text: str) -> None:
@@ -608,6 +803,177 @@ class MixinNasAdmin:
             )
             out = self._nas_admin_run(cmd, update_status=True)
             self.root.after(0, lambda: self._nas_admin_log(out))
+
+        self._nas_admin_worker(work)
+
+    # --- UGOS Power-Scheduler (power.conf / OffSched / OnSched) ---
+    def _nas_power_sched_labels(self) -> dict[str, str]:
+        return {
+            "preview_hdr": self.t("nas_admin.power_sched_preview_hdr"),
+            "preview_enable": self.t("nas_admin.power_sched_preview_enable"),
+            "preview_day": self.t("nas_admin.power_sched_preview_day"),
+            "preview_disk": self.t("nas_admin.power_sched_preview_disk"),
+            "preview_footer": self.t("nas_admin.power_sched_preview_footer"),
+            "empty": "—",
+            "day_names": self.t("nas_admin.power_sched_days"),
+        }
+
+    def _nas_power_sched_collect(self) -> tuple[bool, list[str], list[str], str] | None:
+        off: list[str] = []
+        on: list[str] = []
+        for e_off, e_on in zip(self._nas_power_off_entries, self._nas_power_on_entries):
+            ov = e_off.get().strip()
+            onv = e_on.get().strip()
+            ok_o, bad_o = validate_schedule_field(ov)
+            ok_n, bad_n = validate_schedule_field(onv)
+            if not ok_o:
+                messagebox.showwarning(
+                    self.t("nas_admin.msg_invalid"),
+                    self.t("nas_admin.power_sched_bad_time", value=bad_o),
+                )
+                return None
+            if not ok_n:
+                messagebox.showwarning(
+                    self.t("nas_admin.msg_invalid"),
+                    self.t("nas_admin.power_sched_bad_time", value=bad_n),
+                )
+                return None
+            off.append(ov)
+            on.append(onv)
+        ds = (self.combo_nas_disk_sleep.get() or "").strip()
+        return bool(self.var_nas_power_sched_enable.get()), off, on, ds
+
+    def _nas_power_sched_apply_ui(self, data: dict) -> None:
+        self.var_nas_power_sched_enable.set(bool(data.get("enable", True)))
+        off = data.get("off") or []
+        on = data.get("on") or []
+        for i, e in enumerate(self._nas_power_off_entries):
+            e.delete(0, tk.END)
+            if i < len(off) and off[i]:
+                e.insert(0, str(off[i]))
+        for i, e in enumerate(self._nas_power_on_entries):
+            e.delete(0, tk.END)
+            if i < len(on) and on[i]:
+                e.insert(0, str(on[i]))
+        ds = str(data.get("disk_sleep") or "").strip()
+        if ds.isdigit():
+            self.combo_nas_disk_sleep.set(ds)
+
+    def nas_admin_power_sched_load(self) -> None:
+        def work():
+            out = self._nas_admin_run(build_power_schedule_load_shell(), update_status=False)
+            data = parse_power_schedule_load(out)
+
+            def apply():
+                self._nas_power_sched_apply_ui(data)
+                self._nas_admin_log(out)
+
+            self.root.after(0, apply)
+
+        self._nas_admin_worker(work)
+
+    def nas_admin_power_sched_preview(self) -> None:
+        collected = self._nas_power_sched_collect()
+        if collected is None:
+            return
+        enable, off, on, ds = collected
+        text = format_power_schedule_preview(
+            enable=enable, off=off, on=on, disk_sleep=ds, labels=self._nas_power_sched_labels()
+        )
+        self._nas_admin_log(text)
+
+    def nas_admin_power_sched_apply(self) -> None:
+        if not self._danger_gate():
+            return
+        collected = self._nas_power_sched_collect()
+        if collected is None:
+            return
+        enable, off, on, ds = collected
+        preview = format_power_schedule_preview(
+            enable=enable, off=off, on=on, disk_sleep=ds, labels=self._nas_power_sched_labels()
+        )
+        if not messagebox.askyesno(
+            self.t("nas_admin.confirm_power_sched_t"),
+            self.t("nas_admin.confirm_power_sched_b") + "\n\n" + preview,
+        ):
+            return
+
+        def work():
+            cmd = build_power_schedule_apply_shell(enable=enable, off=off, on=on, disk_sleep=ds)
+            out = self._nas_admin_run(cmd, update_status=True)
+            self.root.after(0, lambda: self._nas_admin_log(out))
+
+        self._nas_admin_worker(work)
+
+    def nas_admin_power_sched_regen(self) -> None:
+        if not self._danger_gate():
+            return
+        if not messagebox.askyesno(self.t("nas_admin.confirm_power_sched_regen_t"), self.t("nas_admin.confirm_power_sched_regen_b")):
+            return
+
+        def work():
+            out = self._nas_admin_run(build_offsched_only_shell(), update_status=True)
+            self.root.after(0, lambda: self._nas_admin_log(out))
+
+        self._nas_admin_worker(work)
+
+    # --- UGOS Service-Logs (.slog) ---
+    def nas_admin_slog_refresh_list(self) -> None:
+        def work():
+            out = self._nas_admin_run(
+                "ls -1 /var/ugreen/log/*.slog 2>/dev/null | xargs -n1 basename 2>/dev/null | sort -u",
+                update_status=False,
+            )
+            names = [ln.strip() for ln in (out or "").splitlines() if ln.strip().endswith(".slog")]
+
+            def apply():
+                cb = getattr(self, "combo_nas_slog", None)
+                if cb is not None:
+                    cb["values"] = tuple(names)
+                    if names:
+                        cur = (cb.get() or "").strip()
+                        if cur in names:
+                            cb.set(cur)
+                        else:
+                            cb.set(names[0])
+                self._nas_admin_log(
+                    self.t("nas_admin.slog_list_hdr") + "\n" + (out or self.t("nas_admin.slog_list_empty"))
+                )
+
+            self.root.after(0, apply)
+
+        self._nas_admin_worker(work)
+
+    def nas_admin_slog_tail(self) -> None:
+        fn = (self.combo_nas_slog.get() or "").strip()
+        if not fn or not re.fullmatch(r"[a-zA-Z0-9@._-]+\.slog", fn):
+            messagebox.showwarning(self.t("nas_admin.msg_invalid"), self.t("nas_admin.slog_pick"))
+            return
+        qf = shlex.quote(f"/var/ugreen/log/{fn}")
+
+        def work():
+            out = self._nas_admin_run(f"echo '=== tail {fn} ==='; tail -n 120 {qf} 2>/dev/null", update_status=True)
+            self.root.after(0, lambda: self._nas_admin_log(out))
+
+        self._nas_admin_worker(work)
+
+    # --- Netzwerk (UGOS JSON, Lesen) ---
+    def _nas_network_labels(self) -> dict[str, str]:
+        return {
+            "hdr": self.t("nas_admin.network_summary_hdr"),
+            "no_json": self.t("nas_admin.network_no_json"),
+            "ip_link": self.t("nas_admin.network_ip_link"),
+            "ip_addr": self.t("nas_admin.network_ip_addr"),
+            "iface_line": self.t("nas_admin.network_iface_line"),
+            "connected": self.t("nas_admin.network_connected"),
+            "disconnected": self.t("nas_admin.network_disconnected"),
+        }
+
+    def nas_admin_network_load(self) -> None:
+        def work():
+            raw = self._nas_admin_run(build_network_load_shell(), update_status=False)
+            summary = format_network_summary(raw, self._nas_network_labels())
+            self.root.after(0, lambda: self._nas_admin_log(summary))
 
         self._nas_admin_worker(work)
 
@@ -1059,6 +1425,109 @@ class MixinNasAdmin:
         self._nas_admin_worker(work)
 
     # --- Services ---
+    def _apply_ugos_service_combobox_values(self, names: tuple[str, ...]) -> None:
+        cb = getattr(self, "combo_nas_service", None)
+        if cb is None or not names:
+            return
+        current = (cb.get() or "").strip()
+        cb["values"] = tuple(f"{n}.service" for n in names)
+        if current and current in cb["values"]:
+            return
+        if current and not current.endswith(".service"):
+            current = f"{current}.service"
+        if current in cb["values"]:
+            cb.set(current)
+            return
+        try:
+            cb.set("storage_serv.service")
+        except tk.TclError:
+            pass
+
+    def nas_admin_refresh_service_list(self, *, log: bool = False, min_interval_s: float = 0.0) -> None:
+        """Liest alle aktiven *_serv-Units vom NAS in die Combobox (ergänzt die Standardliste)."""
+        if getattr(self, "_nas_admin_svc_list_busy", False):
+            return
+        try:
+            if not str(self.entry_ip.get() or "").strip():
+                if log:
+                    messagebox.showwarning(self.t("nas_admin.msg_invalid"), self.t("nas_admin.msg_need_ip"))
+                return
+        except Exception:
+            return
+        import time
+
+        now = time.time()
+        last = float(getattr(self, "_nas_admin_svc_list_ts", 0.0) or 0.0)
+        if min_interval_s > 0 and now - last < min_interval_s:
+            return
+        self._nas_admin_svc_list_ts = now
+        self._nas_admin_svc_list_busy = True
+
+        def work():
+            try:
+                out = self._nas_admin_run(_UGOS_SERV_LIST_CMD, update_status=False) or ""
+                merged = nas_utils.merge_ugos_service_names(_UGOS_SERV_NAMES, out)
+            except Exception:
+                merged = _UGOS_SERV_NAMES
+
+            def apply():
+                self._nas_admin_svc_list_busy = False
+                prev = tuple(getattr(self, "_nas_admin_svc_list_cached", ()) or ())
+                changed = merged != prev
+                self._nas_admin_svc_list_cached = merged
+                self._apply_ugos_service_combobox_values(merged)
+                if log and changed:
+                    self._nas_admin_log(
+                        self.t("nas_admin.log_svc_list", n=len(merged), sample=", ".join(merged[:6]))
+                    )
+
+            self.root.after(0, apply)
+
+        self._nas_admin_worker(work)
+
+    def nas_admin_show_service_status(self) -> None:
+        """Aktualisiert die Diensteliste und schreibt Übersicht + Status der gewählten Unit ins Protokoll."""
+        if getattr(self, "_nas_admin_svc_list_busy", False):
+            return
+        try:
+            if not str(self.entry_ip.get() or "").strip():
+                messagebox.showwarning(self.t("nas_admin.msg_invalid"), self.t("nas_admin.msg_need_ip"))
+                return
+        except Exception:
+            return
+        unit = self._nas_admin_service_unit() or "storage_serv.service"
+        self._nas_admin_svc_list_busy = True
+
+        def work():
+            import time
+
+            merged = _UGOS_SERV_NAMES
+            out = ""
+            try:
+                list_out = self._nas_admin_run(_UGOS_SERV_LIST_CMD, update_status=False) or ""
+                merged = nas_utils.merge_ugos_service_names(_UGOS_SERV_NAMES, list_out)
+                qu = shlex.quote(unit)
+                status_cmd = (
+                    'echo "=== UGOS *_serv ==="; '
+                    'systemctl list-units "*_serv.service" --no-legend --no-pager 2>/dev/null; '
+                    f'echo ""; echo "=== {unit} ==="; '
+                    f"systemctl status {qu} --no-pager 2>&1 | head -45"
+                )
+                out = self._nas_admin_run(status_cmd, update_status=True)
+            except Exception as exc:
+                out = f"(SSH/Fehler) {exc}"
+
+            def apply():
+                self._nas_admin_svc_list_busy = False
+                self._nas_admin_svc_list_ts = time.time()
+                self._nas_admin_svc_list_cached = merged
+                self._apply_ugos_service_combobox_values(merged)
+                self._nas_admin_log(out)
+
+            self.root.after(0, apply)
+
+        self._nas_admin_worker(work)
+
     def _nas_admin_service_unit(self) -> str:
         s = (self.combo_nas_service.get() or "").strip()
         if not s.endswith(".service"):

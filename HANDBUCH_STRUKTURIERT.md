@@ -222,6 +222,7 @@ Fehlerbilder:
 - CPU
 - RAM
 - Volume/Belegung
+- **Speicher (UGOS API):** Pools, Disks, Sysinfo, Lüfter/Netz/Volumes per Web-API (Settings → UGOS API); Details **`HANDBUCH.md`** → **42.7**
 - Netzwerk (siehe **5.3**)
 - Docker Uebersicht
 - Skriptjob-Uebersicht
@@ -454,7 +455,7 @@ Compose:
 
 ### 12.2 UGOS Service Dashboard
 
-Zeigt Kernservice-Zustaende als schnelle Betriebskontrolle.
+Zeigt Kernservice-Zustaende als schnelle Betriebskontrolle. Beim **Health-Refresh** zusaetzlich **UGOS API (live)** (Modell, Luefter, NIC-Geschwindigkeit, Volumes) sofern API konfiguriert; Warnung bei **`domain_tool.service` failed**. Vollstaendig **`HANDBUCH.md`** → **31.2**, **49.3**.
 
 ### 12.3 Telegram-Sofortmonitor
 
@@ -527,11 +528,11 @@ Buttons:
 
 ### 12.7 Tab NAS-Verwaltung (aktive Aktionen, SSH/sudo)
 
-**Sidebar:** Zwischen **Login Track** und **Speicher & Freigaben**. Zwei Spalten: links alle Funktionsblöcke (scrollbar), rechts SSH-Protokoll; dazwischen **Splitter** ziehen, wenn die Konsole zu breit ist.
+**Sidebar:** Zwischen **Login Track** und **Speicher & Freigaben**. Zwei Spalten: links alle Funktionsblöcke (scrollbar), rechts SSH-Protokoll; dazwischen **Splitter** ziehen (**50 : 50** beim Tab-Start).
 
 **Rolle:** Gezielte **Aktionen** am NAS (Wartung, Dienste, Konfig), nicht nur Diagnose. Schreibende Schaltflächen brauchen **„Volle Rechte“** im Header und **sudo** für den SSH-User (wie Neustart/Herunterfahren im Health-Tab).
 
-**Wichtige Blöcke (Stichworte):** Energie & WoL (`/etc/power.conf`), **geplanter täglicher Shutdown** (Cron), USB (UGOS-Auswurf), SMART, RAID/TRIM/Scrub, SSH-Drop-in mit Rollback, UGOS-`*_serv`-Dienste (Combobox wird bei **„Alles aktualisieren“** um alle auf dem NAS aktiven `*_serv`-Units ergänzt), **Support-Snapshot** (nur Lesen: uname, os-release, Log-Tails ins Protokoll), NGINX, earlyOOM, Samba, LED & Summer.
+**Wichtige Blöcke (Stichworte):** Energie & WoL (`/etc/power.conf`), **HDD-Ruhezustand**, **UGOS Power-Scheduler** (Wochenplan OffSched/OnSched), **geplanter täglicher Shutdown** (Cron), USB (UGOS-Auswurf), SMART, RAID/TRIM/Scrub, SSH-Drop-in mit Rollback, UGOS-`*_serv`-Dienste (Combobox + **Status anzeigen**, **`.slog`-Tail**, `miniscreen_serv`/`player_serv`), **Netzwerk (UGOS, Lesen)**, **Support-Snapshot**, NGINX, earlyOOM, Samba, LED & Summer.
 
 **„Cron lesen“ beim geplanten Shutdown:** Die App verwaltet die Datei **`/etc/cron.d/nas_admin_timed_shutdown`** nur dann, wenn du hier **„Cron schreiben“** genutzt hast. **UGOS** kann das tägliche Herunterfahren (z. B. 23:00) in **anderen** Cron-Dateien, der **root-crontab** oder **`/etc/crontab`** eintragen — **„Cron lesen“** sucht deshalb dort mit und zeigt alle passenden Zeilen im Protokoll. Wird eine **tägliche** Shutdown-Zeile gefunden, übernimmt die App **Stunde/Minute** in die Felder.
 
@@ -545,6 +546,7 @@ Buttons:
 
 - `Volumes (df)`
 - `Shares`
+- **`Pools (UGOS API)`** — Pools/Volumes/Disks per Web-API (wie UGOS-GUI)
 - `Alles aktualisieren`
 
 Top-Verbrauch:

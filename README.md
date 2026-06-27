@@ -1,6 +1,6 @@
 # Ugreen NAS Admin
 
-Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: **Dashboard** with live metrics, **scripts** and cron planner, **Explorer**, **NAS ↔ NAS** SMB copy, **network devices**, **Docker**, **system health** / Telegram guard, **Login Track** (client-IP access log: SSH, SMB, UGOS app/web, live/history, sort, export, optional IP block), **NAS management** (power/WoL, scheduled shutdown, USB eject, SMART, RAID/trim/scrub, SSH drop-in, services, NGINX, earlyOOM, Samba, LED/beeper), **storage**, **ACL**, **snapshots**, dedicated **Backup** tab (**Docker+scripts**, **user data**, **full data exports**; destinations **NAS / PC folder / USB on the NAS / second NAS SMB**; **cron scheduling on the NAS** without leaving a PC running), **Settings**, plus optional Telegram/Email notifications. The UI is available in many languages; switch in **Settings** (and often the status bar).
+Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: **Dashboard** with live metrics (incl. **UGOS API** storage tile), **scripts** and cron planner, **Explorer**, **NAS ↔ NAS** SMB copy, **network devices**, **Docker**, **Runlevel Apps**, **system health** / Telegram guard, **Login Track** (client-IP access log: SSH, SMB, UGOS app/web, live/history, sort, export, optional IP block), **NAS management** (power/WoL, **UGOS power scheduler**, HDD spin-down, scheduled shutdown, USB eject, SMART, RAID/trim/scrub, SSH drop-in, services + **`.slog` logs**, **network read-only**, NGINX, earlyOOM, Samba, LED/beeper), **storage**, **ACL**, **snapshots**, dedicated **Backup** tab (**Docker+scripts**, **user data**, **full data exports**; destinations **NAS / PC folder / USB on the NAS / second NAS SMB**; **cron scheduling on the NAS** without leaving a PC running), **Settings**, plus optional Telegram/Email notifications. The UI is available in many languages; switch in **Settings** (and often the status bar).
 
 **This file** is the **public release** README (folder **`öffentlich/`**). The step-by-step guide below mirrors the **private** project’s main `README.md` (English + German), including **an extended Backup chapter** users asked for — release notes in [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -19,6 +19,14 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 **Deutsch (kurz):** Wer die **fertige EXE/Release-ZIPs** will: **Releases → Assets** (oder SourceForge) — **nicht** der grüne **Code → Download ZIP**. Dieser liefert **nur Quellcode** des Standard-Branches; eine **Umlenkung** dieses Buttons gibt es bei GitHub **nicht** (kein Repo-Fix). Die **Zahl** in `nas_manager.py` im ZIP-Snapshot entspricht dem letzten **Push** auf `main` (siehe Datei im entpackten Ordner, falls unsicher).
 
 **Links (immer aktuell):** [GitHub **Latest release**](https://github.com/runlevel1977-del/UgreenNASAdmin/releases/latest) · SourceForge „latest“ (oben) · [All releases](https://github.com/runlevel1977-del/UgreenNASAdmin/releases)
+
+### What's new in v23.8.32
+
+- **UGOS API (extended):** Dashboard tile **Storage (UGOS API)** — pools, disks, fan RPM, link speeds, volume usage (same source as UGOS web UI). Storage tab **Pools (UGOS API)**; Health refresh adds a **UGOS API (live)** block; warning when **`domain_tool.service`** is failed.
+- **NAS management:** **UGOS power scheduler** (weekly off/on like UGOS GUI), **HDD spin-down**, **`.slog` service log** picker, **network summary (read-only)** for dual NIC; **50:50** split between controls and SSH log.
+- **Header:** **SSH connected** badge turns **green automatically** shortly after startup when saved credentials reach the NAS (no need to click refresh first).
+- **Manuals:** handbook chapters **§15** (NAS management), **§6**, **§13**, **§16** updated (DE/EN PDFs).
+- **Deutsch (kurz):** UGOS-API-Speicher-Kachel; NAS-Verwaltung mit Power-Scheduler, HDD-Ruhe, `.slog`, Netzwerk-Lesen; SSH-Status grün nach Start; Handbuch aktualisiert — Details in [`CHANGELOG.md`](CHANGELOG.md).
 
 ### What's new in v23.8.22
 
@@ -182,7 +190,7 @@ The **sidebar** matches the main areas (top to bottom). Use it to switch **tabs*
 6. **Docker** — containers, logs, compose, catalog/wizard.  
 7. **System health** — load, RAID/SMART/storage checks, Telegram/email guard, NAS central watch, reboot/shutdown (guarded).  
 8. **Login Track** — **client-IP** sign-ins and connections (SSH, SMB, UGOS app/web, `ss`); **live** (since tab start) or **history** on refresh; sort, export, optional **block IP** on the NAS.  
-9. **NAS management** — active maintenance: power/WoL, scheduled shutdown, USB eject (UGOS), SMART (+ log), RAID/mdcheck/TRIM/scrub, SSH drop-in, core services, NGINX, earlyOOM, Samba, LED & beeper (**Full access** + sudo for writes).  
+9. **NAS management** — active maintenance: power/WoL, **UGOS weekly power scheduler**, **HDD spin-down**, cron shutdown, USB eject (UGOS), SMART (+ log), RAID/mdcheck/TRIM/scrub, SSH drop-in, core services (+ **`.slog` tails**), **network summary (read-only)**, NGINX, earlyOOM, Samba, LED & beeper (**50:50** layout; **Full access** + sudo for writes).  
 10. **Storage** — volumes, shares, top folders, disk imaging/restore (dangerous).  
 11. **Users (ACL)** — inspect path permissions, chmod/chown helpers.  
 12. **Snapshots** — btrfs/ZFS/Snapper where available.  
@@ -476,7 +484,7 @@ python ugreen_nas_admin.py
 6. **Docker** — Container, Logs, Compose, Katalog/Assistent.  
 7. **System Health** — Last, RAID/SMART/Speicher, Telegram/E-Mail-Wächter, Deploy-Helfer.  
 8. **Login Track** — **Client-IP**-Zugriffe (SSH, SMB, UGOS App/Web, `ss`); **Echtzeit** (seit Tab-Start) oder **Historie** per Aktualisieren; Sortieren, Export, optional **IP sperren** auf dem NAS.  
-9. **NAS-Verwaltung** — aktive Wartung: Energie/WoL, geplanter Shutdown, USB (UGOS), SMART (+ Log), RAID/mdcheck/TRIM/Scrub, SSH-Drop-in, Kern-Dienste, NGINX, earlyOOM, Samba, LED & Summer (**Volle Rechte** + sudo für Schreibaktionen).  
+9. **NAS-Verwaltung** — aktive Wartung: Energie/WoL, **UGOS Power-Scheduler**, **HDD-Ruhezustand**, geplanter Shutdown, USB (UGOS), SMART (+ Log), RAID/mdcheck/TRIM/Scrub, SSH-Drop-in, Kern-Dienste (+ **`.slog`-Tail**), **Netzwerk (Lesen)**, NGINX, earlyOOM, Samba, LED & Summer (**50:50**-Layout; **Volle Rechte** + sudo für Schreibaktionen).  
 10. **Speicher** — Volumes, Freigaben, Platz-Top, Imaging/Wiederherstellung.  
 11. **Benutzer (ACL)** — Rechte/ chmod-chown-Helfer.  
 12. **Snapshots** — btrfs/ZFS/Snapper je nach System.  

@@ -8,9 +8,38 @@ import tkinter as tk
 from tkinter import messagebox, scrolledtext
 
 from ugreen_app.ugos_api_client import UgosApiClient, UgosApiError, format_snapshot_text
+from ugreen_app.ugos_api_dashboard import parse_dashboard_metrics
 
 
 class MixinUgosApi:
+    def _ugos_api_dashboard_enabled(self) -> bool:
+        cfg = self._load_app_settings() if hasattr(self, "_load_app_settings") else {}
+        ua = dict(cfg.get("ugos_api") or {})
+        return bool(ua.get("dashboard_live", True))
+
+    def _ugos_api_fetch_dashboard_metrics(self) -> dict | None:
+        """Synchroner UGOS-API-Abruf für das Live-Dashboard (None bei Fehler/keine Zugangsdaten)."""
+        if not self._ugos_api_dashboard_enabled():
+            return None
+        host, user, pw = self._ugos_api_credentials()
+        if not host or not user or not (pw or "").strip():
+            return None
+        opts = self._ugos_api_settings()
+        try:
+            client = UgosApiClient(
+                host=host,
+                port=opts["port"],
+                username=user,
+                password=pw,
+                use_https=opts["use_https"],
+                verify_ssl=opts["verify_ssl"],
+            )
+            snap = client.fetch_snapshot()
+            parsed = parse_dashboard_metrics(snap)
+            return parsed if parsed.get("ok") else None
+        except (UgosApiError, Exception):
+            return None
+
     def _ugos_api_settings(self) -> dict:
         cfg = self._load_app_settings() if hasattr(self, "_load_app_settings") else {}
         ua = dict(cfg.get("ugos_api") or {})
