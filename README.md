@@ -20,6 +20,11 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 
 **Links (immer aktuell):** [GitHub **Latest release**](https://github.com/runlevel1977-del/UgreenNASAdmin/releases/latest) · SourceForge „latest“ (oben) · [All releases](https://github.com/runlevel1977-del/UgreenNASAdmin/releases)
 
+### What's new in v23.8.34
+
+- **Fan — return to UGOS:** **Return UGOS control** now removes **all** curve state files on the NAS (`ugreen_fan_curve.state*`), not only paths matching the current fan list. Handback shell script no longer uses `set -e` (cleanup could be skipped on a non-fatal error).
+- **Deutsch (kurz):** Rückgabe an UGOS löscht alle Kurven-State-Dateien zuverlässig — Details in [`CHANGELOG.md`](CHANGELOG.md).
+
 ### What's new in v23.8.33
 
 - **Dashboard — dynamic fans:** **Probe & map fans…** scans all RPM sensors on the NAS (1–8, model-dependent) and builds **one control tile per fan** — not a fixed system/CPU pair. Per fan: Silent / Standard / Max / manual %, optional **fan curve…** (temperature → PWM, CPU or disk source, **live preview** on the NAS).

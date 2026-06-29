@@ -43,6 +43,7 @@ from ugreen_app.fan_curve import (
     normalize_points,
     parse_all_curve_settings,
     parse_curve_settings,
+    remote_curve_cleanup_shell,
     strip_cron_block,
     interpolate_pwm,
 )
@@ -2030,8 +2031,7 @@ class MixinScriptsDockerMonitor:
                 self._dash_fan_write_cron_file(new_cron)
         state_rm = " ".join(shlex.quote(p) for p in self._dash_fan_curve_state_paths())
         self.run_ssh_cmd(
-            f"rm -f {shlex.quote(REMOTE_CURVE_SH)} {shlex.quote(REMOTE_CURVE_ENV)} "
-            f"{state_rm} 2>/dev/null || true",
+            remote_curve_cleanup_shell() + (f"; rm -f {state_rm}" if state_rm else ""),
             True,
             update_status=False,
         )
@@ -2533,8 +2533,10 @@ class MixinScriptsDockerMonitor:
             )
             self._dash_fan_write_cron_file(new_cron)
         state_rm = " ".join(shlex.quote(p) for p in self._dash_fan_curve_state_paths())
+        cleanup = remote_curve_cleanup_shell()
+        if state_rm:
+            cleanup = f"{cleanup}; rm -f {state_rm}"
         script = (
-            "set -e; "
             "systemctl unmask hwmonitor 2>/dev/null || true; "
             "( systemctl restart hwmonitor 2>/dev/null || service hwmonitor restart 2>/dev/null || true ); "
             "echo 'set auto' > /proc/it86/fan 2>/dev/null || true; "
@@ -2543,8 +2545,8 @@ class MixinScriptsDockerMonitor:
             "echo 'set2 auto' > /proc/it86/fan 2>/dev/null || true; "
             "echo 'cpu2 auto' > /proc/it86/fan 2>/dev/null || true; "
             f"rm -f {shlex.quote(self.DASH_FAN_REMOTE_BOOT_SH)} {shlex.quote(self.DASH_FAN_REMOTE_BOOT_ENV)} "
-            f"{shlex.quote(REMOTE_CURVE_SH)} {shlex.quote(REMOTE_CURVE_ENV)} "
-            f"{state_rm} 2>/dev/null || true; "
+            "2>/dev/null || true; "
+            f"{cleanup}; "
             "/etc/init.d/cron restart 2>/dev/null || service cron restart 2>/dev/null || true"
         )
         try:

@@ -4,6 +4,16 @@
 
 _(keine offenen Änderungen)_
 
+## 23.8.34 — 2026-05-19
+
+### Deutsch
+
+- **Lüfter — UGOS-Rückgabe:** Beim **„UGOS-Steuerung zurückgeben“** werden Kurven-Artefakte auf dem NAS jetzt vollständig entfernt — per Glob **`ugreen_fan_curve.state*`** (nicht nur die aktuell konfigurierten Fan-IDs). **`set -e`** im Rückgabe-Skript entfernt, damit ein Zwischenschritt das Löschen nicht abbricht.
+
+### English (short)
+
+- **Fan handback to UGOS:** cleanup now deletes all **`ugreen_fan_curve.state*`** files on the NAS; safer shell script without `set -e`.
+
 ## 23.8.33 — 2026-05-19
 
 ### Deutsch

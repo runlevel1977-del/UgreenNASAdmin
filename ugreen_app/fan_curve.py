@@ -11,6 +11,7 @@ CURVE_CRON_BEGIN = "# UG-NAS-Admin: fan curve BEGIN"
 CURVE_CRON_END = "# UG-NAS-Admin: fan curve END"
 REMOTE_CURVE_SH = "/volume1/scripts/ugreen_fan_curve_apply.sh"
 REMOTE_CURVE_ENV = "/volume1/scripts/ugreen_fan_curve.env"
+REMOTE_CURVE_STATE_GLOB = "/volume1/scripts/ugreen_fan_curve.state*"
 DEFAULT_HYST_C = 2
 MIN_POINTS = 2
 MAX_POINTS = 12
@@ -316,3 +317,11 @@ def append_curve_cron_block(cron_text: str, script_path: str = REMOTE_CURVE_SH) 
         f"{CURVE_CRON_END}\n"
     )
     return (base + block).strip() + "\n"
+
+
+def remote_curve_cleanup_shell() -> str:
+    """Shell: alle Kurven-Artefakte auf dem NAS entfernen (inkl. State-Dateien aller Fan-IDs)."""
+    return (
+        f"rm -f {REMOTE_CURVE_SH} {REMOTE_CURVE_ENV} "
+        f"{REMOTE_CURVE_STATE_GLOB} 2>/dev/null || true"
+    )
