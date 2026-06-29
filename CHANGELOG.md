@@ -4,6 +4,23 @@
 
 _(keine offenen Änderungen)_
 
+## 23.8.33 — 2026-05-19
+
+### Deutsch
+
+- **Dashboard → Lüfter (dynamisch):** Nach **„Lüfter prüfen & zuordnen …“** werden **alle** vom NAS gemeldeten RPM-Sensoren erkannt (typisch 1–4, max. 8) — **nicht** mehr fest zwei Kacheln. Pro Lüfter eine eigene Steuer-Kachel (Leise / Standard / Max / Manuell %, **Übernehmen**).
+- **Zuordnung:** Speicherung unter **`app_settings.json` → `dashboard.fan_devices`** (PWM-Kanal 1/2, RPM-Zeile, stabile Fan-ID); Legacy **`fan_slot0/1_*`** wird migriert.
+- **Lüfterkurve (neu):** Pro Lüfter **„Lüfterkurve …“** — Stützpunkte Temperatur → PWM %, Quelle CPU oder Platte, **Live-Vorschau** per SSH, gemeinsames NAS-Skript **`ugreen_fan_curve_apply.sh`** + Cron (minütlich + nach Neustart); State pro Lüfter.
+- **Boot-PWM:** Manuelles Prozent pro Kachel optional nach Neustart über **`ugreen_fan_boot.env`** mit **`FAN_COUNT`** (alle Kacheln).
+- **UGOS-Rückgabe:** Erste Kachel — Auto auf it86, `hwmonitor`, Entfernen von Boot-/Kurven-Cron auf dem NAS.
+- **Handbuch:** Kapitel **§6** (Dashboard) ausführlich **24.2 / 42.6 / 62** (Erkennung, Steuerung, Kurven); DE/EN + PDFs.
+
+### English (short)
+
+- **Dashboard fans:** scan discovers **1–8** fans; one control tile each; mapping in **`fan_devices`**; legacy slot keys migrate.
+- **Per-fan temperature curves** with live preview; NAS script + cron; boot profile for fixed PWM after reboot.
+- **Manuals:** chapter **§6** expanded (DE/EN PDFs).
+
 ## 23.8.32 — 2026-06-27
 
 ### Deutsch

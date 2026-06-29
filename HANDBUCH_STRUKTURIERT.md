@@ -227,29 +227,13 @@ Fehlerbilder:
 - Docker Uebersicht
 - Skriptjob-Uebersicht
 
-### 5.2 Fan-Bereich (links System, rechts CPU)
+### 5.2 Lüfter-Bereich (dynamisch: 1–8 Kacheln)
 
-Ueber beiden Kacheln: **„Lüfter prüfen & zuordnen …“** — SSH-/sudo-Scan von **`/proc/it86/fan`** und **`hwmon`**-**`fan*_input`**, Dialog fuer **PWM-Kanal** (Kanal 1 vs. 2, UGOS `set`/`cpu` vs. `set2`/`cpu2`/`fan2`) und **RPM-Zeile** pro Kachel; speichert in **`app_settings.json`** → **`dashboard`:** **`fan_slot0_use_pwm_secondary`**, **`fan_slot1_use_pwm_secondary`**, **`fan_slot0_rpm_key`**, **`fan_slot1_rpm_key`**; Boot-Datei **`ugreen_fan_boot.env`** **`SLOT0_USE2`** / **`SLOT1_USE2`**. Nur **ein** Luefter: rechte Kachel ohne zweite Drehzahl (kein Duplicate). Ausfuehrlich **`HANDBUCH.md`** → **24.2**, **42.6**, **62**.
+**Handbuch im Dashboard-Tab:** **📖 Handbuch** (Kopfzeile) oder Tab-Button öffnet **Kapitel 6** in **`HANDBUCH.pdf`** — dort **24.2**, **42.6**, **62** (Erkennung, Steuerung, Kurven, UGOS-Rückgabe).
 
-Modi (je Kachel):
+**Ablauf:** Zuerst **„Lüfter prüfen & zuordnen …“** (SSH/sudo-Scan von **`/proc/it86/fan`** und **`hwmon`** **`fan*_input`**). Pro **gefundenem** RPM-Sensor eine Zeile: **PWM-Kanal** (Kanal 1 `set/cpu` vs. Kanal 2 `set2/cpu2/fan2`) und **RPM-Zeile**. **Speichern** → **`app_settings.json`** → **`dashboard.fan_devices`**; Kacheln werden neu aufgebaut (Anzahl = gefundene Lüfter, nicht fest zwei).
 
-- Silent
-- Standard
-- Max
-- Manual Prozent
-
-Buttons:
-
-- `Uebernehmen`
-- `UGOS-Steuerung zurueckgeben` (linker Kachel-Bereich, gemeinsame Rueckgabe)
-
-Betriebslogik:
-
-1. Optional: Zuordnung mit **„Lüfter prüfen & zuordnen …“** einmal durchlaufen und speichern.
-2. Modus waehlen.
-3. `Uebernehmen`.
-4. Wirkung kurz beobachten.
-5. Wenn UGOS wieder fuehren soll: `UGOS-Steuerung zurueckgeben`.
+**Je Kachel:** Leise / Standard / Max / Manuell % + Übernehmen / **Lüfterkurve …** / (erste Kachel) **UGOS-Steuerung zurückgeben**. Kurven unter **`dashboard.fan_curves.<fan_id>`**; NAS: **`ugreen_fan_curve_apply.sh`**, Cron minütlich. Boot-PWM: **`ugreen_fan_boot.env`** mit **`FAN_COUNT`**. Ausführlich **`HANDBUCH.md`** → **## 6** (**24.2**, **42.6**, **62**).
 
 ### 5.3 Netzwerk-Kachel (Durchsatz + Konfiguration)
 

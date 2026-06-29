@@ -547,32 +547,142 @@ Nutzen: Backupziel und NAS↔NAS.
 - Live-Hinweis (beim Start der Live-Schleife wird — falls die **UGOS/OS-Zeile** im Header noch leer ist — **`/etc/os-release`** einmalig mitgelesen)
 - Webcam-Button
 - Metrik-Kacheln (inkl. Netzwerk mit **aktueller Schnittstellen-Konfiguration**, Filter, Bearbeiten — siehe **42.3**)
-- **Lüfter:** Hinweiszeile **„Lüfter prüfen & zuordnen …“** (öffnet den Erkennungs-/Zuordnungsdialog) sowie zwei Steuer-Kacheln
+- **Lüfter:** Hinweiszeile **„Lüfter prüfen & zuordnen …“** (Erkennungs-/Zuordnungsdialog) sowie **eine Steuer-Kachel pro erkanntem Lüfter** (1–8, je nach NAS-Modell)
 - Docker-Live
 - geplante Skriptjobs
 
-### 24.2 Fan-Steuerung und Zuordnung
+### 24.2 Lüfter — Erkennung, Zuordnung, Steuerung und Kurven
 
-**Buttons je Kachel (System links, CPU rechts):**
+Der Lüfterbereich ist **nicht** auf zwei feste Kacheln (System/CPU) begrenzt. Die App **sucht zuerst**, welche Lüfter das NAS meldet, und zeigt danach **genau so viele Kacheln**, wie Einträge in der Zuordnung stehen (typisch 1–4, maximal 8).
 
-- **Silent / Standard / Max / Manuell (%)**
-- **Übernehmen** (inkl. optionalem Boot-Profil wie bisher, siehe ausführlich **42.6**)
-- **UGOS-Steuerung zurückgeben** (nur auf der linken Kachel; betrifft die gemeinsame UGOS-Rückgabe)
+**Voraussetzungen (für Scan und Steuerung):**
 
-**„Lüfter prüfen & zuordnen …“**
+- Im Tab **Settings** müssen **NAS-IP**, **Benutzer** und **Passwort** eingetragen sein (wie für SSH im restlichen Dashboard).
+- Für **Schreibbefehle** (Modi, manuelles PWM, Kurven, Boot-Profil) zusätzlich im Header **„Volle Rechte“** aktivieren und Bestätigungsdialoge zulassen.
+- Schreibzugriff auf **`/proc/it86/fan`** (it86-Treiber) — bei manchen Modellen fehlt die Schnittstelle; der Scan zeigt das im Protokoll.
 
-- Vorbedingung: **SSH** (wie beim restlichen Dashboard), Schreibbefehle wie bisher über **sudo** mit dem eingetragenen Passwort / den üblichen Rechten.
-- Die App liest per Scan u. a. **`/proc/it86/fan`** und **`/sys/class/hwmon/.../fan*_input`** und zeigt ein **Klartextprotokoll**.
-- Pro Kachel wählst du:
-  - **PWM-Kanal:** **Kanal 1** (UGOS-typisch `set` / `cpu`) oder **Kanal 2** (`set2` / `cpu2` / `fan2`) — welcher physische Zweig auf *deinem* NAS wirklich PWM-fähig ist, hängt vom Modell/Treiber ab.
-  - **RPM-Anzeige:** **„Automatisch …“** (Heuristik System- vs. CPU-Kachel wie bisher) oder eine **konkrete Sensoren-Zeile** aus dem Scan (falls mehrere Zeilen vorhanden).
-- **Speichern** schreibt lokal **`app_settings.json`** unter **`dashboard`:** **`fan_slot0_use_pwm_secondary`**, **`fan_slot1_use_pwm_secondary`** (Kanal 2 ja/nein je Kachel), **`fan_slot0_rpm_key`**, **`fan_slot1_rpm_key`** (RPM-Zeilenwahl, klein geschrieben; leer = automatisch).
-- Das vorhandene **Boot-Skript** auf dem NAS nutzt dieselbe Zuordnung über **`SLOT0_USE2`** / **`SLOT1_USE2`** in **`ugreen_fan_boot.env`**.
+---
 
-**Nur ein eingebauter Lüfter (z. B. nur „System“):**  
-Zeigt das NAS nur **eine** RPM-Quelle, bleibt die **rechte** Kachel für die Drehzahl **ohne zweite Quelle leer („nicht lesbar“)** — keine Spiegelung der gleichen Zahl auf beiden Seiten.
+#### 24.2.1 Schritt für Schritt: „Lüfter prüfen & zuordnen …“
 
-**Wichtiger Ablauf (Steuerung):** Modus wählen → **Übernehmen** → Verhalten beobachten → ggf. **UGOS-Steuerung zurückgeben**.
+**Wo:** Dashboard → oberhalb der Lüfter-Kacheln, Button **„Lüfter prüfen & zuordnen …“**.
+
+**Was passiert beim Öffnen:**
+
+1. Die App prüft, ob eine NAS-IP eingetragen ist. Ohne IP erscheint ein Hinweis — zuerst in **Settings** verbinden.
+2. Im Hintergrund läuft ein **SSH-Befehl mit sudo** (Passwort wie in Settings). Gelesen werden u. a.:
+   - **`/proc/it86/fan`** (UGOS-typische PWM-/Statuszeilen),
+   - **`/sys/class/hwmon/hwmon*/fan*_input`** (RPM aus Hardware-Monitoring).
+3. Im Dialog erscheint oben ein **Klartextprotokoll** (Rohdaten + Meta, z. B. ob `/proc/it86/fan` existiert und ob `hwmonitor` aktiv ist).
+4. Darunter die Tabelle **„Gefundene Lüfter — Zuordnung“**: **eine Zeile pro erkanntem RPM-Sensor** (Name aus dem Scan, z. B. `sysfan1`, `cpufan1`, `fan3`).
+
+**Was du pro Zeile einstellst:**
+
+| Spalte / Feld | Bedeutung | Was du einträgst |
+|---------------|-----------|------------------|
+| **Lüftername** (links) | Anzeige in der Kachel | Wird aus dem Scan übernommen; nach Speichern Titel der Kachel |
+| **PWM-Kanal** | Welcher it86-Zweig beschrieben wird | **Kanal 1** (`set` / `cpu`) oder **Kanal 2** (`set2` / `cpu2` / `fan2`) |
+| **RPM-Zeile** | Welche Drehzahl in der Kachel live angezeigt wird | Den passenden Sensornamen aus dem Scan wählen |
+
+**Hinweis zu PWM-Kanälen:** UGreen-NAS haben oft **zwei PWM-Gruppen**, aber **mehr RPM-Zeilen** (z. B. drei Gebläse, zwei PWM-Kanäle). Mehrere Lüfter können **denselben PWM-Kanal** nutzen — dann steuert ein Schreibbefehl mehrere physische Lüfter gemeinsam. Das ist modellabhängig und im Scan erkennbar.
+
+**Button „Speichern“:**
+
+- Schreibt die Liste nach **`app_settings.json` → `dashboard` → `fan_devices`** (Array mit Objekten: `id`, `rpm_key`, `label`, `pwm_secondary`).
+- Die **Dashboard-Kacheln werden sofort neu aufgebaut** — du siehst danach eine Kachel pro gespeichertem Lüfter.
+- **Alte Einstellungen** (`fan_slot0_*` / `fan_slot1_*`) werden bei der ersten Speicherung durch `fan_devices` ersetzt; Kurven mit Schlüsseln `"0"`/`"1"` werden beim Laden auf Fan-IDs migriert.
+
+**Wenn noch keine Lüfter in der Tabelle stehen:** Scan abwarten oder NAS-Verbindung prüfen. Bis zum ersten erfolgreichen Scan können **Platzhalter aus der Legacy-Zuordnung** (zwei Zeilen) angezeigt werden.
+
+---
+
+#### 24.2.2 Lüfter-Kacheln — alle Bedienelemente
+
+Jede Kachel entspricht **einem Eintrag** in `fan_devices`. Oben in der Kachel: **🌀 Name** und darunter **„Lüfter (RPM): …“** (Live-Wert aus der gewählten RPM-Zeile).
+
+| Button / Feld | Eingabe | Was auf dem NAS passiert |
+|---------------|---------|---------------------------|
+| **Leise** | Klick | Festes PWM ~50 % auf dem **gewählten PWM-Kanal** dieses Lüfters; `hwmonitor` wird vorher gestoppt |
+| **Standard** | Klick | UGOS-ähnlich **Auto** auf dem Kanal + Neustart von `hwmonitor`; Zwischenwert ~128 auf it86 |
+| **Max** | Klick | Festes PWM 100 % (255) auf dem Kanal |
+| **Manuell (%)** | Dropdown 0–100 % in 5er-Schritten | Nur Anzeige — erst mit **Übernehmen** wirksam |
+| **Übernehmen** | Klick nach Prozentwahl | Schreibt gewähltes PWM; **deaktiviert nur die Lüfterkurve dieses Lüfters**; optional **Boot-Profil** für alle manuellen Werte (siehe unten) |
+| **Lüfterkurve …** | öffnet Dialog | Temperaturgesteuerte Kurve **nur für diesen Lüfter** (Abschnitt **24.2.3**) |
+| **UGOS-Steuerung zurückgeben** | nur auf der **ersten** Kachel | Gibt **alle** Lüfter an UGOS zurück: Auto auf it86, `hwmonitor` starten, Boot-/Kurven-Cron auf dem NAS entfernen, lokale Kurven deaktivieren |
+
+**Statuszeile** unter den Buttons: zeigt z. B. „OK: …“ nach erfolgreichem SSH-Schreiben oder Fehlertext (z. B. `/proc/it86/fan` fehlt).
+
+---
+
+#### 24.2.3 Lüfterkurve (temperaturgesteuert)
+
+**Öffnen:** Auf der gewünschten Kachel **„Lüfterkurve …“** klicken.
+
+**Dialog — Felder und Bedeutung:**
+
+| Bereich | Eingabe | Wirkung |
+|---------|---------|---------|
+| **Temperaturquelle** | **CPU (max. Sensor)** oder **Platte** | CPU: höchster Wert aus thermal/hwmon; Platte: SMART-Temperatur des gewählten Laufwerks |
+| **Datenträger** | Dropdown `/dev/sda` … | Nur bei Quelle **Platte**; Button **„Platten laden“** holt die Liste per SSH |
+| **Stützpunkte** | Spalten **°C** und **PWM %** | Mindestens **2** Punkte, Temperatur **streng steigend**, PWM 0–100 |
+| **+ Zeile / − Zeile** | Klick | Kurve erweitern/kürzen (Fenster wächst mit) |
+| **Live (NAS)** | automatisch ~alle 3 s | Zeigt aktuelle Temperatur, RPM des zugeordneten Lüfters und **berechnetes Kurven-Ziel-%** |
+| **Speichern & auf NAS aktivieren** | Klick | Speichert Kurve unter **`dashboard.fan_curves.<fan_id>`**, deployt gemeinsames NAS-Skript |
+
+**Was auf dem NAS angelegt wird (bei mindestens einer aktiven Kurve):**
+
+- **`/volume1/scripts/ugreen_fan_curve_apply.sh`** — wendet alle aktiven Kurven an
+- **`/volume1/scripts/ugreen_fan_curve.env`** — Konfiguration mit `FAN_COUNT`, pro Lüfter `F0_*` … (`ENABLED`, `SENSOR`, `POINTS`, `PWM_SEC`, `STATE`)
+- **Cron** in **`/etc/cron.d/papa_jobs`** (Block „UG-NAS-Admin: fan curve“): jede Minute + `@reboot` mit Verzögerung
+- Pro Lüfter eine State-Datei **`ugreen_fan_curve.state.<id>`** (Hysterese)
+
+**Wichtig:** Mehrere Lüfter können **eigene Kurven** haben; nur der Lüfter, für den du manuelles PWM mit **Übernehmen** setzt, wird **einzeln** aus der Kurvensteuerung genommen. Andere aktive Kurven laufen weiter.
+
+**Boot-Profil (manuelles PWM nach Neustart):** Wenn du nach **Übernehmen** ein fixes Prozent speicherst, schreibt die App zusätzlich **`ugreen_fan_boot_apply.sh`** + **`ugreen_fan_boot.env`** (`FAN_COUNT`, `F0_PWM`, `F0_USE2`, …) und einen **`@reboot`**-Eintrag. Aktive **Lüfterkurven** und Boot-Profil schließen sich gegenseitig aus (Kurven-Deploy entfernt Boot-Cron und umgekehrt).
+
+---
+
+#### 24.2.4 Lokale Konfiguration (`app_settings.json`)
+
+Unter **`dashboard`** relevant:
+
+```json
+"fan_devices": [
+  {
+    "id": "sysfan1",
+    "rpm_key": "sysfan1",
+    "label": "sysfan1",
+    "pwm_secondary": false
+  }
+],
+"fan_curves": {
+  "sysfan1": {
+    "enabled": true,
+    "sensor": "cpu",
+    "disk_dev": "",
+    "points": [[40, 25], [55, 45], [70, 75], [80, 100]],
+    "hyst_c": 2
+  }
+}
+```
+
+- **`pwm_secondary: true`** = Kanal 2 (`set2`/`cpu2`/`fan2`).
+- Legacy-Schlüssel **`fan_slot0_*`** / **`fan_curves."0"`** werden beim Laden migriert, solange noch kein `fan_devices`-Array existiert.
+
+**Settings speichern:** Beim Speichern im Tab **Settings** bleiben **`dashboard`** (inkl. `fan_devices`, `fan_curves`, Netzwerk-Filter) erhalten — nichts überschreiben durch leere Defaults.
+
+---
+
+#### 24.2.5 Kurzablauf im Alltag
+
+1. **Settings:** NAS-Verbindung prüfen.
+2. **Dashboard:** **„Lüfter prüfen & zuordnen …“** → Scan lesen → PWM + RPM pro Zeile → **Speichern**.
+3. Kacheln prüfen (Anzahl = gefundene Lüfter).
+4. Modus wählen (**Leise** / **Standard** / **Max**) oder **Manuell %** + **Übernehmen** — mit **Volle Rechte**.
+5. Optional: **Lüfterkurve …** pro Lüfter konfigurieren.
+6. Wenn UGOS wieder regeln soll: **UGOS-Steuerung zurückgeben** (erste Kachel).
+
+**Typischer Fehlerfall:** Nur eine Kachel / „nicht lesbar“ — Scan wiederholen; RPM-Zeile im Zuordnungsdialog prüfen; bei einem physischen Lüfter ist **eine** Kachel normal.
 
 ---
 
@@ -629,7 +739,7 @@ Darunter: **IPv4**, **Präfix** (z. B. `24`), **Gateway**, **Modus**:
 **„Anwenden (sudo)“** erfordert im Header **„Volle Rechte“** (Danger-/Freigabe wie bei anderen riskanten Aktionen). Es erscheinen **Bestätigungsdialoge**. **Achtung:** falsche IP oder falsches Gateway können die **SSH-Verbindung zum NAS trennen** — nur in Wartungsfenstern nutzen, ggf. Konsole/IPKVM bereithalten.
 
 **Settings und `app_settings.json`**  
-Wenn du in **Settings** auf **Speichern** gehst, werden die Abschnitte **`dashboard`** und **`docker_update`** beim Schreiben der Datei **mitgeführt**, damit u. a. die Dashboard-Netzwerk-Präferenzen (**`net_detail_iface`**, **`net_monitor_filter`**) und die **Lüfter-Zuordnung** (**`fan_slot0_use_pwm_secondary`**, **`fan_slot1_use_pwm_secondary`**, **`fan_slot0_rpm_key`**, **`fan_slot1_rpm_key`**) nicht verloren gehen.
+Wenn du in **Settings** auf **Speichern** gehst, werden die Abschnitte **`dashboard`** und **`docker_update`** beim Schreiben der Datei **mitgeführt**, damit u. a. die Dashboard-Netzwerk-Präferenzen (**`net_detail_iface`**, **`net_monitor_filter`**) sowie **`fan_devices`** und **`fan_curves`** nicht verloren gehen.
 
 ### 42.4 Docker-Kachel
 
@@ -641,26 +751,66 @@ Bei Abweichung in Docker-Tab wechseln und Liste/Logs prüfen.
 Zeigt geplante Jobs und laufende Aktivitäten.  
 Hilft bei Korrelation „Lastanstieg <-> Cronjobzeitpunkt“.
 
-### 42.6 Fan-Steuerbereich (komplett)
+### 42.6 Lüfterbereich (komplett — dynamische Erkennung)
 
-Über beiden Kacheln: **„Lüfter prüfen & zuordnen …“** → Dialog mit **Messprotokoll** und Speicherdialog für **PWM-Kanal** und **RPM-Zeile** je Kachel (Details **24.2**). Ohne zweite Drehzahl-Quelle zeigt die **CPU-Kachel** keinen zweiten RPM-Wert (ein Lüfter am NAS).
+**Layout:** Über den Kacheln der Button **„Lüfter prüfen & zuordnen …“** und eine Hinweiszeile. Darunter ein **Raster aus Kacheln** (zwei Spalten): **eine Kachel pro Eintrag** in `fan_devices`, nicht fest zwei Kacheln.
 
-Buttons/Modi (je Kachel):
+#### Ablauf Erkennung (Dialog)
 
-- Silent
-- Standard
-- Max
-- Manual %
-- Übernehmen
-- UGOS-Steuerung zurückgeben (Steuer-Link in der ersten Kachel; wirkt wie bisher gemeinsam auf die Rückgabe an UGOS)
+1. **Dashboard** öffnen (Tab muss aktiv sein für Live-RPM; der Scan funktioniert unabhängig davon).
+2. **„Lüfter prüfen & zuordnen …“** klicken.
+3. Warten, bis das Protokoll gefüllt ist und die Tabelle **„Gefundene Lüfter — Zuordnung“** Zeilen zeigt.
+4. Pro Zeile:
+   - **PWM-Kanal** wählen (Kanal 1 oder 2 — siehe **24.2.1**).
+   - **RPM-Zeile** wählen (Name aus dem Scan).
+5. **Speichern** — Kacheln erscheinen/aktualisieren sich sofort.
 
-Empfohlener Ablauf:
+**Ein Lüfter am NAS:** Nach dem Scan und Speichern gibt es **eine** Kachel. Das ist korrekt — nicht zwei erzwingen.
 
-1. Bei neuem oder abweichendem Modell: einmal **„Lüfter prüfen & zuordnen …“** durchlaufen und sinnvolle Kanal-/Anzeige-Wahl speichern.
-2. Modus wählen.
-3. Übernehmen.
-4. 1–2 Minuten beobachten.
-5. Bei Konflikten **UGOS-Steuerung zurückgeben**.
+**Vier RPM-Zeilen, zwei PWM-Kanäle:** Vier Zeilen in der Tabelle, vier Kacheln; beim Steuern teilen sich Lüfter mit gleichem PWM-Kanal dieselbe Hardware-Ansteuerung.
+
+#### Ablauf manuelle Steuerung (je Kachel)
+
+| Schritt | Aktion | Ergebnis |
+|--------|--------|----------|
+| 1 | Header → **Volle Rechte** | Schreibbuttons freigeschaltet |
+| 2 | Gewünschten Modus oder **Manuell %** wählen | Nur Vorauswahl |
+| 3 | Bei Manuell: Prozent im Dropdown, dann **Übernehmen** | PWM auf NAS; Kurve **dieses** Lüfters aus; ggf. Boot-Env für alle Kacheln |
+| 4 | Statuszeile lesen | „OK: …“ oder Fehler |
+| 5 | 1–2 Min. Lautstärke/RPM beobachten | — |
+| 6 | Bei Bedarf **UGOS-Steuerung zurückgeben** (erste Kachel) | Gesamte Rückgabe an UGOS |
+
+**Modi im Detail:**
+
+- **Leise:** ca. 50 % PWM, `hwmonitor` stoppt kurz — feste Drehzahl.
+- **Standard:** `hwmonitor` wieder aktiv, it86 auf Auto + Referenzwert — näher an UGOS-Standardbetrieb auf **diesem** Kanal.
+- **Max:** 100 % PWM.
+
+#### Ablauf Lüfterkurve (je Kachel)
+
+1. **Lüfterkurve …** auf der Ziel-Kachel.
+2. **Temperaturquelle** wählen (CPU oder Platte); bei Platte Laufwerk laden und auswählen.
+3. Stützpunkte eintragen (z. B. 40 °C → 25 %, 80 °C → 100 %).
+4. **Live (NAS)** prüfen (Temperatur, RPM, Ziel-%).
+5. **Speichern & auf NAS aktivieren** — Cron + Skript auf dem NAS; andere Lüfter-Kurven bleiben unverändert aktiv.
+
+NAS-Dateien und Cron: siehe **24.2.3**.
+
+#### UGOS-Steuerung zurückgeben
+
+Nur auf der **ersten** Kachel sichtbar, wirkt aber **global**:
+
+- `hwmonitor` unmask/start
+- it86 auf `auto` (Kanal 1 und 2)
+- Entfernt Boot- und Kurven-Skripte/Cron der App auf dem NAS
+- Setzt alle **`fan_curves.*.enabled`** lokal auf `false`
+
+Empfohlene Reihenfolge bei neuem NAS-Modell:
+
+1. Einmal **Zuordnung** speichern (**24.2.1**).
+2. Kurz **Standard** testen.
+3. Erst dann **Kurven** oder festes PWM nutzen.
+4. Nach Tests **UGOS-Steuerung zurückgeben**.
 
 ### 42.7 UGOS API — Speicher-Kachel
 
@@ -680,22 +830,56 @@ Ausführlicher Pool-/Disk-Report: Speicher-Tab → **Pools (UGOS API)** (**§16*
 
 ---
 
-### Aus dem Bereich: 62. Praxisanleitung: Fansteuerung inklusive Rueckgabe an UGOS
+### Aus dem Bereich: 62. Praxisanleitung: Lüfter inklusive Kurve und Rückgabe an UGOS
 
-1. Dashboard öffnen.
-2. Optional: **„Lüfter prüfen & zuordnen …“** — Scan lesen, **PWM-Kanal** und **RPM-Anzeige** pro Kachel setzen, **Speichern**.
-3. Fanbereich lesen (System links, CPU rechts; bei nur einem Lüfter rechts oft keine RPM-Zeile).
-4. Gewünschten Modus wählen.
-5. **Übernehmen** klicken.
-6. 1–2 Minuten Beobachtung.
-7. Wenn manuelle Steuerung beendet werden soll: **UGOS-Steuerung zurückgeben**.
-8. Optional in der UGOS-Oberfläche das Profil wechseln (Standard/Silent), um die Übergabe zu validieren.
+**Teil A — Erstes Einrichten (einmal pro NAS oder nach Hardware-Wechsel)**
 
-Fehlerfall „UGOS reagiert nicht“:
+1. Tab **Settings:** IP, Benutzer, Passwort eintragen und Verbindung testen.
+2. Tab **Dashboard** öffnen.
+3. **„Lüfter prüfen & zuordnen …“** klicken.
+4. Protokoll lesen: Steht **`/proc/it86/fan`**? Werden RPM-Namen gelistet?
+5. In der Zuordnungstabelle jeden Lüfter prüfen:
+   - System-Lüfter oft **Kanal 1**, CPU-Lüfter oft **Kanal 2** (im Zweifel beide Kanäle nacheinander mit **Leise** testen).
+   - RPM-Zeile = der Name, der im Protokoll Drehzahl zeigt.
+6. **Speichern** — Anzahl Kacheln = Anzahl Zeilen.
+7. Optional: In der UGOS-App/Oberfläche aktuelle Lüfter-Drehzahl merken zum Vergleich.
 
-- Rueckgabe-Button nochmal ausfuehren.
-- Health/Servicezustand pruefen.
-- kurze Wartezeit einplanen, da Regelung nicht immer sofort visuell springt.
+**Teil B — Feste Drehzahl (manuell)**
+
+1. Header: **Volle Rechte** aktivieren.
+2. Auf der gewünschten Kachel **Leise**, **Standard**, **Max** oder **Manuell %** + **Übernehmen**.
+3. Statuszeile auf „OK“ prüfen.
+4. Akustik/RPM 1–2 Minuten beobachten.
+5. Fertig: **UGOS-Steuerung zurückgeben** oder anderen Modus wählen.
+
+**Teil C — Temperaturkurve**
+
+1. **Volle Rechte** aktiv.
+2. **Lüfterkurve …** auf dem Ziel-Lüfter.
+3. Quelle **CPU** oder **Platte** wählen; bei Platte **Platten laden** und `/dev/sdX` wählen.
+4. Mindestens zwei Stützpunkte (steigende °C).
+5. **Live (NAS)** beobachten — passt Ziel-% zur Erwartung?
+6. **Speichern & auf NAS aktivieren**.
+7. Nach einigen Minuten erneut prüfen (Cron läuft minütlich).
+8. Manuellen Modus auf **demselben** Lüfter vermeiden — **Übernehmen** schaltet dessen Kurve ab.
+
+**Teil D — Rückgabe an UGOS**
+
+1. **UGOS-Steuerung zurückgeben** (erste Kachel).
+2. Warten (bis ~1 Minute).
+3. In UGOS ggf. Lüfterprofil **Standard/Leise** wählen zur Kontrolle.
+
+**Fehler „nicht lesbar“ / keine Kacheln**
+
+- Scan wiederholen; SSH/sudo prüfen.
+- Wenn Scan 0 Sensoren: Modell ohne it86/hwmon-Fan — Steuerung in der App nicht möglich.
+- Wenn Scan OK, aber RPM leer: falsche **RPM-Zeile** in der Zuordnung — Dialog erneut öffnen und Zeile korrigieren.
+
+**Fehler „UGOS reagiert nicht“ nach Rückgabe**
+
+- **UGOS-Steuerung zurückgeben** erneut ausführen.
+- Tab **System & Health**: `hwmonitor`-Status prüfen.
+- Kurz warten — Regelung springt nicht immer sofort sichtbar um.
 
 ---
 

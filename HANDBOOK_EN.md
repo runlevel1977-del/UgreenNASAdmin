@@ -547,31 +547,142 @@ Benefits: Backup destination and NAS↔NAS.
 - Live notice (when live polling starts, **`/etc/os-release`** is read **once** if the **UGOS/OS header line** is still empty)
 - Webcam button
 - Metric tiles (including Network with **current interface configuration**, filter, and edit controls — see **42.3**)
-- **Fans:** toolbar line **“Probe & map fans…”** (opens the probe/mapping dialog) plus two fan control tiles
+- **Fans:** toolbar **“Probe & map fans…”** (discovery/mapping dialog) plus **one control tile per discovered fan** (1–8, depending on NAS model)
 - Docker Live
 - scheduled script jobs
 
-### 24.2 Fan control and mapping
+### 24.2 Fans — discovery, mapping, control, and curves
 
-**Buttons per tile (system left, CPU right):**
+The fan area is **not** limited to two fixed tiles (system/CPU). The app **scans first** which fans the NAS reports, then shows **as many tiles** as there are entries in your mapping (typically 1–4, maximum 8).
 
-- **Silent / Standard / Max / Manual (%)**
-- **Apply** (includes optional boot profile as before — see **42.6**)
-- **Return UGOS control** (on the left tile only — shared handback to UGOS)
+**Prerequisites (scan and control):**
 
-**“Probe & map fans…”**
+- Tab **Settings:** **NAS IP**, **user**, and **password** (same SSH as the rest of the Dashboard).
+- For **write commands** (modes, manual PWM, curves, boot profile): enable **Full access** in the header and accept confirmation dialogs.
+- Writable **`/proc/it86/fan`** (it86 driver) — on some models the interface is missing; the scan log shows this.
 
-- **SSH** required (same as the rest of the Dashboard); writes still use **sudo** with your stored password/usual privileges.
-- The app scans e.g. **`/proc/it86/fan`** and **`/sys/class/hwmon/.../fan*_input`** and shows a **plain-text report**.
-- Per tile you choose:
-  - **PWM channel:** **Channel 1** (UGOS-typical `set` / `cpu`) vs **channel 2** (`set2` / `cpu2` / `fan2`) — which hardware path actually supports PWM depends on **model/driver**.
-  - **RPM display:** **“Automatic…”** (system vs CPU heuristics as before) or a **specific sensor line** from the scan when several exist.
-- **Save** writes locally under **`app_settings.json` → `dashboard`:** **`fan_slot0_use_pwm_secondary`**, **`fan_slot1_use_pwm_secondary`**, **`fan_slot0_rpm_key`**, **`fan_slot1_rpm_key`** (RPM choice lower-case; empty = automatic).
-- The existing NAS **boot script** uses the same mapping via **`SLOT0_USE2`** / **`SLOT1_USE2`** in **`ugreen_fan_boot.env`**.
+---
 
-**Only one physical fan:** If the NAS exposes **one** tach source only, the **right** tile stays **without a second RPM** (“not readable”) — **no mirrored duplicate** on both sides.
+#### 24.2.1 Step by step: “Probe & map fans…”
 
-**Control flow:** choose mode → **Apply** → observe → **Return UGOS control** if needed.
+**Where:** Dashboard → above the fan tiles, button **“Probe & map fans…”**.
+
+**What happens when you open it:**
+
+1. The app checks for a NAS IP. Without IP you get a hint — connect in **Settings** first.
+2. A background **SSH command with sudo** runs (password from Settings). It reads e.g.:
+   - **`/proc/it86/fan`** (UGOS-style PWM/status lines),
+   - **`/sys/class/hwmon/hwmon*/fan*_input`** (RPM from hardware monitoring).
+3. The dialog shows a **plain-text log** at the top (raw data + meta, e.g. whether `/proc/it86/fan` exists and whether `hwmonitor` is active).
+4. Below: table **“Discovered fans — mapping”** — **one row per RPM sensor** found (name from scan, e.g. `sysfan1`, `cpufan1`, `fan3`).
+
+**What you set per row:**
+
+| Column / field | Meaning | What to enter |
+|----------------|---------|---------------|
+| **Fan name** (left) | Tile title | Taken from scan; after Save this is the tile heading |
+| **PWM channel** | Which it86 branch is written | **Channel 1** (`set` / `cpu`) or **Channel 2** (`set2` / `cpu2` / `fan2`) |
+| **RPM line** | Which speed is shown live on the tile | Pick the matching sensor name from the scan |
+
+**PWM channels:** Many UGreen NAS units have **two PWM groups** but **more RPM lines** (e.g. three fans, two PWM channels). Several fans may **share one PWM channel** — one write command then drives multiple physical fans together. Model-dependent; visible in the scan.
+
+**Save button:**
+
+- Writes the list to **`app_settings.json` → `dashboard` → `fan_devices`** (array of objects: `id`, `rpm_key`, `label`, `pwm_secondary`).
+- **Dashboard tiles rebuild immediately** — one tile per saved fan.
+- **Legacy settings** (`fan_slot0_*` / `fan_slot1_*`) are replaced on first Save; curves keyed `"0"`/`"1"` migrate to fan IDs on load.
+
+**If no fans appear in the table yet:** wait for the scan or check the NAS connection. Until the first successful scan, **legacy placeholder rows** (two lines) may be shown.
+
+---
+
+#### 24.2.2 Fan tiles — all controls
+
+Each tile matches **one** `fan_devices` entry. Top of tile: **🌀 name** and **“Fan (RPM): …”** (live value from the chosen RPM line).
+
+| Button / field | Input | What happens on the NAS |
+|----------------|-------|-------------------------|
+| **Silent** | click | Fixed PWM ~50% on **this fan’s PWM channel**; `hwmonitor` stopped first |
+| **Standard** | click | UGOS-like **auto** on that channel + `hwmonitor` restart; intermediate ~128 on it86 |
+| **Max** | click | Fixed PWM 100% (255) on the channel |
+| **Manual (%)** | dropdown 0–100% in steps of 5 | Display only — effective after **Apply** |
+| **Apply** | click after choosing % | Writes PWM; **disables only this fan’s curve**; optional **boot profile** for all manual values (below) |
+| **Fan curve…** | opens dialog | Temperature curve **for this fan only** (section **24.2.3**) |
+| **Return UGOS control** | first tile only | Returns **all** fans to UGOS: auto on it86, start `hwmonitor`, remove app boot/curve cron on NAS, disable local curves |
+
+**Status line** under the buttons: e.g. “OK: …” after successful SSH write or error text (e.g. `/proc/it86/fan` missing).
+
+---
+
+#### 24.2.3 Fan curve (temperature-controlled)
+
+**Open:** On the desired tile, click **“Fan curve…”**.
+
+**Dialog — fields and effect:**
+
+| Area | Input | Effect |
+|------|-------|--------|
+| **Temperature source** | **CPU (max sensor)** or **Disk** | CPU: highest thermal/hwmon value; disk: SMART temperature of selected drive |
+| **Drive** | dropdown `/dev/sda` … | Only for **Disk**; **Load drives** fetches list via SSH |
+| **Control points** | columns **°C** and **PWM %** | At least **2** points, temperature **strictly increasing**, PWM 0–100 |
+| **+ row / − row** | click | Extend/shrink curve (window grows with rows) |
+| **Live (NAS)** | auto ~every 3s | Current temperature, RPM of mapped fan, **calculated curve target %** |
+| **Save & activate on NAS** | click | Saves curve under **`dashboard.fan_curves.<fan_id>`**, deploys shared NAS script |
+
+**Created on the NAS (when at least one curve is active):**
+
+- **`/volume1/scripts/ugreen_fan_curve_apply.sh`** — applies all active curves
+- **`/volume1/scripts/ugreen_fan_curve.env`** — config with `FAN_COUNT`, per fan `F0_*` … (`ENABLED`, `SENSOR`, `POINTS`, `PWM_SEC`, `STATE`)
+- **Cron** in **`/etc/cron.d/papa_jobs`** (block “UG-NAS-Admin: fan curve”): every minute + `@reboot` with delay
+- Per fan a state file **`ugreen_fan_curve.state.<id>`** (hysteresis)
+
+**Note:** Multiple fans can have **separate curves**; only the fan for which you set manual PWM with **Apply** is **individually** removed from curve control. Other active curves keep running.
+
+**Boot profile (manual PWM after reboot):** After **Apply** with a fixed percentage, the app may write **`ugreen_fan_boot_apply.sh`** + **`ugreen_fan_boot.env`** (`FAN_COUNT`, `F0_PWM`, `F0_USE2`, …) and an **`@reboot`** entry. Active **fan curves** and boot profile exclude each other (curve deploy removes boot cron and vice versa).
+
+---
+
+#### 24.2.4 Local configuration (`app_settings.json`)
+
+Under **`dashboard`**:
+
+```json
+"fan_devices": [
+  {
+    "id": "sysfan1",
+    "rpm_key": "sysfan1",
+    "label": "sysfan1",
+    "pwm_secondary": false
+  }
+],
+"fan_curves": {
+  "sysfan1": {
+    "enabled": true,
+    "sensor": "cpu",
+    "disk_dev": "",
+    "points": [[40, 25], [55, 45], [70, 75], [80, 100]],
+    "hyst_c": 2
+  }
+}
+```
+
+- **`pwm_secondary: true`** = channel 2 (`set2`/`cpu2`/`fan2`).
+- Legacy keys **`fan_slot0_*`** / **`fan_curves."0"`** migrate on load while no `fan_devices` array exists yet.
+
+**Saving Settings:** Saving the **Settings** tab preserves **`dashboard`** (including `fan_devices`, `fan_curves`, network filter) — not overwritten by empty defaults.
+
+---
+
+#### 24.2.5 Short workflow
+
+1. **Settings:** verify NAS connection.
+2. **Dashboard:** **“Probe & map fans…”** → read scan → PWM + RPM per row → **Save**.
+3. Check tiles (count = discovered fans).
+4. Choose mode (**Silent** / **Standard** / **Max**) or **Manual %** + **Apply** — with **Full access**.
+5. Optional: **Fan curve…** per fan.
+6. To hand back to UGOS: **Return UGOS control** (first tile).
+
+**Typical issue:** one tile only / “unavailable” — repeat scan; check RPM line in mapping dialog; **one** tile with a single physical fan is normal.
 
 ---
 
@@ -628,7 +739,7 @@ Fields: **IPv4**, **prefix** (e.g. `24`), **gateway**, **mode**:
 **Apply (sudo)** needs **Full access** in the header (same danger gate as other risky actions) and shows **confirmation dialogs**. **Wrong IP or gateway can drop your SSH session** — use only in maintenance windows; keep serial/KVM/console in mind.
 
 **Settings and `app_settings.json`**  
-When you **Save** in **Settings**, **`dashboard`** and **`docker_update`** are **preserved** in the file so Dashboard preferences are not wiped — including **`net_detail_iface`**, **`net_monitor_filter`**, and **fan mapping** (**`fan_slot0_use_pwm_secondary`**, **`fan_slot1_use_pwm_secondary`**, **`fan_slot0_rpm_key`**, **`fan_slot1_rpm_key`**).
+When you **Save** in **Settings**, **`dashboard`** and **`docker_update`** are **preserved** in the file so Dashboard preferences are not wiped — including **`net_detail_iface`**, **`net_monitor_filter`**, **`fan_devices`**, and **`fan_curves`**.
 
 ### 42.4 Docker tile
 
@@ -640,26 +751,66 @@ If there is a discrepancy, switch to the Docker tab and check the list/logs.
 Shows scheduled jobs and ongoing activities.
 Helps with correlation “load increase <-> cron job time”.
 
-### 42.6 Fan control area (complete)
+### 42.6 Fan area (complete — dynamic discovery)
 
-Above both tiles: **“Probe & map fans…”** → dialog with **scan log** and **Save** options for **PWM channel** and **RPM line** per tile (details **24.2**). Without a second tach source the **CPU** tile shows **no second RPM** (single-fan NAS).
+**Layout:** Above the tiles, button **“Probe & map fans…”** and a hint line. Below, a **tile grid** (two columns): **one tile per** `fan_devices` entry, not a fixed pair.
 
-Buttons/modes **per tile:**
+#### Discovery workflow (dialog)
 
-- Silent
-- Standard
-- Max
-- manual %
-- Apply
-- Return UGOS control (link on the **left** tile; same shared handback to UGOS as before)
+1. Open **Dashboard** (tab must be active for live RPM; scan works independently).
+2. Click **“Probe & map fans…”**.
+3. Wait until the log is filled and **“Discovered fans — mapping”** shows rows.
+4. Per row:
+   - Choose **PWM channel** (channel 1 or 2 — see **24.2.1**).
+   - Choose **RPM line** (name from scan).
+5. **Save** — tiles appear/update immediately.
 
-Recommended process:
+**One fan on the NAS:** After scan and Save you get **one** tile. That is correct — do not expect two.
 
-1. On a **new model** / odd layout: run **“Probe & map fans…”** once and save sensible channel/display choices.
-2. Select mode.
-3. Apply.
-4. Observe for 1–2 minutes.
-5. **Return UGOS control** if there are conflicts.
+**Four RPM lines, two PWM channels:** Four table rows, four tiles; fans sharing a PWM channel are driven together when you write.
+
+#### Manual control workflow (per tile)
+
+| Step | Action | Result |
+|------|--------|--------|
+| 1 | Header → **Full access** | Write buttons enabled |
+| 2 | Choose mode or **Manual %** | Preselection only |
+| 3 | For manual: pick % in dropdown, then **Apply** | PWM on NAS; **this** fan’s curve off; optional boot env for all tiles |
+| 4 | Read status line | “OK: …” or error |
+| 5 | Observe noise/RPM 1–2 min | — |
+| 6 | If needed **Return UGOS control** (first tile) | Full handback to UGOS |
+
+**Modes in detail:**
+
+- **Silent:** ~50% PWM, `hwmonitor` stopped briefly — fixed speed.
+- **Standard:** `hwmonitor` active again, it86 auto + reference — closer to UGOS default on **this** channel.
+- **Max:** 100% PWM.
+
+#### Fan curve workflow (per tile)
+
+1. **Fan curve…** on the target tile.
+2. Choose **temperature source** (CPU or disk); for disk use **Load drives** and pick `/dev/sdX`.
+3. Enter control points (e.g. 40°C → 25%, 80°C → 100%).
+4. Check **Live (NAS)** (temperature, RPM, target %).
+5. **Save & activate on NAS** — cron + script on NAS; other fans’ curves stay active.
+
+NAS files and cron: see **24.2.3**.
+
+#### Return UGOS control
+
+Visible on the **first** tile only, but **global**:
+
+- `hwmonitor` unmask/start
+- it86 to `auto` (channels 1 and 2)
+- Removes app boot/curve scripts and cron on the NAS
+- Sets all local **`fan_curves.*.enabled`** to `false`
+
+Recommended order on a new NAS model:
+
+1. Save **mapping** once (**24.2.1**).
+2. Test **Standard** briefly.
+3. Then use **curves** or fixed PWM.
+4. After tests **Return UGOS control**.
 
 ### 42.7 UGOS API — storage tile
 
@@ -679,22 +830,56 @@ Full pool/disk report: Storage tab → **Pools (UGOS API)** (**§16**, **50.4**)
 
 ---
 
-### From the area: 62. Practical instructions: Fan control including return to UGOS
+### From the area: 62. Practical guide: fans including curve and return to UGOS
 
-1. Open the Dashboard tab.
-2. Optional: **“Probe & map fans…”** — read the scan, set **PWM channel** and **RPM display** per tile, **Save**.
-3. Read the fan area (system left, CPU right — with one physical fan the right tach may stay empty).
-4. Select the desired mode.
-5. Click **Apply**.
-6. Observe for 1–2 minutes.
-7. To end manual control: **Return UGOS control**.
-8. Optionally switch the UGOS UI profile (standard/silent) to validate handover.
+**Part A — Initial setup (once per NAS or after hardware change)**
 
-Error case “UGOS does not respond”:
+1. Tab **Settings:** enter IP, user, password; test connection.
+2. Open tab **Dashboard**.
+3. Click **“Probe & map fans…”**.
+4. Read the log: is **`/proc/it86/fan`** present? Are RPM names listed?
+5. In the mapping table for each fan:
+   - System fan often **channel 1**, CPU fan often **channel 2** (if unsure, test both with **Silent**).
+   - RPM line = the name that shows speed in the log.
+6. **Save** — tile count = row count.
+7. Optional: note current fan speed in UGOS UI for comparison.
 
-- Execute the return button again.
-- Check health/service status.
-- Plan for a short waiting time, as the control does not always start visually immediately.
+**Part B — Fixed speed (manual)**
+
+1. Header: enable **Full access**.
+2. On the desired tile choose **Silent**, **Standard**, **Max**, or **Manual %** + **Apply**.
+3. Check status line for “OK”.
+4. Observe acoustics/RPM for 1–2 minutes.
+5. When done: **Return UGOS control** or pick another mode.
+
+**Part C — Temperature curve**
+
+1. **Full access** on.
+2. **Fan curve…** on the target fan.
+3. Choose **CPU** or **Disk**; for disk **Load drives** and pick `/dev/sdX`.
+4. At least two control points (rising °C).
+5. Watch **Live (NAS)** — does target % match expectation?
+6. **Save & activate on NAS**.
+7. Re-check after a few minutes (cron runs every minute).
+8. Avoid manual mode on the **same** fan — **Apply** disables its curve.
+
+**Part D — Return to UGOS**
+
+1. **Return UGOS control** (first tile).
+2. Wait (up to ~1 minute).
+3. In UGOS optionally switch fan profile **Standard/Silent** to verify.
+
+**Error “unavailable” / no tiles**
+
+- Repeat scan; check SSH/sudo.
+- If scan shows 0 sensors: model without it86/hwmon fan — app control not possible.
+- If scan OK but RPM empty: wrong **RPM line** in mapping — reopen dialog and fix.
+
+**Error “UGOS does not respond” after return**
+
+- Run **Return UGOS control** again.
+- Tab **System & Health**: check `hwmonitor` status.
+- Wait briefly — control does not always change visibly at once.
 
 ---
 

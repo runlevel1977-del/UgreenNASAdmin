@@ -20,6 +20,14 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 
 **Links (immer aktuell):** [GitHub **Latest release**](https://github.com/runlevel1977-del/UgreenNASAdmin/releases/latest) · SourceForge „latest“ (oben) · [All releases](https://github.com/runlevel1977-del/UgreenNASAdmin/releases)
 
+### What's new in v23.8.33
+
+- **Dashboard — dynamic fans:** **Probe & map fans…** scans all RPM sensors on the NAS (1–8, model-dependent) and builds **one control tile per fan** — not a fixed system/CPU pair. Per fan: Silent / Standard / Max / manual %, optional **fan curve…** (temperature → PWM, CPU or disk source, **live preview** on the NAS).
+- **Mapping:** saved in **`app_settings.json` → `dashboard.fan_devices`** (PWM channel 1 vs 2, RPM line, fan ID); legacy **`fan_slot0/1_*`** migrates automatically.
+- **NAS automation:** shared curve script **`ugreen_fan_curve_apply.sh`** + cron; per-fan state; boot profile **`ugreen_fan_boot.env`** when you apply fixed manual %.
+- **Manuals:** handbook chapter **§6** (Dashboard) — sections **24.2 / 42.6 / 62** step-by-step (DE/EN PDFs); **📖 Manual** on the Dashboard tab jumps there.
+- **Deutsch (kurz):** Lüfter-Erkennung für alle Sensoren, je Lüfter eigene Kachel + **Lüfterkurve**, Handbuch Kapitel 6 ausführlich — Details in [`CHANGELOG.md`](CHANGELOG.md).
+
 ### What's new in v23.8.32
 
 - **UGOS API (extended):** Dashboard tile **Storage (UGOS API)** — pools, disks, fan RPM, link speeds, volume usage (same source as UGOS web UI). Storage tab **Pools (UGOS API)**; Health refresh adds a **UGOS API (live)** block; warning when **`domain_tool.service`** is failed.

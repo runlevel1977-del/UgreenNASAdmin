@@ -31,6 +31,30 @@ import nas_ssh
 import nas_utils
 from ugreen_app._paramiko import _paramiko
 from ugreen_app.dash_sparkline import DashSparkline
+from ugreen_app.fan_curve import (
+    CURVE_CRON_BEGIN,
+    CURVE_CRON_END,
+    REMOTE_CURVE_ENV,
+    REMOTE_CURVE_SH,
+    append_curve_cron_block,
+    any_curve_enabled,
+    build_apply_script_body,
+    build_multi_env_body,
+    normalize_points,
+    parse_all_curve_settings,
+    parse_curve_settings,
+    strip_cron_block,
+    interpolate_pwm,
+)
+from ugreen_app.fan_devices import (
+    MAX_FAN_DEVICES,
+    device_label,
+    device_pwm_secondary,
+    match_rpm_pair,
+    merge_scan_names,
+    parse_fan_devices,
+    state_file_for_id,
+)
 from ugreen_app.rounded_ui import RoundedCard
 from ugreen_app.ugos_api_dashboard import (
     format_dashboard_ugos_extra,
@@ -1443,84 +1467,76 @@ class MixinScriptsDockerMonitor:
             "run": "…",
         }
 
-    def _dash_fan_settings_bindings(self) -> dict[str, str | bool]:
-        cfg = self._load_app_settings()
-        dash = dict(cfg.get("dashboard") or {})
+    def _dash_fan_load_devices(self) -> list[dict]:
+        dash = dict(self._load_app_settings().get("dashboard") or {})
+        return parse_fan_devices(dash)
 
-        def _bln(k: str, default: bool) -> bool:
-            v = dash.get(k)
-            if isinstance(v, bool):
-                return v
-            if isinstance(v, str):
-                low = v.strip().lower()
-                if low in ("1", "true", "yes", "on"):
-                    return True
-                if low in ("0", "false", "no", "off", ""):
-                    return False
-            if isinstance(v, (int, float)):
-                return bool(int(v))
-            return default
-
-        return {
-            "slot0_pwm_secondary": _bln("fan_slot0_use_pwm_secondary", False),
-            "slot1_pwm_secondary": _bln("fan_slot1_use_pwm_secondary", True),
-            "slot0_rpm_key": str(dash.get("fan_slot0_rpm_key") or "").strip().lower(),
-            "slot1_rpm_key": str(dash.get("fan_slot1_rpm_key") or "").strip().lower(),
-        }
-
-    def _dash_fan_save_bindings(
-        self,
-        *,
-        slot0_pwm_secondary: bool,
-        slot1_pwm_secondary: bool,
-        slot0_rpm_key: str,
-        slot1_rpm_key: str,
-    ) -> None:
+    def _dash_fan_save_devices(self, devices: list[dict]) -> None:
         try:
             cfg = self._load_app_settings()
             sec = dict(cfg.get("dashboard") or {})
-            sec["fan_slot0_use_pwm_secondary"] = bool(slot0_pwm_secondary)
-            sec["fan_slot1_use_pwm_secondary"] = bool(slot1_pwm_secondary)
-            sec["fan_slot0_rpm_key"] = str(slot0_rpm_key or "").strip().lower()
-            sec["fan_slot1_rpm_key"] = str(slot1_rpm_key or "").strip().lower()
+            sec["fan_devices"] = [
+                {
+                    "id": str(d.get("id") or ""),
+                    "rpm_key": str(d.get("rpm_key") or "").strip().lower(),
+                    "label": str(d.get("label") or d.get("rpm_key") or ""),
+                    "pwm_secondary": bool(d.get("pwm_secondary")),
+                }
+                for d in devices[:MAX_FAN_DEVICES]
+                if str(d.get("id") or "").strip()
+            ]
             cfg["dashboard"] = sec
             with open(self._app_settings_path(), "w", encoding="utf-8") as f:
                 json.dump(cfg, f, indent=2, ensure_ascii=False)
         except Exception:
             pass
 
-    def _dash_fan_use_secondary_for_slot(self, fan_idx: int) -> bool:
-        b = self._dash_fan_settings_bindings()
-        return bool(b["slot1_pwm_secondary"]) if fan_idx else bool(b["slot0_pwm_secondary"])
+    def _dash_fan_device_by_id(self, fan_id: str) -> dict | None:
+        fid = str(fan_id or "").strip()
+        if not fid:
+            return None
+        for d in self._dash_fan_load_devices():
+            if str(d.get("id") or "") == fid:
+                return d
+        return None
 
-    def _dash_fan_display_pair_for_slot(
+    def _dash_fan_use_secondary_for_device(self, fan_id: str) -> bool:
+        dev = self._dash_fan_device_by_id(fan_id)
+        return device_pwm_secondary(dev) if dev else False
+
+    def _dash_fan_tile_status(self, fan_id: str):
+        tiles = getattr(self, "_dash_fan_tiles", None) or {}
+        ent = tiles.get(fan_id) or {}
+        return ent.get("status")
+
+    def _dash_fan_tile_pwm_combo(self, fan_id: str):
+        tiles = getattr(self, "_dash_fan_tiles", None) or {}
+        ent = tiles.get(fan_id) or {}
+        return ent.get("pwm_combo")
+
+    def _dash_fan_display_pair_for_device(
         self,
-        slot_idx: int,
+        dev: dict,
         pairs: list[tuple[str, int]],
-        sys_p: tuple[str, int] | None,
-        cpu_p: tuple[str, int] | None,
     ) -> tuple[str, int] | None:
-        bd = self._dash_fan_settings_bindings()
-        raw_key = (bd["slot0_rpm_key"] if slot_idx == 0 else bd["slot1_rpm_key"]) or ""
-        if raw_key:
+        pick = match_rpm_pair(dev, pairs)
+        if pick:
+            return pick
+        rk = str(dev.get("rpm_key") or "").strip().lower()
+        if rk:
             for nm, rpm in pairs:
                 n = (nm or "").strip().lower()
-                rk = raw_key.strip().lower()
                 if rk == n or rk in n or n.startswith(rk):
                     return (nm, rpm)
-            for nm, rpm in pairs:
-                if raw_key in (nm or "").lower():
-                    return (nm, rpm)
-        if slot_idx == 0:
-            if sys_p:
-                return sys_p
-            return pairs[0] if pairs else None
-        if cpu_p:
-            return cpu_p
-        if len(pairs) >= 2:
-            return pairs[1]
-        # Nur ein physischer Lüfter: zweite Kachel nicht mit derselben Zeile füllen.
         return None
+
+    def _dash_fan_curve_state_paths(self) -> list[str]:
+        paths: list[str] = []
+        for dev in self._dash_fan_load_devices():
+            fid = str(dev.get("id") or "").strip()
+            if fid:
+                paths.append(state_file_for_id(fid))
+        return paths
 
     def _dash_fan_scan_remote_cmd(self) -> str:
         """Sammelt /proc/it86/fan, HWMON-Zeilen und Meta — ein Shell-Block."""
@@ -1586,18 +1602,15 @@ class MixinScriptsDockerMonitor:
         if ei is None or not str(ei.get() or "").strip():
             messagebox.showinfo(self.t("dash.fan_setup_title"), self.t("dash.fan_setup_need_conn"))
             return
-        bd = self._dash_fan_settings_bindings()
-        ft = self._dash_fan_tile_labels()
+        devices = self._dash_fan_load_devices()
         pwm_labels = (
             self.t("dash.fan_pwm_channel_1"),
             self.t("dash.fan_pwm_channel_2"),
         )
-        rpm_auto_left = self.t("dash.fan_rpm_auto_slot", n=1, tile=ft["fan_slot1"])
-        rpm_auto_right = self.t("dash.fan_rpm_auto_slot", n=2, tile=ft["fan_slot_cpu"])
 
         win = tk.Toplevel(self.root)
         win.title(self.t("dash.fan_setup_title"))
-        win.geometry("700x560")
+        win.geometry("720x580")
         win.minsize(560, 440)
         win.configure(bg=getattr(self, "color_surface_alt", "#f8fafc"))
         win.transient(self.root)
@@ -1613,63 +1626,35 @@ class MixinScriptsDockerMonitor:
             font=("Segoe UI", 9),
             anchor="w",
             justify=tk.LEFT,
-            wraplength=660,
+            wraplength=680,
         ).pack(fill=tk.X, pady=(0, 8))
 
-        txt = tk.Text(frm, height=14, wrap=tk.WORD, font=("Consolas", 9), bd=1, relief="solid")
+        txt = tk.Text(frm, height=12, wrap=tk.WORD, font=("Consolas", 9), bd=1, relief="solid")
         txt.pack(fill=tk.BOTH, expand=True)
         txt.insert(tk.END, self.t("dash.fan_setup_scanning"))
         txt.configure(state=tk.DISABLED)
 
-        row_pwm = tk.Frame(frm, bg=frm.cget("bg"))
-        row_pwm.pack(fill=tk.X, pady=(10, 4))
-        tk.Label(row_pwm, text=self.t("dash.fan_pwm_for_slot", n=1), bg=frm.cget("bg"), font=("Segoe UI", 9)).grid(
-            row=0, column=0, sticky="w", padx=(0, 8)
+        map_hdr = tk.Label(
+            frm,
+            text=self.t("dash.fan_setup_map_hdr"),
+            bg=frm.cget("bg"),
+            font=("Segoe UI", 9, "bold"),
+            anchor="w",
         )
-        cb_pwm0 = ttk.Combobox(row_pwm, state="readonly", width=36, values=pwm_labels, font=self.font_base)
-        cb_pwm0.grid(row=0, column=1, sticky="w")
-        cb_pwm0.set(pwm_labels[1] if bd["slot0_pwm_secondary"] else pwm_labels[0])
+        map_hdr.pack(fill=tk.X, pady=(10, 4))
 
-        tk.Label(row_pwm, text=self.t("dash.fan_pwm_for_slot", n=2), bg=frm.cget("bg"), font=("Segoe UI", 9)).grid(
-            row=1, column=0, sticky="w", pady=(6, 0), padx=(0, 8)
-        )
-        cb_pwm1 = ttk.Combobox(row_pwm, state="readonly", width=36, values=pwm_labels, font=self.font_base)
-        cb_pwm1.grid(row=1, column=1, sticky="w", pady=(6, 0))
-        cb_pwm1.set(pwm_labels[1] if bd["slot1_pwm_secondary"] else pwm_labels[0])
+        map_wrap = tk.Frame(frm, bg=frm.cget("bg"))
+        map_wrap.pack(fill=tk.X, pady=(0, 4))
+        map_canvas = tk.Canvas(map_wrap, bg=frm.cget("bg"), highlightthickness=0, height=120)
+        map_scroll = ttk.Scrollbar(map_wrap, orient="vertical", command=map_canvas.yview)
+        map_inner = tk.Frame(map_canvas, bg=frm.cget("bg"))
+        map_inner.bind("<Configure>", lambda e: map_canvas.configure(scrollregion=map_canvas.bbox("all")))
+        map_canvas.create_window((0, 0), window=map_inner, anchor="nw")
+        map_canvas.configure(yscrollcommand=map_scroll.set)
+        map_canvas.pack(fill=tk.BOTH, expand=True, side=tk.LEFT)
+        map_scroll.pack(fill=tk.Y, side=tk.RIGHT)
 
-        row_rpm = tk.Frame(frm, bg=frm.cget("bg"))
-        row_rpm.pack(fill=tk.X, pady=(8, 4))
-        tk.Label(row_rpm, text=self.t("dash.fan_rpm_show_slot", n=1), bg=frm.cget("bg"), font=("Segoe UI", 9)).grid(
-            row=0, column=0, sticky="w", padx=(0, 8)
-        )
-        cb_rpm0 = ttk.Combobox(row_rpm, state="readonly", width=36, values=[rpm_auto_left], font=self.font_base)
-        cb_rpm0.grid(row=0, column=1, sticky="w")
-
-        tk.Label(row_rpm, text=self.t("dash.fan_rpm_show_slot", n=2), bg=frm.cget("bg"), font=("Segoe UI", 9)).grid(
-            row=1, column=0, sticky="w", pady=(6, 0), padx=(0, 8)
-        )
-        cb_rpm1 = ttk.Combobox(row_rpm, state="readonly", width=36, values=[rpm_auto_right], font=self.font_base)
-        cb_rpm1.grid(row=1, column=1, sticky="w", pady=(6, 0))
-
-        def _pick_saved_name(names: list[str], key: str, auto_lbl: str) -> str:
-            kl = (key or "").strip().lower()
-            if not kl:
-                return auto_lbl
-            for n in names:
-                nl = str(n).lower()
-                if nl == kl or kl in nl or nl.startswith(kl):
-                    return n
-            return auto_lbl
-
-        def _fill_rpm_combos(names: list[str]) -> None:
-            v0 = [rpm_auto_left] + names
-            v1 = [rpm_auto_right] + names
-            cb_rpm0.configure(values=v0)
-            cb_rpm1.configure(values=v1)
-            k0 = (bd["slot0_rpm_key"] or "").strip().lower()
-            k1 = (bd["slot1_rpm_key"] or "").strip().lower()
-            cb_rpm0.set(_pick_saved_name(names, k0, rpm_auto_left))
-            cb_rpm1.set(_pick_saved_name(names, k1, rpm_auto_right))
+        row_widgets: list[dict] = []
 
         def _pwm_sel_is_secondary(sel: str) -> bool:
             s = str(sel or "").strip()
@@ -1678,22 +1663,57 @@ class MixinScriptsDockerMonitor:
             except ValueError:
                 return s.endswith("2)") or pwm_labels[1] in s
 
-        def _rpm_key_from_combo(sel: str, auto_lbl: str) -> str:
-            s = str(sel or "").strip()
-            aa = str(auto_lbl or "").strip()
-            if not s or s == aa:
-                return ""
-            return s.lower()
+        def _build_map_rows(devs: list[dict], names: list[str]) -> None:
+            for w in map_inner.winfo_children():
+                w.destroy()
+            row_widgets.clear()
+            merged = merge_scan_names(names, devs) if names else list(devs)
+            if not merged:
+                tk.Label(
+                    map_inner,
+                    text=self.t("dash.fan_setup_no_fans"),
+                    bg=frm.cget("bg"),
+                    fg=getattr(self, "color_text_muted", "#64748b"),
+                    font=("Segoe UI", 9),
+                    anchor="w",
+                ).grid(row=0, column=0, columnspan=3, sticky="w", pady=4)
+                return
+            for i, dev in enumerate(merged):
+                lbl = device_label(dev)
+                tk.Label(map_inner, text=f"{i + 1}. {lbl}", bg=frm.cget("bg"), font=("Segoe UI", 9)).grid(
+                    row=i, column=0, sticky="w", padx=(0, 8), pady=3
+                )
+                cb_pwm = ttk.Combobox(map_inner, state="readonly", width=34, values=pwm_labels, font=self.font_base)
+                cb_pwm.grid(row=i, column=1, sticky="w", pady=3)
+                cb_pwm.set(pwm_labels[1] if device_pwm_secondary(dev) else pwm_labels[0])
+                rpm_vals = [lbl] + [n for n in names if n.lower() != str(dev.get("rpm_key") or "").lower()]
+                if lbl not in rpm_vals:
+                    rpm_vals = [lbl] + names
+                cb_rpm = ttk.Combobox(map_inner, state="readonly", width=22, values=rpm_vals, font=self.font_base)
+                cb_rpm.grid(row=i, column=2, sticky="w", padx=(8, 0), pady=3)
+                rk = str(dev.get("rpm_key") or "").strip().lower()
+                pick = lbl
+                for n in names:
+                    if n.lower() == rk or (rk and rk in n.lower()):
+                        pick = n
+                        break
+                cb_rpm.set(pick)
+                row_widgets.append({"dev": dev, "cb_pwm": cb_pwm, "cb_rpm": cb_rpm})
+
+        _build_map_rows(devices, [])
 
         def save_clicked() -> None:
-            sk0 = _rpm_key_from_combo(cb_rpm0.get(), rpm_auto_left)
-            sk1 = _rpm_key_from_combo(cb_rpm1.get(), rpm_auto_right)
-            self._dash_fan_save_bindings(
-                slot0_pwm_secondary=_pwm_sel_is_secondary(cb_pwm0.get()),
-                slot1_pwm_secondary=_pwm_sel_is_secondary(cb_pwm1.get()),
-                slot0_rpm_key=sk0,
-                slot1_rpm_key=sk1,
-            )
+            out_devs: list[dict] = []
+            for row in row_widgets:
+                dev = dict(row["dev"])
+                dev["pwm_secondary"] = _pwm_sel_is_secondary(row["cb_pwm"].get())
+                rpm_sel = str(row["cb_rpm"].get() or "").strip()
+                dev["rpm_key"] = rpm_sel.lower()
+                dev["label"] = rpm_sel or device_label(dev)
+                out_devs.append(dev)
+            if out_devs:
+                self._dash_fan_save_devices(out_devs)
+                self._dash_fan_rebuild_tiles()
             messagebox.showinfo(self.t("dash.fan_setup_title"), self.t("dash.fan_setup_saved"))
             try:
                 win.destroy()
@@ -1720,8 +1740,10 @@ class MixinScriptsDockerMonitor:
                 txt.configure(state=tk.NORMAL)
                 txt.delete("1.0", tk.END)
                 txt.insert(tk.END, report)
+                if names:
+                    txt.insert(tk.END, "\n\n" + self.t("dash.fan_setup_found", n=len(names)))
                 txt.configure(state=tk.DISABLED)
-                _fill_rpm_combos(names)
+                _build_map_rows(self._dash_fan_load_devices(), names)
 
             try:
                 self.root.after(0, ui)
@@ -1740,13 +1762,13 @@ class MixinScriptsDockerMonitor:
         inner: str,
         *,
         detail: str,
-        fan_idx: int = 0,
+        fan_id: str = "",
         after_ok=None,
     ) -> None:
         if not self._danger_gate():
             return
         lb = self._dash_fan_tile_labels()
-        st_name = "dash_fan_tile_status_1" if fan_idx == 0 else "dash_fan_tile_status_2"
+        st = self._dash_fan_tile_status(fan_id) if fan_id else None
 
         def work():
             res = self.run_ssh_cmd(inner, use_sudo=True, update_status=False)
@@ -1754,7 +1776,6 @@ class MixinScriptsDockerMonitor:
             hook = after_ok
 
             def done():
-                st = getattr(self, st_name, None)
                 if st is None:
                     if hook and not self._dash_fan_ssh_err(res):
                         try:
@@ -1781,14 +1802,12 @@ class MixinScriptsDockerMonitor:
             self.root.after(0, done)
 
         threading.Thread(target=work, daemon=True).start()
-        st0 = getattr(self, st_name, None)
-        if st0 is not None:
-            st0.config(text=f"{lb['apply']} {lb['run']}", fg=getattr(self, "color_text_muted", "#64748b"))
+        if st is not None:
+            st.config(text=f"{lb['apply']} {lb['run']}", fg=getattr(self, "color_text_muted", "#64748b"))
 
-    def _dash_fan_precheck(self, fan_idx: int = 0) -> bool:
+    def _dash_fan_precheck(self, fan_id: str = "") -> bool:
         """Preflight vor Fan-Write: hwmonitor vorhanden/aktivierbar + /proc/it86/fan erreichbar."""
-        st_name = "dash_fan_tile_status_1" if fan_idx == 0 else "dash_fan_tile_status_2"
-        st = getattr(self, st_name, None)
+        st = self._dash_fan_tile_status(fan_id) if fan_id else None
         chk = (
             "HWM=$(systemctl is-active hwmonitor 2>/dev/null || service hwmonitor status 2>/dev/null || echo unknown); "
             "if [ ! -e /proc/it86/fan ]; then echo '__UG_NO_IT86__'; exit 2; fi; "
@@ -1852,8 +1871,7 @@ class MixinScriptsDockerMonitor:
         envf = self.DASH_FAN_REMOTE_BOOT_ENV
         return (
             "#!/bin/sh\n"
-            "# UG-NAS-Admin: Fest-PWM (wie ug_aging_test.sh, ohne mask damit UGOS-App uebernehmen kann)\n"
-            "# SLOT*_USE2=1 entspricht Kanal 2 (set2/cpu2/fan2), 0 entspricht Kanal 1 (set/cpu).\n"
+            "# UG-NAS-Admin: Fest-PWM für FAN_COUNT Geräte\n"
             f"ENVF={shlex.quote(envf)}\n"
             "sleep 65\n"
             "[ ! -r \"$ENVF\" ] && exit 0\n"
@@ -1861,26 +1879,21 @@ class MixinScriptsDockerMonitor:
             "systemctl unmask hwmonitor 2>/dev/null || true\n"
             "systemctl stop hwmonitor 2>/dev/null || service hwmonitor stop 2>/dev/null || true\n"
             "sleep 2\n"
-            "if [ \"${F1_PWM:-}\" != \"\" ]; then\n"
-            "  if [ \"${SLOT0_USE2:-0}\" = \"1\" ]; then\n"
-            "    echo \"set2 $F1_PWM\" > /proc/it86/fan 2>/dev/null\n"
-            "    echo \"cpu2 $F1_PWM\" > /proc/it86/fan 2>/dev/null\n"
-            "    echo \"fan2 $F1_PWM\" > /proc/it86/fan 2>/dev/null\n"
+            "i=0\n"
+            'while [ "$i" -lt "$FAN_COUNT" ]; do\n'
+            '  eval PWM=\\$F${i}_PWM\n'
+            '  eval USE2=\\$F${i}_USE2\n'
+            '  [ -z "$PWM" ] && i=$((i+1)) && continue\n'
+            '  if [ "$USE2" = "1" ]; then\n'
+            '    echo "set2 $PWM" > /proc/it86/fan 2>/dev/null\n'
+            '    echo "cpu2 $PWM" > /proc/it86/fan 2>/dev/null\n'
+            '    echo "fan2 $PWM" > /proc/it86/fan 2>/dev/null\n'
             "  else\n"
-            "    echo \"set $F1_PWM\" > /proc/it86/fan 2>/dev/null\n"
-            "    echo \"cpu $F1_PWM\" > /proc/it86/fan 2>/dev/null\n"
+            '    echo "set $PWM" > /proc/it86/fan 2>/dev/null\n'
+            '    echo "cpu $PWM" > /proc/it86/fan 2>/dev/null\n'
             "  fi\n"
-            "fi\n"
-            "if [ \"${F2_PWM:-}\" != \"\" ]; then\n"
-            "  if [ \"${SLOT1_USE2:-0}\" = \"1\" ]; then\n"
-            "    echo \"set2 $F2_PWM\" > /proc/it86/fan 2>/dev/null\n"
-            "    echo \"cpu2 $F2_PWM\" > /proc/it86/fan 2>/dev/null\n"
-            "    echo \"fan2 $F2_PWM\" > /proc/it86/fan 2>/dev/null\n"
-            "  else\n"
-            "    echo \"set $F2_PWM\" > /proc/it86/fan 2>/dev/null\n"
-            "    echo \"cpu $F2_PWM\" > /proc/it86/fan 2>/dev/null\n"
-            "  fi\n"
-            "fi\n"
+            "  i=$((i+1))\n"
+            "done\n"
             "exit 0\n"
         )
 
@@ -1888,9 +1901,8 @@ class MixinScriptsDockerMonitor:
         """Schreibt env + Skript auf dem NAS und verankert @reboot in papa_jobs (wie Script-Cron-Flow)."""
         if not getattr(self, "write_root_file", None):
             return False
-        cb1 = getattr(self, "dash_fan_pwm_combo_1", None)
-        cb2 = getattr(self, "dash_fan_pwm_combo_2", None)
-        if cb1 is None:
+        devices = self._dash_fan_load_devices()
+        if not devices:
             return False
 
         def _pct_from_combo(cb) -> int:
@@ -1899,18 +1911,18 @@ class MixinScriptsDockerMonitor:
             m = re.search(r"(\d+)", str(cb.get() or ""))
             return max(0, min(100, int(m.group(1)))) if m else 50
 
-        p1, p2 = _pct_from_combo(cb1), _pct_from_combo(cb2)
-        pwm1, pwm2 = self._dash_fan_pct_to_pwm(p1), self._dash_fan_pct_to_pwm(p2)
-        u0 = 1 if self._dash_fan_use_secondary_for_slot(0) else 0
-        u1 = 1 if self._dash_fan_use_secondary_for_slot(1) else 0
-        env_body = (
-            "# UG-NAS-Admin\n"
-            f"F1_PWM={pwm1}\n"
-            f"F2_PWM={pwm2}\n"
-            f"SLOT0_USE2={u0}\n"
-            f"SLOT1_USE2={u1}\n"
-        )
+        lines = ["# UG-NAS-Admin boot PWM", f"FAN_COUNT={min(len(devices), MAX_FAN_DEVICES)}"]
+        for i, dev in enumerate(devices[:MAX_FAN_DEVICES]):
+            fid = str(dev.get("id") or f"fan{i}")
+            cb = self._dash_fan_tile_pwm_combo(fid)
+            pct = _pct_from_combo(cb)
+            pwm = self._dash_fan_pct_to_pwm(pct)
+            use2 = 1 if device_pwm_secondary(dev) else 0
+            lines.append(f"F{i}_PWM={pwm}")
+            lines.append(f"F{i}_USE2={use2}")
+        env_body = "\n".join(lines) + "\n"
         self.run_ssh_cmd("mkdir -p /volume1/scripts", True, update_status=False)
+        self._dash_fan_remove_curve_from_nas(update_cron=False)
         if not self.write_root_file(self.DASH_FAN_REMOTE_BOOT_ENV, env_body.rstrip()):
             return False
         if not self.write_root_file(self.DASH_FAN_REMOTE_BOOT_SH, self._dash_fan_boot_script_body().rstrip()):
@@ -1930,6 +1942,7 @@ class MixinScriptsDockerMonitor:
                 re.DOTALL,
             )
             san = block_pat.sub("", san).rstrip()
+            san = self._dash_fan_strip_cron_block(san, CURVE_CRON_BEGIN, CURVE_CRON_END)
             boot_line = f"@reboot root sleep 65 && /bin/bash {self.DASH_FAN_REMOTE_BOOT_SH}"
             new_cron = san + "\n\n" + self.DASH_FAN_BOOT_BEGIN + "\n" + boot_line + "\n" + self.DASH_FAN_BOOT_END + "\n"
             if self.write_root_file(cron_path, new_cron.strip() + "\n"):
@@ -1940,16 +1953,586 @@ class MixinScriptsDockerMonitor:
                 )
         return True
 
+    def _dash_fan_curves_load_all(self) -> dict[str, dict]:
+        dash = dict(self._load_app_settings().get("dashboard") or {})
+        return parse_all_curve_settings(dash)
+
+    def _dash_fan_curve_load_local(self, fan_id: str) -> dict:
+        return parse_curve_settings(
+            dict(self._load_app_settings().get("dashboard") or {}),
+            fan_id=fan_id,
+        )
+
+    def _dash_fan_curve_save_local(self, data: dict) -> None:
+        try:
+            fan_id = str(data.get("fan_id") or "").strip()
+            if not fan_id:
+                return
+            cfg = self._load_app_settings()
+            sec = dict(cfg.get("dashboard") or {})
+            curves = parse_all_curve_settings(sec)
+            curves[fan_id] = {
+                "enabled": True,
+                "sensor": data.get("sensor", "cpu"),
+                "disk_dev": data.get("disk_dev", ""),
+                "points": [[t, p] for t, p in data.get("points", [])],
+                "hyst_c": int(data.get("hyst_c", 2)),
+            }
+            sec["fan_curves"] = dict(curves)
+            if "fan_curve" in sec:
+                del sec["fan_curve"]
+            cfg["dashboard"] = sec
+            with open(self._app_settings_path(), "w", encoding="utf-8") as f:
+                json.dump(cfg, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+
+    def _dash_fan_curve_disable_slot_local(self, fan_id: str) -> None:
+        try:
+            cfg = self._load_app_settings()
+            sec = dict(cfg.get("dashboard") or {})
+            curves = parse_all_curve_settings(sec)
+            if fan_id in curves:
+                curves[fan_id]["enabled"] = False
+            sec["fan_curves"] = dict(curves)
+            cfg["dashboard"] = sec
+            with open(self._app_settings_path(), "w", encoding="utf-8") as f:
+                json.dump(cfg, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+
+    def _dash_fan_strip_cron_block(self, cron_text: str, begin: str, end: str) -> str:
+        san = cron_text or ""
+        if hasattr(self, "_sanitize_stable_cron_text"):
+            san = self._sanitize_stable_cron_text(san)
+        return strip_cron_block(san, begin, end)
+
+    def _dash_fan_write_cron_file(self, cron_body: str) -> bool:
+        cron_path = getattr(self, "stable_cron_path", "/etc/cron.d/papa_jobs")
+        if not self.write_root_file(cron_path, cron_body.strip() + "\n"):
+            return False
+        self.run_ssh_cmd(
+            "/etc/init.d/cron restart 2>/dev/null || service cron restart 2>/dev/null || true",
+            True,
+            update_status=False,
+        )
+        return True
+
+    def _dash_fan_remove_curve_from_nas(self, *, update_cron: bool = True) -> None:
+        cron_path = getattr(self, "stable_cron_path", "/etc/cron.d/papa_jobs")
+        if update_cron:
+            try:
+                raw = self.run_ssh_cmd(f"cat {shlex.quote(cron_path)}", True, update_status=False)
+            except Exception:
+                raw = ""
+            if raw and "fehler bei ssh" not in (raw or "").lower():
+                new_cron = self._dash_fan_strip_cron_block(raw, CURVE_CRON_BEGIN, CURVE_CRON_END)
+                self._dash_fan_write_cron_file(new_cron)
+        state_rm = " ".join(shlex.quote(p) for p in self._dash_fan_curve_state_paths())
+        self.run_ssh_cmd(
+            f"rm -f {shlex.quote(REMOTE_CURVE_SH)} {shlex.quote(REMOTE_CURVE_ENV)} "
+            f"{state_rm} 2>/dev/null || true",
+            True,
+            update_status=False,
+        )
+
+    def _dash_fan_remove_boot_from_nas(self, *, update_cron: bool = True) -> None:
+        cron_path = getattr(self, "stable_cron_path", "/etc/cron.d/papa_jobs")
+        if update_cron:
+            try:
+                raw = self.run_ssh_cmd(f"cat {shlex.quote(cron_path)}", True, update_status=False)
+            except Exception:
+                raw = ""
+            if raw and "fehler bei ssh" not in (raw or "").lower():
+                new_cron = self._dash_fan_strip_cron_block(raw, self.DASH_FAN_BOOT_BEGIN, self.DASH_FAN_BOOT_END)
+                self._dash_fan_write_cron_file(new_cron)
+        self.run_ssh_cmd(
+            f"rm -f {shlex.quote(self.DASH_FAN_REMOTE_BOOT_SH)} {shlex.quote(self.DASH_FAN_REMOTE_BOOT_ENV)} "
+            "2>/dev/null || true",
+            True,
+            update_status=False,
+        )
+
+    def _dash_fan_list_disks_remote(self) -> list[str]:
+        out = self.run_ssh_cmd(
+            "lsblk -d -n -o NAME,TYPE 2>/dev/null | awk '$2==\"disk\"{print \"/dev/\"$1}'",
+            True,
+            update_status=False,
+        ) or ""
+        cand: list[str] = []
+        for line in out.splitlines():
+            d = (line or "").strip()
+            if not d:
+                continue
+            lo = d.lower()
+            if "sudo" in lo or "password" in lo or "fehler" in lo:
+                continue
+            if re.fullmatch(r"/dev/sd[a-z]+", d) or re.fullmatch(r"/dev/nvme\d+n\d+", d):
+                cand.append(d)
+        return cand
+
+    def _dash_fan_deploy_all_curves(self) -> bool:
+        """Deploy all enabled per-fan curves (one NAS script + cron)."""
+        if not getattr(self, "write_root_file", None):
+            return False
+        devices = self._dash_fan_load_devices()
+        curves = self._dash_fan_curves_load_all()
+        self.run_ssh_cmd("mkdir -p /volume1/scripts", True, update_status=False)
+        cron_path = getattr(self, "stable_cron_path", "/etc/cron.d/papa_jobs")
+        try:
+            raw = self.run_ssh_cmd(f"cat {shlex.quote(cron_path)}", True, update_status=False)
+        except Exception:
+            raw = ""
+        if not raw or "fehler bei ssh" in (raw or "").lower() or len((raw or "").strip()) < 5:
+            return False
+
+        if not any_curve_enabled(curves, devices):
+            self._dash_fan_remove_curve_from_nas(update_cron=True)
+            return True
+
+        self._dash_fan_remove_boot_from_nas(update_cron=False)
+        env_body = build_multi_env_body(devices, curves)
+        if not self.write_root_file(REMOTE_CURVE_ENV, env_body.rstrip()):
+            return False
+        if not self.write_root_file(REMOTE_CURVE_SH, build_apply_script_body().rstrip()):
+            return False
+        self.run_ssh_cmd(f"chmod 755 {shlex.quote(REMOTE_CURVE_SH)}", True, update_status=False)
+        new_cron = append_curve_cron_block(
+            self._dash_fan_strip_cron_block(raw, self.DASH_FAN_BOOT_BEGIN, self.DASH_FAN_BOOT_END)
+        )
+        if not self._dash_fan_write_cron_file(new_cron):
+            return False
+        self.run_ssh_cmd(f"sh {shlex.quote(REMOTE_CURVE_SH)}", True, update_status=False)
+        return True
+
+    def _dash_fan_disable_curve_slot(self, fan_id: str) -> None:
+        """Manual fixed PWM for one fan: disable only that fan's curve, redeploy others."""
+        self._dash_fan_curve_disable_slot_local(fan_id)
+        self._dash_fan_deploy_all_curves()
+
+    def _dash_fan_curve_preview_shell(self, sensor: str, disk_dev: str) -> str:
+        disk_q = shlex.quote(disk_dev or "/dev/sda")
+        cpu_sh = (
+            "max=0\n"
+            'for z in /sys/class/thermal/thermal_zone*/temp; do\n'
+            '  [ ! -r "$z" ] && continue\n'
+            '  v=$(cat "$z" 2>/dev/null) || continue\n'
+            '  case "$v" in ""|*[!0-9]*) continue ;; esac\n'
+            '  [ "$v" -gt 1000 ] && v=$((v/1000))\n'
+            '  [ "$v" -gt "$max" ] && [ "$v" -lt 200 ] && max=$v\n'
+            "done\n"
+            'for f in /sys/class/hwmon/hwmon*/temp*_input; do\n'
+            '  [ ! -r "$f" ] && continue\n'
+            '  case "$f" in *temp*_label*) continue ;; esac\n'
+            '  v=$(cat "$f" 2>/dev/null) || continue\n'
+            '  case "$v" in ""|*[!0-9]*) continue ;; esac\n'
+            '  [ "$v" -gt 3000 ] && v=$((v/1000))\n'
+            '  [ "$v" -gt "$max" ] && [ "$v" -lt 200 ] && max=$v\n'
+            "done\n"
+            'echo "$max"\n'
+        )
+        disk_sh = (
+            f"dev={disk_q}\n"
+            't=$(smartctl -A "$dev" 2>/dev/null | awk -F: \'\n'
+            "  /Temperature|Airflow_Temperature|Temperature_Celsius/ {\n"
+            '    gsub(/[^0-9.]/, "", $2); if ($2+0 > 0) { print int($2+0); exit }\n'
+            "  }')\n"
+            'if [ -z "$t" ]; then\n'
+            '  t=$(smartctl -a "$dev" 2>/dev/null | awk \'/Temperature:/ {print $2; exit}\')\n'
+            "fi\n"
+            'echo "${t:-0}"\n'
+        )
+        sensor_part = disk_sh if sensor == "disk" else cpu_sh
+        fan_sh = (
+            "cat /proc/it86/fan 2>/dev/null || "
+            "for f in /sys/class/hwmon/hwmon*/fan*_input; do "
+            '[ -r "$f" ] && echo "$(basename "$f") $(cat "$f")"; done 2>/dev/null'
+        )
+        return (
+            "echo __UG_TEMP__\n"
+            f"{sensor_part}"
+            "echo __UG_FAN__\n"
+            f"{fan_sh}\n"
+        )
+
+    def _dash_fan_curve_parse_preview_raw(self, raw: str, fan_id: str) -> dict[str, object]:
+        out: dict[str, object] = {"temp_c": None, "fan_rpm": None, "fan_name": ""}
+        if not raw or self._dash_fan_ssh_err(raw):
+            return out
+        parts = raw.split("__UG_FAN__", 1)
+        temp_blob = parts[0].split("__UG_TEMP__", 1)[-1] if "__UG_TEMP__" in parts[0] else ""
+        fan_blob = parts[1] if len(parts) > 1 else ""
+        temp_c = self._dash_parse_cpu_temp_c(temp_blob.strip())
+        if temp_c is not None and temp_c < 1:
+            temp_c = None
+        out["temp_c"] = temp_c
+        fan_pairs = self._dash_parse_fan_rpms(fan_blob)
+        dev = self._dash_fan_device_by_id(fan_id)
+        pick = self._dash_fan_display_pair_for_device(dev, fan_pairs) if dev else None
+        if pick:
+            out["fan_name"] = pick[0]
+            out["fan_rpm"] = pick[1]
+        elif fan_pairs:
+            out["fan_name"] = fan_pairs[0][0]
+            out["fan_rpm"] = fan_pairs[0][1]
+        return out
+
+    def _dash_fan_open_curve_dialog(self, fan_id: str) -> None:
+        fan_id = str(fan_id or "").strip()
+        dev = self._dash_fan_device_by_id(fan_id)
+        if not dev:
+            return
+        if not (self.entry_ip.get() or "").strip():
+            messagebox.showinfo(self.t("dash.fan_curve_title"), self.t("dash.fan_setup_need_conn"))
+            return
+        fan_name = device_label(dev)
+        cur = self._dash_fan_curve_load_local(fan_id)
+        win = tk.Toplevel(self.root)
+        win.title(self.t("dash.fan_curve_title_slot", fan=fan_name))
+        win.minsize(500, 480)
+        win.transient(self.root)
+        win.grab_set()
+        preview_alive = {"on": True}
+        frm = tk.Frame(win, padx=12, pady=10)
+        frm.pack(fill=tk.X)
+
+        def _resize_curve_win() -> None:
+            try:
+                if not win.winfo_exists():
+                    return
+            except tk.TclError:
+                return
+            win.update_idletasks()
+            req_w = max(500, frm.winfo_reqwidth() + 28)
+            req_h = min(frm.winfo_reqheight() + 28, int(win.winfo_screenheight() * 0.92))
+            req_h = max(480, req_h)
+            geo = win.geometry()
+            pos = ""
+            if "+" in geo:
+                pos = geo[geo.index("+") :]
+            win.geometry(f"{req_w}x{req_h}{pos}")
+        tk.Label(
+            frm,
+            text=self.t("dash.fan_curve_explain"),
+            wraplength=440,
+            justify=tk.LEFT,
+            font=("Segoe UI", 9),
+        ).pack(anchor="w", pady=(0, 10))
+
+        src_row = tk.Frame(frm)
+        src_row.pack(fill=tk.X, pady=(0, 6))
+        tk.Label(src_row, text=self.t("dash.fan_curve_sensor"), font=("Segoe UI", 9)).pack(side=tk.LEFT)
+        sensor_var = tk.StringVar(value="disk" if cur.get("sensor") == "disk" else "cpu")
+        tk.Radiobutton(
+            src_row,
+            text=self.t("dash.fan_curve_sensor_cpu"),
+            variable=sensor_var,
+            value="cpu",
+            font=("Segoe UI", 9),
+        ).pack(side=tk.LEFT, padx=(10, 4))
+        tk.Radiobutton(
+            src_row,
+            text=self.t("dash.fan_curve_sensor_disk"),
+            variable=sensor_var,
+            value="disk",
+            font=("Segoe UI", 9),
+        ).pack(side=tk.LEFT)
+
+        disk_row = tk.Frame(frm)
+        disk_row.pack(fill=tk.X, pady=(0, 6))
+        tk.Label(disk_row, text=self.t("dash.fan_curve_disk"), font=("Segoe UI", 9)).pack(side=tk.LEFT)
+        cb_disk = ttk.Combobox(disk_row, state="readonly", width=28, font=self.font_base)
+        cb_disk.pack(side=tk.LEFT, padx=(8, 6))
+        if cur.get("disk_dev"):
+            cb_disk.set(str(cur["disk_dev"]))
+
+        def _on_disk_pick(_evt=None) -> None:
+            if preview_alive["on"]:
+                win.after(100, _poll_live)
+
+        cb_disk.bind("<<ComboboxSelected>>", _on_disk_pick)
+
+        def _load_disks() -> None:
+            cb_disk.set(self.t("dash.fan_curve_loading_disks"))
+            cb_disk.config(state="disabled")
+
+            def work():
+                disks = self._dash_fan_list_disks_remote()
+
+                def ui():
+                    cb_disk.config(state="readonly")
+                    cb_disk["values"] = disks
+                    want = (cur.get("disk_dev") or "").strip()
+                    if want in disks:
+                        cb_disk.set(want)
+                    elif disks:
+                        cb_disk.set(disks[0])
+                    else:
+                        cb_disk.set("")
+
+                self.root.after(0, ui)
+
+            threading.Thread(target=work, daemon=True).start()
+
+        self.create_modern_btn(
+            disk_row,
+            self.t("dash.fan_curve_disk_refresh"),
+            _load_disks,
+            getattr(self, "color_btn_secondary", "#64748b"),
+            "white",
+            width=14,
+        ).pack(side=tk.LEFT)
+        _load_disks()
+
+        preview_bg = getattr(self, "color_surface_alt", "#f1f5f9")
+        if getattr(self, "current_theme", "light") == "dark":
+            preview_bg = getattr(self, "color_surface", "#1e293b")
+        preview_box = tk.Frame(frm, bg=preview_bg, highlightbackground="#94a3b8", highlightthickness=1)
+        preview_box.pack(fill=tk.X, pady=(0, 10))
+        preview_in = tk.Frame(preview_box, bg=preview_bg, padx=10, pady=8)
+        preview_in.pack(fill=tk.X)
+        tk.Label(
+            preview_in,
+            text=self.t("dash.fan_curve_live_title"),
+            bg=preview_bg,
+            font=("Segoe UI", 9, "bold"),
+            anchor="w",
+        ).pack(fill=tk.X)
+        live_temp_lbl = tk.Label(
+            preview_in,
+            text=self.t("dash.fan_curve_live_busy"),
+            bg=preview_bg,
+            font=("Segoe UI", 10),
+            anchor="w",
+        )
+        live_temp_lbl.pack(fill=tk.X, pady=(4, 0))
+        live_rpm_lbl = tk.Label(
+            preview_in,
+            text="",
+            bg=preview_bg,
+            font=("Segoe UI", 10),
+            anchor="w",
+        )
+        live_rpm_lbl.pack(fill=tk.X)
+        live_target_lbl = tk.Label(
+            preview_in,
+            text="",
+            bg=preview_bg,
+            font=("Segoe UI", 9),
+            fg=getattr(self, "color_text_muted", "#64748b"),
+            anchor="w",
+        )
+        live_target_lbl.pack(fill=tk.X, pady=(2, 0))
+
+        hdr = tk.Frame(frm)
+        hdr.pack(fill=tk.X)
+        tk.Label(hdr, text=self.t("dash.fan_curve_col_temp"), font=("Segoe UI", 9, "bold"), width=8).pack(
+            side=tk.LEFT, padx=(0, 8)
+        )
+        tk.Label(hdr, text=self.t("dash.fan_curve_col_pwm"), font=("Segoe UI", 9, "bold"), width=8).pack(side=tk.LEFT)
+
+        rows_frame = tk.Frame(frm)
+        rows_frame.pack(fill=tk.X, pady=(4, 8))
+        row_entries: list[tuple[tk.Entry, tk.Entry]] = []
+
+        def _add_row(temp: str = "50", pwm: str = "50") -> None:
+            r = tk.Frame(rows_frame)
+            r.pack(fill=tk.X, pady=2)
+            e_t = tk.Entry(r, width=8, font=self.font_base)
+            e_t.pack(side=tk.LEFT, padx=(0, 8))
+            e_t.insert(0, temp)
+            e_p = tk.Entry(r, width=8, font=self.font_base)
+            e_p.pack(side=tk.LEFT)
+            e_p.insert(0, pwm)
+            row_entries.append((e_t, e_p))
+            _resize_curve_win()
+
+        def _remove_row() -> None:
+            if len(row_entries) <= 2:
+                return
+            e_t, e_p = row_entries.pop()
+            try:
+                e_t.master.destroy()
+            except tk.TclError:
+                pass
+            _resize_curve_win()
+
+        for t, p in cur.get("points") or [(40, 25), (55, 45), (70, 75), (80, 100)]:
+            _add_row(str(t), str(p))
+
+        btn_row = tk.Frame(frm)
+        btn_row.pack(fill=tk.X, pady=(0, 8))
+        self.create_modern_btn(
+            btn_row,
+            self.t("dash.fan_curve_add_row"),
+            _add_row,
+            getattr(self, "color_user", "#2563eb"),
+            "white",
+            width=10,
+        ).pack(side=tk.LEFT, padx=(0, 6))
+        self.create_modern_btn(
+            btn_row,
+            self.t("dash.fan_curve_remove_row"),
+            _remove_row,
+            getattr(self, "color_btn_secondary", "#64748b"),
+            "white",
+            width=10,
+        ).pack(side=tk.LEFT)
+
+        def _points_from_entries() -> list[tuple[int, int]] | None:
+            raw_pts: list[list[int]] = []
+            for e_t, e_p in row_entries:
+                try:
+                    raw_pts.append([int((e_t.get() or "0").strip()), int((e_p.get() or "0").strip())])
+                except ValueError:
+                    return None
+            try:
+                return normalize_points(raw_pts)
+            except ValueError:
+                return None
+
+        def _update_live_labels(data: dict[str, object]) -> None:
+            temp_c = data.get("temp_c")
+            if isinstance(temp_c, (int, float)) and float(temp_c) >= 1:
+                live_temp_lbl.config(text=self.t("dash.fan_curve_live_temp", temp=int(round(float(temp_c)))))
+            else:
+                live_temp_lbl.config(text=self.t("dash.fan_curve_live_temp_na"))
+            fan_rpm = data.get("fan_rpm")
+            fan_name = str(data.get("fan_name") or "").strip()
+            if isinstance(fan_rpm, int) and fan_rpm >= 0:
+                if fan_name:
+                    live_rpm_lbl.config(text=self.t("dash.fan_curve_live_rpm", rpm=fan_rpm, name=fan_name))
+                else:
+                    live_rpm_lbl.config(text=self.t("dash.fan_curve_live_rpm_short", rpm=fan_rpm))
+            else:
+                live_rpm_lbl.config(text=self.t("dash.fan_curve_live_rpm_na"))
+            pts = _points_from_entries()
+            if pts and isinstance(temp_c, (int, float)) and float(temp_c) >= 1:
+                tgt = interpolate_pwm(float(temp_c), pts)
+                live_target_lbl.config(text=self.t("dash.fan_curve_live_target", pct=tgt))
+            else:
+                live_target_lbl.config(text=self.t("dash.fan_curve_live_target_na"))
+
+        def _poll_live() -> None:
+            if not preview_alive["on"]:
+                return
+
+            def work():
+                sensor = sensor_var.get()
+                disk_dev = (cb_disk.get() or "").strip()
+                if sensor == "disk" and not re.fullmatch(r"/dev/(sd[a-z]+|nvme\d+n\d+)", disk_dev):
+                    data: dict[str, object] = {"temp_c": None, "fan_rpm": None, "fan_name": ""}
+                else:
+                    cmd = self._dash_fan_curve_preview_shell(sensor, disk_dev)
+                    raw = self.run_ssh_cmd(cmd, True, update_status=False) or ""
+                    data = self._dash_fan_curve_parse_preview_raw(raw, fan_id)
+
+                def ui():
+                    if not preview_alive["on"]:
+                        return
+                    try:
+                        if not win.winfo_exists():
+                            return
+                    except tk.TclError:
+                        return
+                    _update_live_labels(data)
+                    if preview_alive["on"]:
+                        win.after(3000, _poll_live)
+
+                self.root.after(0, ui)
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def _stop_preview() -> None:
+            preview_alive["on"] = False
+
+        def _close_win() -> None:
+            _stop_preview()
+            try:
+                win.grab_release()
+            except tk.TclError:
+                pass
+            win.destroy()
+
+        win.protocol("WM_DELETE_WINDOW", _close_win)
+        sensor_var.trace_add("write", lambda *_a: win.after(100, _poll_live) if preview_alive["on"] else None)
+
+        def _save() -> None:
+            if not self._danger_gate():
+                return
+            raw_pts: list[list[int]] = []
+            for e_t, e_p in row_entries:
+                try:
+                    raw_pts.append([int((e_t.get() or "0").strip()), int((e_p.get() or "0").strip())])
+                except ValueError:
+                    messagebox.showerror(self.t("dash.fan_curve_title"), self.t("dash.fan_curve_err_points"))
+                    return
+            try:
+                points = normalize_points(raw_pts)
+            except ValueError:
+                messagebox.showerror(self.t("dash.fan_curve_title"), self.t("dash.fan_curve_err_points"))
+                return
+            sensor = sensor_var.get()
+            disk_dev = (cb_disk.get() or "").strip()
+            if sensor == "disk" and not re.fullmatch(r"/dev/(sd[a-z]+|nvme\d+n\d+)", disk_dev):
+                messagebox.showerror(self.t("dash.fan_curve_title"), self.t("dash.fan_curve_err_disk"))
+                return
+            payload = {
+                "sensor": sensor,
+                "disk_dev": disk_dev if sensor == "disk" else "",
+                "fan_id": fan_id,
+                "points": points,
+            }
+            self._dash_fan_curve_save_local(payload)
+            if not self._dash_fan_deploy_all_curves():
+                messagebox.showerror(self.t("dash.fan_curve_title"), self.t("dash.fan_curve_err_deploy"))
+                return
+            messagebox.showinfo(
+                self.t("dash.fan_curve_title"),
+                self.t("dash.fan_curve_saved", fan=fan_name),
+            )
+            st = self._dash_fan_tile_status(fan_id)
+            if st is not None:
+                en = getattr(self, "ui_lang", "de") == "en"
+                hint = "Fan curve active (cron)" if en else "Lüfterkurve aktiv (Cron)"
+                try:
+                    st.config(text=hint, fg=getattr(self, "color_cron", "#b45309"))
+                except tk.TclError:
+                    pass
+            _close_win()
+
+        save_row = tk.Frame(frm)
+        save_row.pack(fill=tk.X, pady=(4, 0))
+        self.create_modern_btn(
+            save_row,
+            self.t("dash.fan_curve_save"),
+            _save,
+            getattr(self, "color_cron", "#b45309"),
+            "white",
+            width=28,
+        ).pack(anchor="e")
+
+        win.after(50, _resize_curve_win)
+        win.after(200, _poll_live)
+
     def _dash_fan_release_to_ugos(self) -> None:
         """Gibt die Lüfter vollständig an UGOS zurück (Auto + hwmonitor + Cron-Block entfernen)."""
         if not self._danger_gate():
             return
         ft = self._dash_fan_tile_labels()
         cron_path = getattr(self, "stable_cron_path", "/etc/cron.d/papa_jobs")
-        begin = self.DASH_FAN_BOOT_BEGIN
-        end = self.DASH_FAN_BOOT_END
-        sh = self.DASH_FAN_REMOTE_BOOT_SH
-        envf = self.DASH_FAN_REMOTE_BOOT_ENV
+        try:
+            raw = self.run_ssh_cmd(f"cat {shlex.quote(cron_path)}", True, update_status=False)
+        except Exception:
+            raw = ""
+        if raw and "fehler bei ssh" not in (raw or "").lower():
+            new_cron = self._dash_fan_strip_cron_block(
+                self._dash_fan_strip_cron_block(raw, self.DASH_FAN_BOOT_BEGIN, self.DASH_FAN_BOOT_END),
+                CURVE_CRON_BEGIN,
+                CURVE_CRON_END,
+            )
+            self._dash_fan_write_cron_file(new_cron)
+        state_rm = " ".join(shlex.quote(p) for p in self._dash_fan_curve_state_paths())
         script = (
             "set -e; "
             "systemctl unmask hwmonitor 2>/dev/null || true; "
@@ -1959,37 +2542,53 @@ class MixinScriptsDockerMonitor:
             "echo 'auto' > /proc/it86/fan 2>/dev/null || true; "
             "echo 'set2 auto' > /proc/it86/fan 2>/dev/null || true; "
             "echo 'cpu2 auto' > /proc/it86/fan 2>/dev/null || true; "
-            f"rm -f {shlex.quote(sh)} {shlex.quote(envf)} 2>/dev/null || true; "
-            f"if [ -f {shlex.quote(cron_path)} ]; then "
-            f"awk 'BEGIN{{inblk=0}} "
-            f"$0==\"{begin}\"{{inblk=1;next}} "
-            f"$0==\"{end}\"{{inblk=0;next}} "
-            f"inblk==0{{print}}' {shlex.quote(cron_path)} > /tmp/.ug_fan_cron.$$ 2>/dev/null || true; "
-            f"if [ -s /tmp/.ug_fan_cron.$$ ]; then cat /tmp/.ug_fan_cron.$$ > {shlex.quote(cron_path)}; fi; "
-            "rm -f /tmp/.ug_fan_cron.$$ 2>/dev/null || true; "
-            "fi; "
+            f"rm -f {shlex.quote(self.DASH_FAN_REMOTE_BOOT_SH)} {shlex.quote(self.DASH_FAN_REMOTE_BOOT_ENV)} "
+            f"{shlex.quote(REMOTE_CURVE_SH)} {shlex.quote(REMOTE_CURVE_ENV)} "
+            f"{state_rm} 2>/dev/null || true; "
             "/etc/init.d/cron restart 2>/dev/null || service cron restart 2>/dev/null || true"
         )
+        try:
+            cfg = self._load_app_settings()
+            sec = dict(cfg.get("dashboard") or {})
+            curves = parse_all_curve_settings(sec)
+            for fid in list(curves.keys()):
+                curves[fid]["enabled"] = False
+            sec["fan_curves"] = dict(curves)
+            if "fan_curve" in sec:
+                del sec["fan_curve"]
+            cfg["dashboard"] = sec
+            with open(self._app_settings_path(), "w", encoding="utf-8") as f:
+                json.dump(cfg, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+        first_id = ""
+        devs = self._dash_fan_load_devices()
+        if devs:
+            first_id = str(devs[0].get("id") or "")
         self._dash_fan_run_sudo_inner(
             f"bash -lc {shlex.quote(script)}",
             detail=f"{ft['handover']}",
-            fan_idx=0,
+            fan_id=first_id,
         )
 
-    def _dash_fan_apply_mode(self, fan_idx: int, mode: str) -> None:
+    def _dash_fan_apply_mode(self, fan_id: str, mode: str) -> None:
         """silent / standard / max — wie im Cursor-Verlauf zu UGOS (/proc/it86/fan)."""
-        if not self._dash_fan_precheck(fan_idx):
+        fan_id = str(fan_id or "").strip()
+        if not fan_id:
+            return
+        if not self._dash_fan_precheck(fan_id):
             return
         ft = self._dash_fan_tile_labels()
-        tag = ft["fan_slot_cpu"] if fan_idx else ft["fan_slot1"]
-        fan_ch2 = self._dash_fan_use_secondary_for_slot(fan_idx)
+        dev = self._dash_fan_device_by_id(fan_id)
+        tag = device_label(dev) if dev else fan_id
+        fan_ch2 = self._dash_fan_use_secondary_for_device(fan_id)
         if mode == "silent":
             inner = self._dash_fan_wrap_fixed_pwm(self._dash_fan_write_pair(50, fan2=fan_ch2))
-            self._dash_fan_run_sudo_inner(inner, detail=f"{tag}: {ft['silent']} (~50)", fan_idx=fan_idx)
+            self._dash_fan_run_sudo_inner(inner, detail=f"{tag}: {ft['silent']} (~50)", fan_id=fan_id)
             return
         if mode == "max":
             inner = self._dash_fan_wrap_fixed_pwm(self._dash_fan_write_pair(255, fan2=fan_ch2))
-            self._dash_fan_run_sudo_inner(inner, detail=f"{tag}: {ft['max']}", fan_idx=fan_idx)
+            self._dash_fan_run_sudo_inner(inner, detail=f"{tag}: {ft['max']}", fan_id=fan_id)
             return
         if mode == "standard":
             if not fan_ch2:
@@ -2011,7 +2610,7 @@ class MixinScriptsDockerMonitor:
                     "echo 'set2 128' > /proc/it86/fan 2>/dev/null; "
                     "echo 'cpu2 128' > /proc/it86/fan 2>/dev/null"
                 )
-            self._dash_fan_run_sudo_inner(inner, detail=f"{tag}: {ft['standard']} (Auto)", fan_idx=fan_idx)
+            self._dash_fan_run_sudo_inner(inner, detail=f"{tag}: {ft['standard']} (Auto)", fan_id=fan_id)
             return
 
     def _dash_ssh_sudo_bash_lc(self, ssh, inner: str) -> str:
@@ -2042,10 +2641,13 @@ class MixinScriptsDockerMonitor:
             return decoded_out
         return decoded_out + decoded_err
 
-    def _dash_fan_apply_pwm_combo(self, fan_idx: int) -> None:
-        if not self._dash_fan_precheck(fan_idx):
+    def _dash_fan_apply_pwm_combo(self, fan_id: str) -> None:
+        fan_id = str(fan_id or "").strip()
+        if not fan_id:
             return
-        cb = getattr(self, "dash_fan_pwm_combo_1", None) if fan_idx == 0 else getattr(self, "dash_fan_pwm_combo_2", None)
+        if not self._dash_fan_precheck(fan_id):
+            return
+        cb = self._dash_fan_tile_pwm_combo(fan_id)
         if cb is None:
             return
         m = re.search(r"(\d+)", str(cb.get() or ""))
@@ -2054,17 +2656,17 @@ class MixinScriptsDockerMonitor:
         pct = max(0, min(100, int(m.group(1))))
         pwm = self._dash_fan_pct_to_pwm(pct)
         inner = self._dash_fan_wrap_fixed_pwm(
-            self._dash_fan_write_pair(pwm, fan2=self._dash_fan_use_secondary_for_slot(fan_idx))
+            self._dash_fan_write_pair(pwm, fan2=self._dash_fan_use_secondary_for_device(fan_id))
         )
-        _ft_pwm = self._dash_fan_tile_labels()
-        fan_lab = _ft_pwm["fan_slot_cpu"] if fan_idx else _ft_pwm["fan_slot1"]
+        dev = self._dash_fan_device_by_id(fan_id)
+        fan_lab = device_label(dev) if dev else fan_id
 
         def _after_ok() -> None:
+            self._dash_fan_disable_curve_slot(fan_id)
             ok = self._dash_fan_deploy_boot_profile()
             if not ok:
                 return
-            stn = "dash_fan_tile_status_1" if fan_idx == 0 else "dash_fan_tile_status_2"
-            st = getattr(self, stn, None)
+            st = self._dash_fan_tile_status(fan_id)
             if st is None:
                 return
             en = getattr(self, "ui_lang", "de") == "en"
@@ -2079,9 +2681,174 @@ class MixinScriptsDockerMonitor:
         self._dash_fan_run_sudo_inner(
             inner,
             detail=f"{fan_lab}: {pct}% (~PWM {pwm})",
-            fan_idx=fan_idx,
+            fan_id=fan_id,
             after_ok=_after_ok,
         )
+
+    def _dash_fan_rebuild_tiles(self) -> None:
+        """Rebuild fan control tiles from fan_devices (1..N)."""
+        frame = getattr(self, "_dash_fan_tiles_frame", None)
+        if frame is None:
+            return
+        for w in frame.winfo_children():
+            w.destroy()
+        self._dash_fan_tiles = {}
+
+        try:
+            tile_page = self.dash_container.cget("bg")
+        except tk.TclError:
+            tile_page = getattr(self, "color_surface", "#ffffff")
+        tile_bg = getattr(self, "_dash_tile_bg", getattr(self, "color_surface_alt", "#f8fafc"))
+        tile_border = getattr(self, "color_header_border", getattr(self, "color_border", "#64748b"))
+        fg_muted = self.color_text_muted
+        fg_val = self.color_text
+        _ft = self._dash_fan_tile_labels()
+        combo_vals = [f"{p} %" for p in range(0, 101, 5)]
+        wrap_fan = 280
+        devices = self._dash_fan_load_devices()
+        if not devices:
+            tk.Label(
+                frame,
+                text=self.t("dash.fan_setup_no_fans"),
+                bg=tile_page,
+                fg=fg_muted,
+                font=("Segoe UI", 9),
+                anchor="w",
+                wraplength=520,
+                justify=tk.LEFT,
+            ).grid(row=0, column=0, columnspan=2, sticky="ew", padx=5, pady=8)
+            return
+
+        for i, dev in enumerate(devices):
+            fan_id = str(dev.get("id") or f"fan{i}")
+            title = device_label(dev)
+            col = i % 2
+            row = i // 2
+            card = RoundedCard(
+                self,
+                frame,
+                page_bg=tile_page,
+                fill_bg=tile_bg,
+                radius=11,
+                shadow=False,
+                outline=tile_border,
+                outline_width=2,
+            )
+            card.grid(row=row, column=col, sticky="nsew", padx=5, pady=5)
+            fin = tk.Frame(card.inner, bg=tile_bg, highlightthickness=0)
+            fin.pack(fill=tk.BOTH, expand=True, padx=8, pady=(6, 8))
+            fh = tk.Frame(fin, bg=tile_bg)
+            fh.pack(fill=tk.X)
+            tk.Label(fh, text=f"🌀 {title}", bg=tile_bg, fg=fg_muted, font=("Segoe UI", 9, "bold")).pack(
+                side=tk.LEFT
+            )
+            rpm_lb = tk.Label(
+                fin,
+                text="—",
+                bg=tile_bg,
+                fg=fg_val,
+                font=("Segoe UI", 9),
+                anchor="w",
+            )
+            rpm_lb.pack(fill=tk.X, pady=(0, 6))
+            btn_r = tk.Frame(fin, bg=tile_bg)
+            btn_r.pack(fill=tk.X, pady=(0, 4))
+            self._register_danger_rounded(
+                self.create_modern_btn(
+                    btn_r,
+                    _ft["silent"],
+                    lambda fid=fan_id: self._dash_fan_apply_mode(fid, "silent"),
+                    getattr(self, "color_btn_secondary", "#64748b"),
+                    "white",
+                    width=9,
+                )
+            ).pack(side=tk.LEFT, padx=(0, 4))
+            self._register_danger_rounded(
+                self.create_modern_btn(
+                    btn_r,
+                    _ft["standard"],
+                    lambda fid=fan_id: self._dash_fan_apply_mode(fid, "standard"),
+                    getattr(self, "color_user", "#2563eb"),
+                    "white",
+                    width=9,
+                )
+            ).pack(side=tk.LEFT, padx=(0, 4))
+            self._register_danger_rounded(
+                self.create_modern_btn(
+                    btn_r,
+                    _ft["max"],
+                    lambda fid=fan_id: self._dash_fan_apply_mode(fid, "max"),
+                    getattr(self, "color_root", "#dc2626"),
+                    "white",
+                    width=9,
+                )
+            ).pack(side=tk.LEFT)
+            pwm_row = tk.Frame(fin, bg=tile_bg)
+            pwm_row.pack(fill=tk.X)
+            tk.Label(pwm_row, text=_ft["pwm"], bg=tile_bg, fg=fg_muted, font=("Segoe UI", 8)).pack(
+                side=tk.LEFT, padx=(0, 6)
+            )
+            cb = ttk.Combobox(pwm_row, values=combo_vals, state="readonly", width=7, font=self.font_base)
+            cb.pack(side=tk.LEFT, padx=(0, 6))
+            cb.set("50 %")
+            self._register_danger_rounded(
+                self.create_modern_btn(
+                    pwm_row,
+                    _ft["apply"],
+                    lambda fid=fan_id: self._dash_fan_apply_pwm_combo(fid),
+                    getattr(self, "color_cron", "#b45309"),
+                    "white",
+                    width=10,
+                )
+            ).pack(side=tk.LEFT)
+            curve_row = tk.Frame(fin, bg=tile_bg)
+            curve_row.pack(fill=tk.X, pady=(4, 0))
+            self._register_danger_rounded(
+                self.create_modern_btn(
+                    curve_row,
+                    self.t("dash.fan_curve_btn"),
+                    lambda fid=fan_id: self._dash_fan_open_curve_dialog(fid),
+                    getattr(self, "color_cron", "#b45309"),
+                    "white",
+                    width=16,
+                )
+            ).pack(side=tk.LEFT)
+            if i == 0:
+                rel_row = tk.Frame(fin, bg=tile_bg)
+                rel_row.pack(fill=tk.X, pady=(6, 0))
+                self._register_danger_rounded(
+                    self.create_modern_btn(
+                        rel_row,
+                        _ft["handover"],
+                        self._dash_fan_release_to_ugos,
+                        getattr(self, "color_btn_secondary", "#64748b"),
+                        "white",
+                        width=24,
+                    )
+                ).pack(side=tk.LEFT)
+            st = tk.Label(
+                fin,
+                text="",
+                bg=tile_bg,
+                fg=fg_muted,
+                font=("Segoe UI", 7),
+                anchor="w",
+                wraplength=wrap_fan,
+                justify=tk.LEFT,
+            )
+            st.pack(fill=tk.X, pady=(4, 0))
+            self._dash_fan_tiles[fan_id] = {
+                "card": card,
+                "rpm_lbl": rpm_lb,
+                "status": st,
+                "pwm_combo": cb,
+            }
+
+        for c in range(2):
+            frame.columnconfigure(c, weight=1, uniform="dash_fan_tiles")
+        nrows = (len(devices) + 1) // 2
+        for r in range(nrows):
+            frame.rowconfigure(r, weight=1)
 
     def setup_dashboard_ui(self):
         try:
@@ -2409,127 +3176,11 @@ class MixinScriptsDockerMonitor:
         ).pack(side=tk.LEFT, padx=(10, 0), fill=tk.X, expand=True)
 
         _ft = self._dash_fan_tile_labels()
-        combo_vals = [f"{p} %" for p in range(0, 101, 5)]
-        wrap_fan = 280
 
-        def _build_fan_tile(*, col: int, title: str, fan_idx: int) -> tuple[RoundedCard, tk.Label, tk.Label]:
-            card = RoundedCard(
-                self,
-                self.dash_container,
-                page_bg=tile_page,
-                fill_bg=tile_bg,
-                radius=11,
-                shadow=False,
-                outline=tile_border,
-                outline_width=2,
-            )
-            card.grid(row=2, column=col, sticky="nsew", padx=5, pady=5)
-            fin = tk.Frame(card.inner, bg=tile_bg, highlightthickness=0)
-            fin.pack(fill=tk.BOTH, expand=True, padx=8, pady=(6, 8))
-            fh = tk.Frame(fin, bg=tile_bg)
-            fh.pack(fill=tk.X)
-            tk.Label(fh, text=f"🌀 {title}", bg=tile_bg, fg=fg_muted, font=("Segoe UI", 9, "bold")).pack(
-                side=tk.LEFT
-            )
-            rpm_lb = tk.Label(
-                fin,
-                text="—",
-                bg=tile_bg,
-                fg=fg_val,
-                font=("Segoe UI", 9),
-                anchor="w",
-            )
-            rpm_lb.pack(fill=tk.X, pady=(0, 6))
-            btn_r = tk.Frame(fin, bg=tile_bg)
-            btn_r.pack(fill=tk.X, pady=(0, 4))
-            self._register_danger_rounded(
-                self.create_modern_btn(
-                    btn_r,
-                    _ft["silent"],
-                    lambda i=fan_idx: self._dash_fan_apply_mode(i, "silent"),
-                    getattr(self, "color_btn_secondary", "#64748b"),
-                    "white",
-                    width=9,
-                )
-            ).pack(side=tk.LEFT, padx=(0, 4))
-            self._register_danger_rounded(
-                self.create_modern_btn(
-                    btn_r,
-                    _ft["standard"],
-                    lambda i=fan_idx: self._dash_fan_apply_mode(i, "standard"),
-                    getattr(self, "color_user", "#2563eb"),
-                    "white",
-                    width=9,
-                )
-            ).pack(side=tk.LEFT, padx=(0, 4))
-            self._register_danger_rounded(
-                self.create_modern_btn(
-                    btn_r,
-                    _ft["max"],
-                    lambda i=fan_idx: self._dash_fan_apply_mode(i, "max"),
-                    getattr(self, "color_root", "#dc2626"),
-                    "white",
-                    width=9,
-                )
-            ).pack(side=tk.LEFT)
-            pwm_row = tk.Frame(fin, bg=tile_bg)
-            pwm_row.pack(fill=tk.X)
-            tk.Label(pwm_row, text=_ft["pwm"], bg=tile_bg, fg=fg_muted, font=("Segoe UI", 8)).pack(
-                side=tk.LEFT, padx=(0, 6)
-            )
-            cb = ttk.Combobox(
-                pwm_row, values=combo_vals, state="readonly", width=7, font=self.font_base
-            )
-            cb.pack(side=tk.LEFT, padx=(0, 6))
-            cb.set("50 %")
-            if fan_idx == 0:
-                self.dash_fan_pwm_combo_1 = cb
-            else:
-                self.dash_fan_pwm_combo_2 = cb
-            self._register_danger_rounded(
-                self.create_modern_btn(
-                    pwm_row,
-                    _ft["apply"],
-                    lambda i=fan_idx: self._dash_fan_apply_pwm_combo(i),
-                    getattr(self, "color_cron", "#b45309"),
-                    "white",
-                    width=10,
-                )
-            ).pack(side=tk.LEFT)
-            if fan_idx == 0:
-                rel_row = tk.Frame(fin, bg=tile_bg)
-                rel_row.pack(fill=tk.X, pady=(6, 0))
-                self._register_danger_rounded(
-                    self.create_modern_btn(
-                        rel_row,
-                        _ft["handover"],
-                        self._dash_fan_release_to_ugos,
-                        getattr(self, "color_btn_secondary", "#64748b"),
-                        "white",
-                        width=24,
-                    )
-                ).pack(side=tk.LEFT)
-            st = tk.Label(
-                fin,
-                text="",
-                bg=tile_bg,
-                fg=fg_muted,
-                font=("Segoe UI", 7),
-                anchor="w",
-                wraplength=wrap_fan,
-                justify=tk.LEFT,
-            )
-            st.pack(fill=tk.X, pady=(4, 0))
-            return card, rpm_lb, st
-
-        _c1, self.dash_fan_lbl_1, self.dash_fan_tile_status_1 = _build_fan_tile(
-            col=0, title=_ft["fan_slot1"], fan_idx=0
-        )
-        self._dash_fan1_card = _c1
-        _c2, self.dash_fan_lbl_2, self.dash_fan_tile_status_2 = _build_fan_tile(
-            col=1, title=_ft["fan_slot_cpu"], fan_idx=1
-        )
-        self._dash_fan2_card = _c2
+        self._dash_fan_tiles_frame = tk.Frame(self.dash_container, bg=tile_page, highlightthickness=0)
+        self._dash_fan_tiles_frame.grid(row=2, column=0, columnspan=2, sticky="nsew", padx=0, pady=0)
+        self._dash_fan_tiles: dict[str, dict] = {}
+        self._dash_fan_rebuild_tiles()
 
         # —— UGOS-API: Pools + physische Disks (wie UGOS-Web-UI) ——
         ugos_card = RoundedCard(
@@ -3418,18 +4069,18 @@ echo "$max"
 
                 fan_raw = fan_txt.strip()
                 fan_pairs = self._dash_parse_fan_rpms(fan_raw)
-                fan_sys, fan_cpu = self._dash_fan_classify_slots(fan_pairs)
-                fan_pick0 = self._dash_fan_display_pair_for_slot(0, fan_pairs, fan_sys, fan_cpu)
-                fan_pick1 = self._dash_fan_display_pair_for_slot(1, fan_pairs, fan_sys, fan_cpu)
+                fan_lines: dict[str, str] = {}
                 fh_bits: list[str] = []
-                if fan_pick0:
-                    fh_bits.append(f"{fan_pick0[0]}: {fan_pick0[1]}")
-                if fan_pick1:
-                    fh_bits.append(f"{fan_pick1[0]}: {fan_pick1[1]}")
+                for dev in self._dash_fan_load_devices():
+                    fid = str(dev.get("id") or "")
+                    pick = self._dash_fan_display_pair_for_device(dev, fan_pairs)
+                    line = self._dash_fan_pair_line(pick)
+                    if fid:
+                        fan_lines[fid] = line
+                    if pick:
+                        fh_bits.append(f"{pick[0]}: {pick[1]}")
                 fan_human = " · ".join(fh_bits) if fh_bits else self._dash_fan_text_from_raw(fan_raw)
                 fan_count = len(fan_pairs)
-                fan_line_1 = self._dash_fan_pair_line(fan_pick0)
-                fan_line_2 = self._dash_fan_pair_line(fan_pick1)
                 cpu_temp_c = self._dash_parse_cpu_temp_c(temp_block.strip())
 
                 snapshot = {
@@ -3438,8 +4089,7 @@ echo "$max"
                     "load": load_human,
                     "cpu_temp_c": cpu_temp_c,
                     "fan_text": fan_human,
-                    "fan_line_1": fan_line_1,
-                    "fan_line_2": fan_line_2,
+                    "fan_lines": dict(fan_lines),
                     "fan_count": fan_count,
                     "disk_volumes": [dict(v) for v in disk_volumes],
                     "net_ifaces": net_ifaces_out,
@@ -3575,6 +4225,20 @@ echo "$max"
                 df2 = getattr(self, "dash_fan_lbl_2", None)
                 if df2 is not None:
                     df2.config(text="—")
+                tiles = getattr(self, "_dash_fan_tiles", None) or {}
+                for ent in tiles.values():
+                    rpm_lb = ent.get("rpm_lbl")
+                    st = ent.get("status")
+                    if rpm_lb is not None:
+                        try:
+                            rpm_lb.config(text="—")
+                        except tk.TclError:
+                            pass
+                    if st is not None:
+                        try:
+                            st.config(text="")
+                        except tk.TclError:
+                            pass
                 for _ds in ("dash_fan_tile_status_1", "dash_fan_tile_status_2"):
                     dfs = getattr(self, _ds, None)
                     if dfs is not None:
@@ -3641,7 +4305,19 @@ echo "$max"
                 self.dash_load_lbl.config(text=f'{self.t("dash.load")}: {load_human}')
             cap = self._dash_fan_ui_caption()
             na_fan = self._dash_fan_ui_na()
-            l1 = snap.get("fan_line_1") or ""
+            fan_lines = snap.get("fan_lines") if isinstance(snap.get("fan_lines"), dict) else {}
+            tiles = getattr(self, "_dash_fan_tiles", None) or {}
+            for fid, ent in tiles.items():
+                rpm_lb = ent.get("rpm_lbl")
+                if rpm_lb is None:
+                    continue
+                line = fan_lines.get(fid) or ""
+                try:
+                    rpm_lb.config(text=f"{cap}: {line}" if line else f"{cap}: {na_fan}")
+                except tk.TclError:
+                    pass
+            # Legacy fallback (falls alte Widgets noch existieren)
+            l1 = (fan_lines.get(str(self._dash_fan_load_devices()[0].get("id"))) if self._dash_fan_load_devices() else "") or snap.get("fan_line_1") or ""
             l2 = snap.get("fan_line_2") or ""
             df1 = getattr(self, "dash_fan_lbl_1", None)
             if df1 is not None:
