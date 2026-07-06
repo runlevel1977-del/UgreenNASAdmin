@@ -45,6 +45,17 @@ def _load_public_key(raw: str):
         return serialization.load_pem_public_key(pub_bytes)
 
 
+def _api_headers(*, json_body: bool = False) -> dict[str, str]:
+    headers = {
+        "Accept": "application/json",
+        "ug-agent": "PC/WEB",
+        "User-Agent": "UgreenNASAdmin/1.0",
+    }
+    if json_body:
+        headers["Content-Type"] = "application/json"
+    return headers
+
+
 class UgosApiClient:
     """Minimaler read-only Client für Dashboard-Snapshot."""
 
@@ -80,10 +91,9 @@ class UgosApiClient:
         sep = "&" if "?" in url else "?"
         url = f"{url}{sep}token={urllib.parse.quote(self.token)}"
         data = None
-        headers = {"Accept": "application/json"}
         if payload is not None:
             data = json.dumps(payload).encode("utf-8")
-            headers["Content-Type"] = "application/json"
+        headers = _api_headers(json_body=payload is not None)
         req = urllib.request.Request(url, data=data, method=method, headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=20, context=self._ctx()) as resp:
@@ -118,7 +128,7 @@ class UgosApiClient:
             check_url,
             data=json.dumps({"username": self.username}).encode("utf-8"),
             method="POST",
-            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            headers=_api_headers(json_body=True),
         )
         try:
             with urllib.request.urlopen(req, timeout=15, context=self._ctx()) as resp:
@@ -144,7 +154,7 @@ class UgosApiClient:
             login_url,
             data=json.dumps(payload).encode("utf-8"),
             method="POST",
-            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            headers=_api_headers(json_body=True),
         )
         try:
             with urllib.request.urlopen(req2, timeout=15, context=self._ctx()) as resp:
@@ -175,6 +185,23 @@ class UgosApiClient:
         except UgosApiError:
             snap["ifaces"] = {}
         return snap
+
+    def fetch_surveillance_cameras(self) -> dict[str, Any]:
+        """Kameraliste aus UGOS Überwachung (Surveillance Center)."""
+        last_err: UgosApiError | None = None
+        for path in ("/ugreen/v1/cameramgr/device/cameras", "/ugreen/v1/cameramgr/devices"):
+            try:
+                return self.get(path)
+            except UgosApiError as e:
+                last_err = e
+        if last_err is not None:
+            raise last_err
+        return {}
+
+    def fetch_surveillance_live_url(self, device_id: str | int, *, multi_screen: int = 0) -> dict[str, Any]:
+        did = urllib.parse.quote(str(device_id).strip())
+        ms = int(multi_screen)
+        return self.get(f"/ugreen/v1/cameramgr/live/url/{did}/{ms}")
 
 
 def format_snapshot_text(snap: dict[str, Any]) -> str:

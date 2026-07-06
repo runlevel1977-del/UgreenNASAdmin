@@ -4,6 +4,40 @@
 
 _(keine offenen Änderungen)_
 
+## 23.8.37 — 2026-07-06
+
+### Deutsch
+
+- **Get Pro — Anleitung:** Fünf Schritte ausführlich: Spende → Pro per E-Mail → installieren & Felder ausfüllen → Freischaltungsanfrage → Lizenz importieren.
+- **Webcam Recorder:** Scan über **USB** (`/dev/video*`), **UGOS Überwachung** (Surveillance Center per UGOS-API) und manuelle **RTSP-URLs**; neue Quelle `webcam_sources.py`; erweiterte Geräteliste in der Combobox.
+- **UGOS API:** Einheitliche Request-Header (`ug-agent`); neue Methode **`fetch_surveillance_cameras()`** für Kameraliste.
+
+### English (short)
+
+- **Get Pro guide:** Five detailed steps — donate → Pro by email → install & fill fields → activation request → import license.
+- **Webcam Recorder:** USB + **UGOS Surveillance** API scan + manual **RTSP** sources; new `webcam_sources.py`.
+- **UGOS API:** shared headers; **`fetch_surveillance_cameras()`** for camera list.
+
+## 23.8.36 — 2026-07-06
+
+### Deutsch
+
+- **Get Pro — Ablauf:** Reihenfolge korrigiert: zuerst **Spende**, dann **Anfrage** an `ugna@posteo.de`, **Lizenz erhalten**, danach **Pro installieren** und importieren.
+
+### English (short)
+
+- **Get Pro flow:** Correct order — **donate** first, then **request** to `ugna@posteo.de`, **receive license**, then **install Pro** and import.
+
+## 23.8.35 — 2026-07-06
+
+### Deutsch
+
+- **Sidebar — Get Pro:** Anleitung im Hauptbereich — **nur Supporter** (nach Spende) oder **Tester**; Lizenz an PayPal-Absender-Mail (oder in Spenden-Nachricht genannte Adresse); Anfrage an `ugna@posteo.de`.
+
+### English (short)
+
+- **Sidebar — Get Pro:** Main-area guide — **supporters/testers only**; license to PayPal sender email (or address in donation note); request to `ugna@posteo.de`.
+
 ## 23.8.34 — 2026-05-19
 
 ### Deutsch

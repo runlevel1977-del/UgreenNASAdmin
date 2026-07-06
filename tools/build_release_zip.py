@@ -61,6 +61,7 @@ _SKIP_NAMES = frozenset(
     {
         "__pycache__",
         ".mypy_cache",
+        "ugreen_pro_app",
         "app_settings.json",
         "nas_admin_connection.json",
         "telegram_notify.json",

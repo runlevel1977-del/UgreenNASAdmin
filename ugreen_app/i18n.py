@@ -608,11 +608,63 @@ TRANSLATIONS_DE = _merge(
         "nas2nas.upload_ugreen_to_peer_busy": "Übertrage Ugreen → SMB…",
         "nas2nas.upload_done": "Übertragung abgeschlossen.",
         "sidebar.refresh_all": "🔄 Alles aktualisieren",
+        "sidebar.get_pro": "⭐ Get Pro",
         "sidebar.health_snapshot": "🧾 Health Snapshot",
         "sidebar.monitor_section": "Live-Monitor",
         "sidebar.webcam": "📷 Webcam",
         "sidebar.monitor_go": "▶ Live",
         "sidebar.monitor_stop": "⏹ Stop",
+        "pro.drawer.title": "Ugreen NAS Admin Pro",
+        "pro.drawer.subtitle": "Erweiterte Diagnose & Techniker-Tools",
+        "pro.drawer.note": "Pro gibt es nur für Supporter (nach Spende) oder ausgewählte Tester — nicht für alle.",
+        "pro.drawer.body": (
+            "Wer bekommt Pro?\n"
+            "• Supporter: nach einer Spende über PayPal\n"
+            "• Tester: nur auf Einladung\n"
+            "Ohne Spende (bzw. ohne Tester-Einladung) gibt es keine Freischaltung.\n\n"
+            "Ablauf für Supporter — Schritt für Schritt:\n\n"
+            "1) Spende über PayPal (Button unten).\n"
+            "   Nutze beim Spenden die E-Mail-Adresse, an die du alles erhalten möchtest. "
+            "Alternativ kannst du eine andere Wunsch-Adresse in die PayPal-Nachricht schreiben. "
+            "Diese Adresse brauchen wir, um Spende und Freischaltung eindeutig zuzuordnen.\n\n"
+            "2) Ugreen NAS Admin Pro per E-Mail erhalten.\n"
+            "   Nach deiner Spende schicken wir dir Ugreen NAS Admin Pro an genau diese "
+            "angegebene Adresse — also die PayPal-Absender-E-Mail oder die in der "
+            "Spenden-Nachricht genannte Adresse. In der Mail findest du den Download "
+            "bzw. die Hinweise zur Installation der separaten Pro-App.\n\n"
+            "3) Pro installieren und starten.\n"
+            "   Installiere Ugreen NAS Admin Pro auf deinem PC und starte die App. "
+            "Im Tab Freischaltung trägst du deinen Namen und deine E-Mail-Adresse ein. "
+            "Die App ist zu diesem Zeitpunkt noch gesperrt — das ist normal, solange "
+            "noch keine Lizenz importiert wurde.\n\n"
+            "4) Freischaltungsanfrage senden.\n"
+            "   In der Pro-App: PC-Fingerprint erzeugen und den kompletten "
+            "Freischaltungstext kopieren. Diesen Text schickst du per E-Mail an "
+            "ugna@posteo.de (Button „Lizenz anfragen“). Bitte den Text unverändert "
+            "einfügen — inklusive Fingerprint (UGP-…).\n\n"
+            "5) Lizenz erhalten und Pro freischalten.\n"
+            "   Du erhältst die Datei pro_entitlement.json per E-Mail. In der Pro-App: "
+            "Lizenz importieren. Danach ist Pro auf diesem PC freigeschaltet.\n\n"
+            "Hinweis: Die Lizenz ist an deinen PC gebunden (Fingerprint). "
+            "Bei einem neuen PC bitte erneut anfragen."
+        ),
+        "pro.drawer.btn_paypal": "☕ Spenden (PayPal)",
+        "pro.drawer.btn_email": "✉ Lizenz anfragen (E-Mail)",
+        "pro.drawer.btn_close": "Zurück",
+        "tab.pro": "Get Pro",
+        "pro.drawer.email_subject": "Ugreen NAS Admin Pro — Freischaltung",
+        "pro.drawer.email_body": (
+            "Hallo,\n\n"
+            "ich möchte Ugreen NAS Admin Pro als Supporter freischalten lassen.\n\n"
+            "Name:\n"
+            "E-Mail (für die Lizenz):\n"
+            "PayPal-Spende von (E-Mail / Datum):\n\n"
+            "(Bitte die Freischaltungsanfrage aus der Pro-App hier einfügen — "
+            "inkl. Fingerprint UGP-…)\n\n"
+            "Falls die Lizenz an eine andere Adresse als die PayPal-Adresse soll, "
+            "bitte hier angeben (muss mit der Spenden-Nachricht übereinstimmen).\n\n"
+            "Vielen Dank!"
+        ),
         "webcam.title": "📷 Webcam Recorder",
         "webcam.settings": "Webcam-Einstellungen",
         "webcam.device": "Webcam:",
@@ -661,6 +713,18 @@ TRANSLATIONS_DE = _merge(
         "webcam.status_selftest_running": "Status: Selbsttest läuft ...",
         "webcam.status_selftest_ok": "Status: Selbsttest OK:",
         "webcam.status_selftest_fail": "Status: Selbsttest fehlgeschlagen",
+        "webcam.rtsp_url": "RTSP-URL:",
+        "webcam.add_rtsp": "➕ RTSP",
+        "webcam.rtsp_invalid": "Bitte eine gültige RTSP-URL eingeben (z. B. rtsp://user:pass@192.168.1.50:554/stream).",
+        "webcam.rtsp_added": "RTSP-Quelle hinzugefügt",
+        "webcam.scan_running": "🔎 Suche USB-Kameras und UGOS-Überwachung …",
+        "webcam.scan_summary": "✅ Scan: {usb} USB, {ip} IP (Überwachung), {rtsp} RTSP — gesamt {total}",
+        "webcam.no_devices": "Keine Kamera gefunden (weder USB noch Überwachung/RTSP).",
+        "webcam.ugos_api_missing": "UGOS-API-Zugang fehlt (Host, Benutzer, Passwort, API-Port in den Einstellungen).",
+        "webcam.ugos_scan_failed": "UGOS-Überwachung nicht lesbar",
+        "webcam.resolving_stream": "⏳ Live-Stream-URL von Überwachung wird geholt …",
+        "webcam.stream_url_missing": "Keine Live-Stream-URL von der Überwachungs-App erhalten.",
+        "webcam.schedule_ugos_unsupported": "Zeitplan für Überwachungs-Kameras (IP) nicht unterstützt — RTSP-URL oder USB verwenden.",
         "status.ready": "Bereit",
         "status.login_track_loading": "Login-Track: Logs werden vom NAS gelesen …",
         "status.login_track_live": "Login-Track: Echtzeit-Aktualisierung …",
@@ -1830,11 +1894,60 @@ TRANSLATIONS_EN = _merge(
         "nas2nas.upload_ugreen_to_peer_busy": "Transferring Ugreen → SMB…",
         "nas2nas.upload_done": "Transfer finished.",
         "sidebar.refresh_all": "🔄 Refresh all",
+        "sidebar.get_pro": "⭐ Get Pro",
         "sidebar.monitor_section": "Live monitor",
         "sidebar.webcam": "📷 Webcam",
         "sidebar.monitor_go": "▶ Live",
         "sidebar.monitor_stop": "⏹ Stop",
         "sidebar.health_snapshot": "🧾 Health snapshot",
+        "pro.drawer.title": "Ugreen NAS Admin Pro",
+        "pro.drawer.subtitle": "Advanced diagnostics & technician tools",
+        "pro.drawer.note": "Pro is only for supporters (after a donation) or selected testers — not for everyone.",
+        "pro.drawer.body": (
+            "Who gets Pro?\n"
+            "• Supporters: after a PayPal donation\n"
+            "• Testers: by invitation only\n"
+            "Without a donation (or tester invite), there is no license.\n\n"
+            "Steps for supporters — one by one:\n\n"
+            "1) Donate via PayPal (button below).\n"
+            "   Use the email address where you want to receive everything. "
+            "Alternatively, put a different preferred address in the PayPal message. "
+            "We need this address to match your donation and activation clearly.\n\n"
+            "2) Receive Ugreen NAS Admin Pro by email.\n"
+            "   After your donation we send Ugreen NAS Admin Pro to that exact address — "
+            "the PayPal sender email or the one named in your donation message. "
+            "The email contains the download or installation instructions for the separate Pro app.\n\n"
+            "3) Install and start Pro.\n"
+            "   Install Ugreen NAS Admin Pro on your PC and launch the app. "
+            "On the Activation tab, enter your name and email address. "
+            "The app is still locked at this point — that is normal until a license is imported.\n\n"
+            "4) Send the activation request.\n"
+            "   In the Pro app: generate the PC fingerprint and copy the full activation text. "
+            "Email that text to ugna@posteo.de (button “Request license”). "
+            "Please paste it unchanged — including the fingerprint (UGP-…).\n\n"
+            "5) Receive the license and unlock Pro.\n"
+            "   You receive the file pro_entitlement.json by email. In the Pro app: import the license. "
+            "Pro is then unlocked on this PC.\n\n"
+            "Note: The license is bound to your PC (fingerprint). "
+            "On a new PC, please request again."
+        ),
+        "pro.drawer.btn_paypal": "☕ Donate (PayPal)",
+        "pro.drawer.btn_email": "✉ Request license (email)",
+        "pro.drawer.btn_close": "Back",
+        "tab.pro": "Get Pro",
+        "pro.drawer.email_subject": "Ugreen NAS Admin Pro — activation",
+        "pro.drawer.email_body": (
+            "Hello,\n\n"
+            "I would like to activate Ugreen NAS Admin Pro as a supporter.\n\n"
+            "Name:\n"
+            "Email (for the license):\n"
+            "PayPal donation from (email / date):\n\n"
+            "(Please paste the activation request from the Pro app here — "
+            "including fingerprint UGP-…)\n\n"
+            "If the license should go to an address other than your PayPal email, "
+            "state it here (must match your donation message).\n\n"
+            "Thank you!"
+        ),
         "webcam.title": "📷 Webcam Recorder",
         "webcam.settings": "Webcam settings",
         "webcam.device": "Webcam:",
@@ -1883,6 +1996,18 @@ TRANSLATIONS_EN = _merge(
         "webcam.status_selftest_running": "Status: self-test running ...",
         "webcam.status_selftest_ok": "Status: self-test OK:",
         "webcam.status_selftest_fail": "Status: self-test failed",
+        "webcam.rtsp_url": "RTSP URL:",
+        "webcam.add_rtsp": "➕ RTSP",
+        "webcam.rtsp_invalid": "Enter a valid RTSP URL (e.g. rtsp://user:pass@192.168.1.50:554/stream).",
+        "webcam.rtsp_added": "RTSP source added",
+        "webcam.scan_running": "🔎 Scanning USB cameras and UGOS Surveillance …",
+        "webcam.scan_summary": "✅ Scan: {usb} USB, {ip} IP (Surveillance), {rtsp} RTSP — {total} total",
+        "webcam.no_devices": "No camera found (USB, Surveillance, or RTSP).",
+        "webcam.ugos_api_missing": "UGOS API credentials missing (host, user, password, API port in settings).",
+        "webcam.ugos_scan_failed": "Could not read UGOS Surveillance",
+        "webcam.resolving_stream": "⏳ Fetching live stream URL from Surveillance …",
+        "webcam.stream_url_missing": "No live stream URL returned by Surveillance app.",
+        "webcam.schedule_ugos_unsupported": "Scheduled recording is not supported for Surveillance (IP) cameras — use RTSP URL or USB.",
         "status.ready": "Ready",
         "status.login_track_loading": "Login Track: reading logs from NAS…",
         "status.login_track_live": "Login Track: live refresh…",

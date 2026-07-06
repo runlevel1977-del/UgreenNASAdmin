@@ -969,6 +969,7 @@ class MixinThemeUI:
         self.tab_snapshots = tk.Frame(self.notebook, bg=_page_bg)
         self.tab_backup = tk.Frame(self.notebook, bg=_page_bg)
         self.tab_settings = tk.Frame(self.notebook, bg=_page_bg)
+        self.tab_pro = tk.Frame(self.notebook, bg=_page_bg)
 
         self.notebook.add(self.tab_dashboard, text=self.t("tab.dashboard"))
         self.notebook.add(self.tab_scripts, text=self.t("tab.scripts"))
@@ -985,6 +986,7 @@ class MixinThemeUI:
         self.notebook.add(self.tab_snapshots, text=self.t("tab.snapshots"))
         self.notebook.add(self.tab_backup, text=self.t("tab.backup"))
         self.notebook.add(self.tab_settings, text=self.t("tab.settings"))
+        self.notebook.add(self.tab_pro, text=self.t("tab.pro"))
         self.notebook.bind("<<NotebookTabChanged>>", lambda e: self._sync_sidebar_with_tab())
         try:
             self.notebook.configure(style="ModernHiddenTabs.TNotebook")
@@ -995,7 +997,7 @@ class MixinThemeUI:
         self.scheduler_drawer = tk.Frame(self.main_container, bg=self.color_surface, width=self.drawer_width, 
                                          highlightbackground=self.color_border, highlightthickness=1)
         self.scheduler_drawer.pack_propagate(False)
-        
+
         # Schönerer Seiten-Toggle Button
         self.btn_scheduler_toggle = tk.Button(self.app_body, text=self.t("sched.plan_toggle"), command=self.toggle_scheduler, 
                                               bg=self.color_cron, fg="white", font=('Segoe UI', 9, 'bold'), 
@@ -1018,6 +1020,7 @@ class MixinThemeUI:
         self.setup_snapshots_tab()
         self.setup_backup_tab()
         self.setup_settings_tab()
+        self.setup_pro_tab_ui()
         self.setup_scheduler_ui()
         self.setup_sidebar_nav()
         try:
@@ -1081,6 +1084,14 @@ class MixinThemeUI:
         ).pack(anchor=tk.W, padx=18, pady=(0, 10))
         tools_outer = tk.Frame(sb, bg=nav_bg)
         tools_outer.pack(fill=tk.X, padx=(12, 12), pady=(0, 12))
+        _pro_btn = create_rounded_button(
+            tools_outer,
+            self.t("sidebar.get_pro"),
+            self.toggle_pro_tab,
+            "#d97706",
+            width_chars=16,
+        )
+        _pro_btn.pack(fill=tk.X, pady=(0, 8))
         _ref_btn = create_rounded_button(tools_outer, self.t("sidebar.refresh_all"), self.refresh_all_panels, self.color_btn_blue)
         _ref_btn.pack(fill=tk.X, pady=(0, 8))
         _snap_sidebar = create_rounded_outline_button(
@@ -1255,13 +1266,13 @@ class MixinThemeUI:
             13: "backup",
             14: "settings",
         }
-        active = rev.get(idx, "dashboard")
+        active = rev.get(idx) if idx in rev else None
         nav_bg = getattr(self, "color_sidebar_bg", self.color_nav_idle_bg)
         act_bg = getattr(self, "color_nav_active_row_bg", self.color_selected_bg)
         act_ac = getattr(self, "color_nav_active_accent", "#60a5fa")
         act_fg = getattr(self, "color_nav_active_fg", "#ffffff")
         for key, btn in getattr(self, "nav_buttons", {}).items():
-            if key == active:
+            if active is not None and key == active:
                 btn.set_theme(act_bg, act_fg, accent=act_ac)
             else:
                 btn.set_theme(nav_bg, self.color_nav_idle_fg, accent=nav_bg)
@@ -1649,6 +1660,7 @@ class MixinThemeUI:
                 pass
 
         self.scheduler_expanded = False
+        self._tab_before_pro = 0
         self.setup_ui()
 
         try:

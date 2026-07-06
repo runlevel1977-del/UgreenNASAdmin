@@ -47,9 +47,10 @@ from ugreen_app.mixin_ugos_api import MixinUgosApi
 from ugreen_app.mixin_migration_assistant import MixinMigrationAssistant
 from ugreen_app.mixin_handbook_tab import MixinHandbookTab
 from ugreen_app.mixin_runlevel_apps import MixinRunlevelApps
+from ugreen_app.mixin_pro_drawer import MixinProDrawer
 from ugreen_app.i18n import cron_mappings_for_lang, translate
 
-__version__ = "23.8.34"
+__version__ = "23.8.37"
 
 class NASManager(
     MixinSafetyLock,
@@ -70,6 +71,7 @@ class NASManager(
     MixinMigrationAssistant,
     MixinHandbookTab,
     MixinRunlevelApps,
+    MixinProDrawer,
 ):
     def __init__(self, root):
         self.root = root

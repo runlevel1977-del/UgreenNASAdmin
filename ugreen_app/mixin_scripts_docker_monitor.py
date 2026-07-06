@@ -47,6 +47,21 @@ from ugreen_app.fan_curve import (
     strip_cron_block,
     interpolate_pwm,
 )
+from ugreen_app.ugos_api_client import UgosApiClient, UgosApiError
+from ugreen_app.webcam_sources import (
+    WebcamSource,
+    build_ffmpeg_input,
+    build_ffmpeg_probe_input,
+    extract_live_url,
+    is_usb_source,
+    make_rtsp_source,
+    parse_preflight_output,
+    parse_ugos_cameras_response,
+    parse_usb_scan_output,
+    preflight_shell,
+    source_from_combo_label,
+    usb_scan_shell,
+)
 from ugreen_app.fan_devices import (
     MAX_FAN_DEVICES,
     device_label,
@@ -4432,9 +4447,22 @@ echo "$max"
         row_dev = tk.Frame(box, bg=self.color_surface)
         row_dev.pack(fill=tk.X, pady=4)
         tk.Label(row_dev, text=self.t("webcam.device"), bg=self.color_surface, fg=self.color_text_muted).pack(side=tk.LEFT)
-        combo_dev = ttk.Combobox(row_dev, state="readonly", width=30, font=self.font_base)
+        combo_dev = ttk.Combobox(row_dev, state="readonly", width=36, font=self.font_base)
         combo_dev.pack(side=tk.LEFT, padx=(8, 8))
         self.create_modern_btn(row_dev, self.t("webcam.scan"), lambda: self._webcam_scan_devices(combo_dev), self.color_btn_blue, width=8).pack(side=tk.LEFT)
+
+        row_rtsp = tk.Frame(box, bg=self.color_surface)
+        row_rtsp.pack(fill=tk.X, pady=4)
+        tk.Label(row_rtsp, text=self.t("webcam.rtsp_url"), bg=self.color_surface, fg=self.color_text_muted).pack(side=tk.LEFT)
+        entry_rtsp = tk.Entry(row_rtsp, width=28, font=self.font_mono, bg=self.color_input_bg, fg=self.color_input_fg, insertbackground=self.color_input_fg, relief="flat", highlightbackground=self.color_border, highlightthickness=1)
+        entry_rtsp.pack(side=tk.LEFT, padx=(8, 8), ipady=3)
+        self.create_modern_btn(
+            row_rtsp,
+            self.t("webcam.add_rtsp"),
+            lambda: self._webcam_add_rtsp_source(combo_dev, entry_rtsp),
+            self.color_btn_secondary,
+            width=10,
+        ).pack(side=tk.LEFT)
 
         row_res = tk.Frame(box, bg=self.color_surface)
         row_res.pack(fill=tk.X, pady=4)
@@ -4603,6 +4631,8 @@ echo "$max"
         win._webcam_status_var = status_var
         win._webcam_preview_stop = threading.Event()
         win._webcam_preview_thread = None
+        self._webcam_source_map = {}
+        self._webcam_manual_rtsp: list[WebcamSource] = []
 
         self._webcam_scan_devices(combo_dev)
         self._webcam_check_dependencies()
@@ -4639,16 +4669,111 @@ echo "$max"
         except Exception:
             pass
 
-    def _webcam_scan_devices(self, combo_dev):
-        out = self.run_ssh_cmd("ls /dev/video* 2>/dev/null", True)
-        devs = [x.strip() for x in str(out or "").split() if x.strip().startswith("/dev/video")]
-        combo_dev["values"] = devs
-        if devs:
-            combo_dev.set(devs[0])
-            self._webcam_log(f"✅ Webcam devices: {', '.join(devs)}")
+    def _webcam_selected_source(self, combo_dev) -> WebcamSource | None:
+        label = (combo_dev.get() or "").strip()
+        mapping = getattr(self, "_webcam_source_map", {}) or {}
+        return source_from_combo_label(label, mapping)
+
+    def _webcam_make_ugos_client(self) -> UgosApiClient | None:
+        if not hasattr(self, "_ugos_api_credentials"):
+            return None
+        host, user, pw = self._ugos_api_credentials()
+        if not host or not user or not (pw or "").strip():
+            return None
+        opts = self._ugos_api_settings()
+        return UgosApiClient(
+            host=host,
+            port=opts["port"],
+            username=user,
+            password=pw,
+            use_https=opts["use_https"],
+            verify_ssl=opts["verify_ssl"],
+        )
+
+    def _webcam_resolve_stream_url(self, src: WebcamSource | None) -> str:
+        if src is None or src.kind != "ugos":
+            return ""
+        cached = str(src.meta.get("live_url") or "").strip()
+        if cached:
+            return cached
+        client = self._webcam_make_ugos_client()
+        if client is None:
+            raise UgosApiError(self.t("webcam.ugos_api_missing"))
+        ugos_id = src.meta.get("ugos_id")
+        resp = client.fetch_surveillance_live_url(ugos_id, multi_screen=0)
+        url = extract_live_url(resp)
+        if not url:
+            raise UgosApiError(self.t("webcam.stream_url_missing"))
+        src.meta["live_url"] = url
+        return url
+
+    def _webcam_scan_usb_sources(self) -> list[WebcamSource]:
+        out = self.run_ssh_cmd(usb_scan_shell(), True, update_status=False) or ""
+        return parse_usb_scan_output(str(out))
+
+    def _webcam_scan_ugos_sources(self) -> list[WebcamSource]:
+        client = self._webcam_make_ugos_client()
+        if client is None:
+            return []
+        try:
+            resp = client.fetch_surveillance_cameras()
+            return parse_ugos_cameras_response(resp)
+        except UgosApiError as e:
+            self._webcam_log(f"⚠️ {self.t('webcam.ugos_scan_failed')}: {e}")
+            return []
+
+    def _webcam_apply_source_list(self, combo_dev, sources: list[WebcamSource]) -> None:
+        labels: list[str] = []
+        mapping: dict[str, WebcamSource] = {}
+        for src in sources:
+            if src.label in mapping:
+                continue
+            labels.append(src.label)
+            mapping[src.label] = src
+        self._webcam_source_map = mapping
+        combo_dev["values"] = labels
+        if labels:
+            combo_dev.set(labels[0])
+            usb_n = sum(1 for s in sources if s.kind == "usb")
+            ip_n = sum(1 for s in sources if s.kind == "ugos")
+            rtsp_n = sum(1 for s in sources if s.kind == "rtsp")
+            self._webcam_log(
+                self.t("webcam.scan_summary").format(usb=usb_n, ip=ip_n, rtsp=rtsp_n, total=len(labels))
+            )
         else:
             combo_dev.set("")
-            self._webcam_log("⚠️ No /dev/video* device found.")
+            self._webcam_log(f"⚠️ {self.t('webcam.no_devices')}")
+
+    def _webcam_add_rtsp_source(self, combo_dev, entry_rtsp):
+        src = make_rtsp_source((entry_rtsp.get() or "").strip())
+        if src is None:
+            messagebox.showwarning(self.t("webcam.title"), self.t("webcam.rtsp_invalid"), parent=getattr(self, "root", None))
+            return
+        manual = getattr(self, "_webcam_manual_rtsp", []) or []
+        if not any(s.key == src.key for s in manual):
+            manual.append(src)
+        self._webcam_manual_rtsp = manual
+        entry_rtsp.delete(0, tk.END)
+        sources = self._webcam_scan_usb_sources() + self._webcam_scan_ugos_sources() + manual
+        self._webcam_apply_source_list(combo_dev, sources)
+        combo_dev.set(src.label)
+        self._webcam_log(f"✅ {self.t('webcam.rtsp_added')}: {src.meta.get('url', '')}")
+
+    def _webcam_scan_devices(self, combo_dev):
+        self._webcam_log(self.t("webcam.scan_running"))
+
+        def worker():
+            usb = self._webcam_scan_usb_sources()
+            ugos = self._webcam_scan_ugos_sources()
+            manual = list(getattr(self, "_webcam_manual_rtsp", []) or [])
+            sources = usb + ugos + manual
+
+            def apply():
+                self._webcam_apply_source_list(combo_dev, sources)
+
+            self.root.after(0, apply)
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def _webcam_pick_folder_dialog(self, target_entry):
         start = (target_entry.get() or "").strip() or "/volume1"
@@ -4786,60 +4911,28 @@ echo "$max"
             "else CODEC='-c:v mpeg4 -q:v 4'; fi"
         )
 
-    def _webcam_preflight(self, dev: str, save_dir: str) -> dict:
-        qdev = shlex.quote(dev.strip() or "/dev/video0")
-        qdir = shlex.quote((save_dir or "/volume1/webcam").strip())
-        cmd = (
-            f"DEV={qdev}; DIR={qdir}; "
-            "command -v ffmpeg >/dev/null 2>&1 && echo FF=1 || echo FF=0; "
-            "command -v v4l2-ctl >/dev/null 2>&1 && echo V4=1 || echo V4=0; "
-            "[ -e \"$DEV\" ] && echo DV=1 || echo DV=0; "
-            "[ -r \"$DEV\" ] && echo DR=1 || echo DR=0; "
-            "mkdir -p \"$DIR\" >/dev/null 2>&1 && echo MK=1 || echo MK=0; "
-            "touch \"$DIR/.webcam_write_test_user\" >/dev/null 2>&1 && rm -f \"$DIR/.webcam_write_test_user\" >/dev/null 2>&1 && echo WRU=1 || echo WRU=0; "
-            "touch \"$DIR/.webcam_write_test_root\" >/dev/null 2>&1 && rm -f \"$DIR/.webcam_write_test_root\" >/dev/null 2>&1 && echo WRR=1 || echo WRR=0; "
-            "FREE=$(df -Pm \"$DIR\" 2>/dev/null | awk 'NR==2{print $4}'); [ -n \"$FREE\" ] && echo FR=$FREE || echo FR=0"
-        )
+    def _webcam_preflight(self, src: WebcamSource, save_dir: str, *, stream_url: str = "") -> dict:
+        cmd = preflight_shell(src, save_dir, stream_url=stream_url)
         out = self.run_ssh_cmd(cmd, False, update_status=False) or ""
         out_root = self.run_ssh_cmd(cmd, True, update_status=False) or ""
-        vals = {}
-        for line in str(out).splitlines():
-            if "=" in line:
-                k, v = line.split("=", 1)
-                vals[k.strip()] = v.strip()
-        vals_root = {}
-        for line in str(out_root).splitlines():
-            if "=" in line:
-                k, v = line.split("=", 1)
-                vals_root[k.strip()] = v.strip()
-        # If user-write test failed but root/sudo path works, preserve both states.
-        if vals.get("WRR", "0") != "1":
-            vals["WRR"] = vals_root.get("WRU", vals_root.get("WRR", "0"))
-        free_mb = int(re.sub(r"[^0-9]", "", vals.get("FR", "0")) or "0")
-        base_ok = (
-            vals.get("FF") == "1"
-            and vals.get("DV") == "1"
-            and vals.get("DR") == "1"
-            and vals.get("MK") == "1"
-            and free_mb >= 200
-        )
-        ok_user = base_ok and vals.get("WRU") == "1"
-        ok_root = base_ok and (vals.get("WRU") == "1" or vals.get("WRR") == "1")
-        msg = (
-            f"ffmpeg={vals.get('FF','0')} v4l2ctl={vals.get('V4','0')} "
-            f"device={vals.get('DV','0')}/{vals.get('DR','0')} "
-            f"write_user={vals.get('MK','0')}/{vals.get('WRU','0')} "
-            f"write_root={vals.get('MK','0')}/{vals.get('WRR','0')} freeMB={free_mb}"
-        )
-        return {"ok_user": ok_user, "ok_root": ok_root, "msg": msg}
+        return parse_preflight_output(str(out), str(out_root), network=src.kind != "usb")
 
     def _webcam_run_preflight(self, combo_dev, entry_dir):
-        dev = (combo_dev.get() or "").strip()
-        save_dir = (entry_dir.get() or "/volume1/webcam").strip()
-        if not dev:
+        src = self._webcam_selected_source(combo_dev)
+        if src is None:
             messagebox.showwarning(self.t("webcam.title"), self.t("webcam.pick_device"))
             return
-        pf = self._webcam_preflight(dev, save_dir)
+        save_dir = (entry_dir.get() or "/volume1/webcam").strip()
+        stream_url = ""
+        try:
+            if src.kind == "ugos":
+                self._webcam_log(self.t("webcam.resolving_stream"))
+                stream_url = self._webcam_resolve_stream_url(src)
+        except UgosApiError as e:
+            self._webcam_status(self.t("webcam.status_preflight_fail"))
+            self._webcam_log(f"❌ {e}")
+            return
+        pf = self._webcam_preflight(src, save_dir, stream_url=stream_url)
         if pf.get("ok_user"):
             self._webcam_status(self.t("webcam.status_preflight_ok"))
             self._webcam_log(f"✅ Preflight OK: {pf.get('msg','')}")
@@ -4851,14 +4944,23 @@ echo "$max"
             self._webcam_log(f"❌ Preflight failed: {pf.get('msg','')}")
 
     def _webcam_selftest(self, combo_dev, combo_res, entry_fps, entry_dir, var_auto_exp, entry_exp, entry_gain, combo_pl):
-        dev = (combo_dev.get() or "").strip()
-        if not dev:
+        src = self._webcam_selected_source(combo_dev)
+        if src is None:
             messagebox.showwarning(self.t("webcam.title"), self.t("webcam.pick_device"))
             return
         res = (combo_res.get() or "1280x720").strip()
         fps = (entry_fps.get() or "25").strip()
         save_dir = (entry_dir.get() or "/volume1/webcam").strip()
-        pf = self._webcam_preflight(dev, save_dir)
+        stream_url = ""
+        try:
+            if src.kind == "ugos":
+                self._webcam_log(self.t("webcam.resolving_stream"))
+                stream_url = self._webcam_resolve_stream_url(src)
+        except UgosApiError as e:
+            self._webcam_status(self.t("webcam.status_selftest_fail"))
+            self._webcam_log(f"❌ {e}")
+            return
+        pf = self._webcam_preflight(src, save_dir, stream_url=stream_url)
         if not (pf.get("ok_user") or pf.get("ok_root")):
             self._webcam_status(self.t("webcam.status_selftest_fail"))
             self._webcam_log(f"❌ Selftest preflight failed: {pf.get('msg','')}")
@@ -4869,22 +4971,27 @@ echo "$max"
         ctl = self._webcam_controls_from_ui(var_auto_exp, entry_exp, entry_gain, combo_pl)
         self._webcam_preview_stop()
         self._webcam_status(self.t("webcam.status_selftest_running"))
-        self._webcam_log(f"🧪 Webcam selftest started: {dev} @ {res} {fps}fps")
+        self._webcam_log(f"🧪 Webcam selftest started: {src.label} @ {res} {fps}fps")
 
         qdir = shlex.quote(save_dir.rstrip("/"))
-        qdev = shlex.quote(dev)
-        qres = shlex.quote(res)
         qfps = shlex.quote(fps)
-        pre = self._webcam_controls_cmd(dev, ctl)
+        pre = ""
+        if is_usb_source(src):
+            pre = self._webcam_controls_cmd(str(src.meta.get("dev") or ""), ctl) + " >/dev/null 2>&1 ; "
+        try:
+            ff_in = build_ffmpeg_input(src, fps=fps, res=res, stream_url=stream_url)
+        except ValueError as e:
+            self._webcam_status(self.t("webcam.status_selftest_fail"))
+            self._webcam_log(f"❌ {e}")
+            return
         codec = self._webcam_profile_codec_snippet("compatible")
         test_cmd = (
             f"mkdir -p {qdir} && "
             f"{codec} && "
             f"TS=$(date +\\%Y\\%m\\%d_\\%H\\%M\\%S) && "
             f"OUT={qdir}/webcam_selftest_$TS.mp4 && "
-            f"{pre} >/dev/null 2>&1 ; "
-            f"/usr/bin/ffmpeg -hide_banner -loglevel error -f v4l2 -input_format mjpeg -framerate {qfps} -video_size {qres} "
-            f"-i {qdev} -t 3 $CODEC \"$OUT\"; RC=$?; "
+            f"{pre}"
+            f"/usr/bin/ffmpeg -hide_banner -loglevel error {ff_in} -t 3 $CODEC \"$OUT\"; RC=$?; "
             "if [ $RC -ne 0 ]; then echo '__SELFTEST_FAIL__record'; exit $RC; fi; "
             "SZ=$(wc -c < \"$OUT\" 2>/dev/null || echo 0); "
             "if [ \"$SZ\" -lt 50000 ]; then echo '__SELFTEST_FAIL__size'; exit 7; fi; "
@@ -4952,19 +5059,29 @@ echo "$max"
         self._webcam_log("⏹️ Live preview stopped.")
 
     def _webcam_preview_start(self, combo_dev, combo_res, entry_fps, preview_lbl, var_auto_exp, entry_exp, entry_gain, combo_pl):
-        dev = (combo_dev.get() or "").strip()
-        if not dev:
+        src = self._webcam_selected_source(combo_dev)
+        if src is None:
             messagebox.showwarning(self.t("webcam.title"), self.t("webcam.pick_device"))
             return
         res = (combo_res.get() or "1280x720").strip()
         fps = (entry_fps.get() or "25").strip()
         ctl = self._webcam_controls_from_ui(var_auto_exp, entry_exp, entry_gain, combo_pl)
+        stream_url = ""
+        try:
+            if src.kind == "ugos":
+                self._webcam_log(self.t("webcam.resolving_stream"))
+                stream_url = self._webcam_resolve_stream_url(src)
+            ff_in = build_ffmpeg_input(src, fps=fps, res=res, stream_url=stream_url)
+        except (UgosApiError, ValueError) as e:
+            messagebox.showwarning(self.t("webcam.title"), str(e))
+            return
         self._webcam_preview_stop()
         w = getattr(self, "_webcam_win", None)
         if w is None:
             return
         w._webcam_preview_stop = threading.Event()
-        self._webcam_log(f"▶️ Live preview start: {dev} @ {res} {fps}fps")
+        self._webcam_log(f"▶️ Live preview start: {src.label} @ {res} {fps}fps")
+        usb_dev = str(src.meta.get("dev") or "") if is_usb_source(src) else ""
 
         def worker():
             pk = _paramiko()
@@ -4986,11 +5103,12 @@ echo "$max"
                         time.sleep(1.5)
                         continue
                 try:
-                    pre = self._webcam_controls_cmd(dev, ctl)
+                    pre = ""
+                    if usb_dev:
+                        pre = self._webcam_controls_cmd(usb_dev, ctl) + " >/dev/null 2>&1 ; "
                     cmd = (
-                        f"{pre} >/dev/null 2>&1 ; "
-                        f"ffmpeg -hide_banner -loglevel error -f v4l2 -input_format mjpeg -framerate {shlex.quote(fps)} "
-                        f"-video_size {shlex.quote(res)} -i {shlex.quote(dev)} -frames:v 1 "
+                        f"{pre}"
+                        f"ffmpeg -hide_banner -loglevel error {ff_in} -frames:v 1 "
                         f"-f image2pipe -vcodec mjpeg -"
                     )
                     _stdin, stdout, _stderr = ssh.exec_command(cmd)
@@ -5029,22 +5147,37 @@ echo "$max"
         w._webcam_preview_thread = t
         t.start()
 
-    def _webcam_record_cmd(self, dev: str, res: str, fps: str, dur: str, save_dir: str, ctl: dict, quality_profile: str, motion_enabled: bool, motion_wait: str, keep_files: str) -> str:
+    def _webcam_record_cmd(
+        self,
+        src: WebcamSource,
+        res: str,
+        fps: str,
+        dur: str,
+        save_dir: str,
+        ctl: dict,
+        quality_profile: str,
+        motion_enabled: bool,
+        motion_wait: str,
+        keep_files: str,
+        *,
+        stream_url: str = "",
+    ) -> str:
         qdir = shlex.quote(save_dir.rstrip("/"))
-        qdev = shlex.quote(dev)
-        qres = shlex.quote(res)
-        qfps = shlex.quote(fps)
         qdur = shlex.quote(dur)
-        pre = self._webcam_controls_cmd(dev, ctl)
+        ff_in = build_ffmpeg_input(src, fps=fps, res=res, stream_url=stream_url)
+        pre = ""
+        if is_usb_source(src):
+            pre = self._webcam_controls_cmd(str(src.meta.get("dev") or ""), ctl) + " >/dev/null 2>&1 ; "
         enc = self._webcam_profile_codec_snippet(quality_profile)
         mw = re.sub(r"[^0-9]", "", str(motion_wait or "2")) or "2"
         keep = re.sub(r"[^0-9]", "", str(keep_files or "0")) or "0"
+        probe_in = build_ffmpeg_probe_input(src, stream_url=stream_url)
         motion = ""
         if motion_enabled:
             motion = (
-                f"H1=$(/usr/bin/ffmpeg -hide_banner -loglevel error -f v4l2 -input_format mjpeg -video_size 320x240 -i {qdev} -frames:v 1 -f md5 - 2>/dev/null | awk -F= 'END{{print $2}}'); "
+                f"H1=$(/usr/bin/ffmpeg -hide_banner -loglevel error {probe_in} -frames:v 1 -f md5 - 2>/dev/null | awk -F= 'END{{print $2}}'); "
                 f"sleep {shlex.quote(mw)}; "
-                f"H2=$(/usr/bin/ffmpeg -hide_banner -loglevel error -f v4l2 -input_format mjpeg -video_size 320x240 -i {qdev} -frames:v 1 -f md5 - 2>/dev/null | awk -F= 'END{{print $2}}'); "
+                f"H2=$(/usr/bin/ffmpeg -hide_banner -loglevel error {probe_in} -frames:v 1 -f md5 - 2>/dev/null | awk -F= 'END{{print $2}}'); "
                 "if [ -n \"$H1\" ] && [ \"$H1\" = \"$H2\" ]; then echo '__WEBCAM_NO_MOTION__'; exit 3; fi; "
             )
         return (
@@ -5052,18 +5185,17 @@ echo "$max"
             f"{enc} && "
             f"TS=$(date +\\%Y\\%m\\%d_\\%H\\%M\\%S) && "
             f"OUT={qdir}/webcam_$TS.mp4 && "
-            f"{pre} >/dev/null 2>&1 ; "
+            f"{pre}"
             f"{motion}"
-            f"/usr/bin/ffmpeg -hide_banner -loglevel error -f v4l2 -input_format mjpeg -framerate {qfps} -video_size {qres} "
-            f"-i {qdev} -t {qdur} $CODEC \"$OUT\"; RC=$?; "
+            f"/usr/bin/ffmpeg -hide_banner -loglevel error {ff_in} -t {qdur} $CODEC \"$OUT\"; RC=$?; "
             "if [ $RC -eq 0 ]; then echo \"__WEBCAM_OUT__$OUT\"; fi; "
             f"if [ $RC -eq 0 ] && [ {keep} -gt 0 ]; then (cd {qdir} && ls -1t webcam_*.mp4 2>/dev/null | tail -n +$(({keep}+1)) | xargs -r rm -f); fi; "
             "exit $RC"
         )
 
     def _webcam_record_now(self, combo_dev, combo_res, entry_fps, combo_dur_days, combo_dur_hours, combo_dur_mins, combo_dur_secs, entry_dir, var_auto_exp, entry_exp, entry_gain, combo_pl, combo_quality, var_motion, combo_motion_wait, combo_keep):
-        dev = (combo_dev.get() or "").strip()
-        if not dev:
+        src = self._webcam_selected_source(combo_dev)
+        if src is None:
             messagebox.showwarning(self.t("webcam.title"), self.t("webcam.pick_device"))
             return
         res = (combo_res.get() or "1280x720").strip()
@@ -5074,17 +5206,28 @@ echo "$max"
         motion_enabled = bool(var_motion.get())
         motion_wait = (combo_motion_wait.get() or "2").strip()
         keep_files = (combo_keep.get() or "0").strip()
-        pf = self._webcam_preflight(dev, save_dir)
+        stream_url = ""
+        try:
+            if src.kind == "ugos":
+                self._webcam_log(self.t("webcam.resolving_stream"))
+                stream_url = self._webcam_resolve_stream_url(src)
+        except UgosApiError as e:
+            self._webcam_status(self.t("webcam.status_preflight_fail"))
+            self._webcam_log(f"❌ {e}")
+            return
+        pf = self._webcam_preflight(src, save_dir, stream_url=stream_url)
         if not pf.get("ok_user"):
             self._webcam_status(self.t("webcam.status_preflight_fail"))
             self._webcam_log(f"❌ Preflight failed: {pf.get('msg','')}")
             return
         ctl = self._webcam_controls_from_ui(var_auto_exp, entry_exp, entry_gain, combo_pl)
-        cmd = self._webcam_record_cmd(dev, res, fps, dur, save_dir, ctl, quality_profile, motion_enabled, motion_wait, keep_files)
+        cmd = self._webcam_record_cmd(
+            src, res, fps, dur, save_dir, ctl, quality_profile, motion_enabled, motion_wait, keep_files, stream_url=stream_url
+        )
         # Verhindert "Device or resource busy": Vorschau hält sonst /dev/videoX offen.
         self._webcam_preview_stop()
         self._webcam_status(self.t("webcam.status_recording"))
-        self._webcam_log(f"🎬 Start recording now: {dev} -> {save_dir}")
+        self._webcam_log(f"🎬 Start recording now: {src.label} -> {save_dir}")
 
         def worker():
             # Kein sudo nötig, solange User Zugriff auf /dev/videoX hat (Gruppe video).
@@ -5110,9 +5253,16 @@ echo "$max"
     def _webcam_save_schedule(self, combo_dev, combo_res, entry_fps, combo_dur_days, combo_dur_hours, combo_dur_mins, combo_dur_secs, combo_h, combo_m, entry_dir, var_auto_exp, entry_exp, entry_gain, combo_pl, combo_quality, var_motion, combo_motion_wait, combo_keep):
         if not self._danger_gate():
             return
-        dev = (combo_dev.get() or "").strip()
-        if not dev:
+        src = self._webcam_selected_source(combo_dev)
+        if src is None:
             messagebox.showwarning(self.t("webcam.title"), self.t("webcam.pick_device"))
+            return
+        if src.kind == "ugos":
+            messagebox.showwarning(
+                self.t("webcam.title"),
+                self.t("webcam.schedule_ugos_unsupported"),
+                parent=getattr(self, "root", None),
+            )
             return
         res = (combo_res.get() or "1280x720").strip()
         fps = (entry_fps.get() or "25").strip()
@@ -5122,7 +5272,8 @@ echo "$max"
         motion_enabled = bool(var_motion.get())
         motion_wait = (combo_motion_wait.get() or "2").strip()
         keep_files = (combo_keep.get() or "0").strip()
-        pf = self._webcam_preflight(dev, save_dir)
+        stream_url = str(src.meta.get("url") or src.meta.get("rtsp_url") or "")
+        pf = self._webcam_preflight(src, save_dir, stream_url=stream_url)
         if not pf.get("ok_root"):
             self._webcam_status(self.t("webcam.status_preflight_fail"))
             self._webcam_log(f"❌ Preflight failed: {pf.get('msg','')}")
@@ -5130,7 +5281,9 @@ echo "$max"
         ctl = self._webcam_controls_from_ui(var_auto_exp, entry_exp, entry_gain, combo_pl)
         h = (combo_h.get() or "00").strip()
         m = (combo_m.get() or "00").strip()
-        cmd = self._webcam_record_cmd(dev, res, fps, dur, save_dir, ctl, quality_profile, motion_enabled, motion_wait, keep_files)
+        cmd = self._webcam_record_cmd(
+            src, res, fps, dur, save_dir, ctl, quality_profile, motion_enabled, motion_wait, keep_files, stream_url=stream_url
+        )
         marker = "# Job (Webcam): webcam_record"
         cron_line = f"{m} {h} * * * root /bin/bash -lc {shlex.quote(cmd)}"
         curr = ""

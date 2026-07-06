@@ -18,8 +18,31 @@ __pycache__/
 # Öffentlicher Export-Worktree (privates Repo)
 .public_export/
 
+# Public mirror worktree for Runlevel UGOS apps (tools/sync_ugos_apps_public_repo.py)
+.runlevel_ugos_apps_export/
+
 # UGREEN Developer-Arbeitsbereich — komplett lokal, nie nach GitHub
 ugreen_developer/
+
+# Abgebrochenes Nebenprojekt — nicht versionieren
+tools/ics_kalender_tool/
+
+# Pro-Lizenz-Tools (separates Projekt ../NAS_Admin_Pro — nie committen)
+tools/pro_license_issuer*
+tools/ProLicenseIssuer*
+tools/issue_pro_entitlement.py
+tools/license_issue_history.py
+tools/activation_request_parser.py
+pro_license_history.json
+.pro_signing_key
+**/.pro_signing_key
+
+# Ugreen NAS Admin Pro — eigenes Projekt: ../NAS_Admin_Pro (nie committen)
+ugreen_pro_app/
+ugreen_nas_admin_pro.py
+builder_pro.py
+RUN_BUILDER_PRO.bat
+UgreenNASAdminPro.spec
 
 # Sensible lokale Konfiguration (nie committen)
 nas_admin_connection.json

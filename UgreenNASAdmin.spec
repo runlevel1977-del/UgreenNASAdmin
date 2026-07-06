@@ -82,6 +82,7 @@ a = Analysis(
         "ugreen_app.ugos_api_client",
         "ugreen_app.mixin_migration_assistant",
         "ugreen_app.mixin_handbook_tab",
+        "ugreen_app.mixin_pro_drawer",
         "ugreen_app.mixin_runlevel_apps",
         "ugreen_app.runlevel_apps_scan",
         "ugreen_app.handbook_nav",

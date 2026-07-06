@@ -175,6 +175,9 @@ On the left is the fixed navigation with all main tabs.
 
 ### 4.2 Tool buttons at the bottom of the sidebar
 
+- **`Get Pro`**  
+  Opens the **Pro guide in the main area** for **Ugreen NAS Admin Pro** (separate app). **Supporters only** (after PayPal donation) or **selected testers**. **Flow (5 steps):** (1) **Donate** via PayPal, (2) receive **Pro by email** at the address you specified, (3) **install Pro** and fill in the Activation tab, (4) send **activation request** with text from the Pro app to **`ugna@posteo.de`**, (5) receive **`pro_entitlement.json`** and **import the license**.
+
 - `Update everything`
 Starts an overall refresh of several areas (scripts list, NAS scan, Docker list, health overview, storage tab, …) over **SSH**. Since **v23.8.1** this usually runs as **one batched sudo command** with markers in the response (fewer round trips). If batching fails, the app **falls back** to the older **sequence of single commands**. The same cycle also reads **`/etc/os-release`** (for the **UGOS/OS line** in the header) and the list of active **`*_serv.service`** units on the NAS (for the **service combobox** in **NAS management**).
 

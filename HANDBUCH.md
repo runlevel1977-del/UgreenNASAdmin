@@ -175,6 +175,9 @@ Links befindet sich die feste Navigation mit allen Haupttabs.
 
 ### 4.2 Tool-Buttons unten in der Sidebar
 
+- **`Get Pro`**  
+  Öffnet die **Pro-Anleitung im Hauptbereich** für **Ugreen NAS Admin Pro** (separate App). **Nur Supporter** (nach PayPal-Spende) oder **ausgewählte Tester**. **Ablauf (5 Schritte):** (1) **Spende** über PayPal, (2) **Pro per E-Mail** an die angegebene Adresse, (3) **Pro installieren** und Felder im Tab Freischaltung ausfüllen, (4) **Freischaltungsanfrage** mit Text aus der Pro-App an **`ugna@posteo.de`**, (5) **`pro_entitlement.json`** erhalten und **Lizenz importieren**.
+
 - `Alles aktualisieren`  
   Startet einen **Gesamt-Refresh** mehrerer Bereiche (Skriptliste, NAS-Scan, Docker-Liste, Health-Übersicht, Speicher-Tab usw.) über **SSH**. Technisch läuft das seit Version **23.8.1** in der Regel als **ein gebündelter sudo-Befehl** mit festen Markern in der Antwort (weniger Roundtrips, schneller als viele Einzelaufrufe). Schlägt das Bundling fehl, nutzt die App automatisch die **frühere Folge einzelner Befehle** (Fallback). Im selben Zyklus werden u. a. **`/etc/os-release`** (für die **UGOS/OS-Zeile** im Header) und die Liste der auf dem NAS aktiven **`*_serv.service`-Units** (für die **Service-Combobox** im Tab **NAS-Verwaltung**) eingelesen.
 

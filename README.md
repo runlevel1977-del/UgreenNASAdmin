@@ -20,6 +20,11 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 
 **Links (immer aktuell):** [GitHub **Latest release**](https://github.com/runlevel1977-del/UgreenNASAdmin/releases/latest) · SourceForge „latest“ (oben) · [All releases](https://github.com/runlevel1977-del/UgreenNASAdmin/releases)
 
+### What's new in v23.8.35
+
+- **Sidebar — Get Pro:** Five-step supporter flow — donate → Pro by email → install & fill fields → activation request → import license; request to `ugna@posteo.de`.
+- **Deutsch (kurz):** Get Pro — 5 Schritte: Spende → Pro per Mail → installieren → Anfrage → Lizenz — Details in [`CHANGELOG.md`](CHANGELOG.md).
+
 ### What's new in v23.8.34
 
 - **Fan — return to UGOS:** **Return UGOS control** now removes **all** curve state files on the NAS (`ugreen_fan_curve.state*`), not only paths matching the current fan list. Handback shell script no longer uses `set -e` (cleanup could be skipped on a non-fatal error).
