@@ -55,7 +55,7 @@ Wichtig zur Einordnung: In der aktuellen UI liegen die umfangreichen Verbindungs
   Wechselt das Farbschema der Oberfläche.
 
 - `ℹ Info`  
-  Öffnet den Info-Dialog mit Dokumentenbuttons (`README`, `Handbuch`, `CHANGELOG`) und Kontaktbereich.
+  Öffnet den Info-Dialog mit Dokumentenbuttons (`README`, `Handbuch`, `CHANGELOG`), **Nach Updates suchen** und Kontaktbereich. Bei neuer GitHub-Version fragt die App nach einigen Sekunden automatisch, ob das **Setup-Update** jetzt heruntergeladen werden soll (Download in den Screenshot-Zielordner aus Settings, sonst neben der EXE / LocalAppData).
 
 - `📸 Screenshot`  
   Erstellt einen Screenshot der App. Zielordner kommt aus `Settings -> Pfade -> Screenshot-Pfad`.

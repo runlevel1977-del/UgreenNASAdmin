@@ -4,6 +4,17 @@
 
 _(keine offenen Änderungen)_
 
+## 23.8.41 — 2026-07-09
+
+### Deutsch
+
+- **Auto-Update:** Neue Versionen werden wie in Pro angeboten — Setup-EXE wird von GitHub heruntergeladen und gestartet (ℹ Info → „Nach Updates suchen“).
+- Öffentliches Repo — kein GitHub-Token nötig.
+
+### English (short)
+
+- **Auto-update:** New releases are offered like Pro — downloads the setup EXE from GitHub and launches it (ℹ Info → “Check for updates”). Public repo — no GitHub token required.
+
 ## 23.8.40 — 2026-07-09
 
 ### Deutsch

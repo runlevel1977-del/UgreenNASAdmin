@@ -689,6 +689,13 @@ class MixinThemeUI:
             lambda: self._open_local_doc("CHANGELOG.md"),
             self.color_btn_blue,
             width=10,
+        ).pack(side=tk.LEFT, padx=(0, 8))
+        self.create_modern_btn(
+            row_btns,
+            self.t("btn.check_updates"),
+            self._check_updates_manual,
+            self.color_btn_secondary,
+            width=16,
         ).pack(side=tk.LEFT, padx=(0, 0))
         self.create_modern_btn(
             row_btns,

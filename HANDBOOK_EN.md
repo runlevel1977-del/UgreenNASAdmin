@@ -55,7 +55,7 @@ Toggles risk mode. Critical buttons in multiple tabs depend on this.
 Changes the color scheme of the interface.
 
 - `ℹ Info`
-Opens the info dialog with document buttons (`README`,`Handbuch`,`CHANGELOG`) and contact area.
+Opens the info dialog with document buttons (`README`, `Manual`, `CHANGELOG`), **Check for updates**, and contact area. After a few seconds the app may offer a **setup update** when a newer GitHub release exists (downloads to the screenshot folder from Settings, otherwise beside the EXE / LocalAppData).
 
 - `📸 Screenshot`
 Takes a screenshot of the app. Destination folder comes out`Settings -> Pfade -> Screenshot-Pfad`.
