@@ -647,6 +647,8 @@ Jede Kachel entspricht **einem Eintrag** in `fan_devices`. Oben in der Kachel: *
 
 #### 24.2.4 Lokale Konfiguration (`app_settings.json`)
 
+**Speicherort (portable EXE / One-Dir-Bundle):** JSON-Dateien wie `app_settings.json` und `nas_admin_connection.json` liegen im **beschreibbaren Ordner der EXE** (`…/UgreenNASAdmin/`). Nach dem Wechsel von One-File auf One-Dir übernimmt die App beim Start automatisch vorhandene Dateien aus dem **übergeordneten `dist/`-Ordner** (altes Layout) oder aus **`%LOCALAPPDATA%\UgreenNASAdmin\`**, falls der Bundle-Ordner noch leer ist. Installierte Versionen unter Program Files nutzen weiterhin LocalAppData.
+
 Unter **`dashboard`** relevant:
 
 ```json

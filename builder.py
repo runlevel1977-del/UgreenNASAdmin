@@ -3,12 +3,18 @@ import subprocess
 import sys
 import time
 import hashlib
+import shutil
 
 # --- KONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SPEC_NAME = "UgreenNASAdmin.spec"
 EXE_NAME = "UgreenNASAdmin"
 # ---------------------
+
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
+from tools.build_python import resolve_build_python  # noqa: E402
 
 
 def _taskkill_exe_if_running(exe_stem: str) -> None:
@@ -86,9 +92,19 @@ def build():
     print(f"Icon: {icon_path}")
     print(f"       Groesse {size} Bytes, geaendert {mtime}")
 
-    dist_exe = os.path.join(BASE_DIR, "dist", f"{EXE_NAME}.exe")
-    if not _remove_dist_exe_maybe_locked(dist_exe, EXE_NAME):
-        sys.exit(1)
+    dist_dir = os.path.join(BASE_DIR, "dist", EXE_NAME)
+    dist_exe = os.path.join(dist_dir, f"{EXE_NAME}.exe")
+    legacy_exe = os.path.join(BASE_DIR, "dist", f"{EXE_NAME}.exe")
+    if os.path.isfile(legacy_exe):
+        _remove_dist_exe_maybe_locked(legacy_exe, EXE_NAME)
+    if os.path.isdir(dist_dir):
+        _taskkill_exe_if_running(EXE_NAME)
+        try:
+            shutil.rmtree(dist_dir, ignore_errors=False)
+            print(f"Altes dist/{EXE_NAME}/ entfernt.")
+        except OSError as e:
+            print(f"Konnte dist/{EXE_NAME}/ nicht loeschen: {e}")
+            sys.exit(1)
 
     params = [
         spec_path,
@@ -99,8 +115,14 @@ def build():
     ]
 
     print(f"Spec:  {spec_path}")
+    try:
+        py_exe = resolve_build_python()
+    except RuntimeError as exc:
+        print(f"FEHLER: {exc}")
+        sys.exit(1)
+    print(f"Build-Python: {py_exe}")
     print("Starte PyInstaller...")
-    cmd = [sys.executable, "-m", "PyInstaller", *params]
+    cmd = [py_exe, "-m", "PyInstaller", *params]
     try:
         r = subprocess.run(cmd, cwd=BASE_DIR)
     except Exception as e:
@@ -137,5 +159,8 @@ if __name__ == "__main__":
     build()
     print("\n" + "=" * 60)
     if sys.stdin.isatty():
-        input("FERTIG. Druecke Enter zum Schliessen...")
+        try:
+            input("FERTIG. Druecke Enter zum Schliessen...")
+        except EOFError:
+            pass
     sys.exit(0)

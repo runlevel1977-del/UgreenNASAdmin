@@ -19,18 +19,28 @@ if (-not $ver) {
     exit 1
 }
 
-$distExe = Join-Path $RepoRoot "dist\UgreenNASAdmin.exe"
+$distExe = Join-Path $RepoRoot "dist\UgreenNASAdmin\UgreenNASAdmin.exe"
 if (-not (Test-Path $distExe)) {
-    Write-Host "dist\UgreenNASAdmin.exe fehlt — starte builder.py im Projektroot …" -ForegroundColor Yellow
+    Write-Host "dist\UgreenNASAdmin\UgreenNASAdmin.exe fehlt — starte builder.py im Projektroot …" -ForegroundColor Yellow
     Push-Location $RepoRoot
     try {
-        python builder.py
+        $buildPy = $env:UGREEN_BUILD_PYTHON
+        if (-not $buildPy) {
+            try {
+                $buildPy = (& py -3.12 -c "import sys; print(sys.executable)" 2>$null).Trim()
+            } catch { }
+        }
+        if ($buildPy -and (Test-Path $buildPy)) {
+            & $buildPy builder.py
+        } else {
+            python builder.py
+        }
     } finally {
         Pop-Location
     }
 }
 if (-not (Test-Path $distExe)) {
-    Write-Error "dist\UgreenNASAdmin.exe fehlt nach builder.py — Build pruefen."
+    Write-Error "dist\UgreenNASAdmin\UgreenNASAdmin.exe fehlt nach builder.py — Build pruefen."
     exit 1
 }
 

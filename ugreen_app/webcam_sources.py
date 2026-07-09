@@ -7,6 +7,7 @@ import re
 import shlex
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import quote, unquote
 
 
 @dataclass
@@ -91,6 +92,71 @@ def _first_list(node: Any) -> list:
     return []
 
 
+def normalize_rtsp_url(url: str) -> str:
+    """Encode RTSP user/password so special chars (!?@# etc.) work with ffmpeg."""
+    raw = (url or "").strip()
+    if not raw:
+        return ""
+    if not re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", raw):
+        raw = f"rtsp://{raw}"
+    scheme_sep = raw.find("://")
+    if scheme_sep < 0:
+        return raw
+    scheme = raw[: scheme_sep + 3]
+    rest = raw[scheme_sep + 3 :]
+    at_idx = rest.rfind("@")
+    if at_idx < 0:
+        return raw
+    userinfo = rest[:at_idx]
+    hostpath = rest[at_idx + 1 :]
+    if ":" in userinfo:
+        user, password = userinfo.split(":", 1)
+    else:
+        user, password = userinfo, ""
+
+    def _enc(part: str) -> str:
+        return quote(unquote(part), safe="")
+
+    auth = f"{_enc(user)}:{_enc(password)}@" if password != "" else (f"{_enc(user)}@" if user else "")
+    return f"{scheme}{auth}{hostpath}"
+
+
+def _ugos_camera_rows(resp: dict[str, Any]) -> list[dict[str, Any]]:
+    """Flatten UGOS devices/cameras API payload to camera rows."""
+    if not isinstance(resp, dict) or resp.get("code") not in (200, "200"):
+        return []
+    data = resp.get("data")
+    items = _first_list(data) if data is not None else []
+    if not items and isinstance(data, dict):
+        items = _first_list(data)
+    rows: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        nested = item.get("cameras")
+        if isinstance(nested, list) and nested:
+            dev_title = _pick_str(item, "title", "name", "deviceName")
+            dev_ip = _pick_str(item, "ip", "host", "address", "deviceIp")
+            dev_id = _pick_str(item, "id", "deviceId", "device_id")
+            for cam in nested:
+                if not isinstance(cam, dict):
+                    continue
+                row = dict(cam)
+                if dev_title and not _pick_str(row, "title", "name", "cameraName"):
+                    row["title"] = dev_title
+                if dev_ip and not _pick_str(row, "ip", "host"):
+                    row["ip"] = dev_ip
+                cid = _pick_str(row, "camera_id", "cameraId", "id")
+                if cid:
+                    row["camera_id"] = cid
+                elif dev_id:
+                    row["camera_id"] = dev_id
+                rows.append(row)
+            continue
+        rows.append(item)
+    return rows
+
+
 def _pick_str(obj: dict, *keys: str) -> str:
     for k in keys:
         v = obj.get(k)
@@ -100,19 +166,13 @@ def _pick_str(obj: dict, *keys: str) -> str:
 
 
 def parse_ugos_cameras_response(resp: dict[str, Any]) -> list[WebcamSource]:
-    if not isinstance(resp, dict) or resp.get("code") not in (200, "200"):
-        return []
-    data = resp.get("data")
-    items = _first_list(data) if data is not None else []
-    if not items and isinstance(data, dict):
-        items = _first_list(data)
     out: list[WebcamSource] = []
-    for item in items:
-        if not isinstance(item, dict):
+    seen: set[str] = set()
+    for item in _ugos_camera_rows(resp):
+        cid = _pick_str(item, "camera_id", "cameraId", "id", "deviceId", "device_id")
+        if not cid or cid in seen:
             continue
-        cid = _pick_str(item, "id", "cameraId", "camera_id", "deviceId", "device_id")
-        if not cid:
-            continue
+        seen.add(cid)
         name = _pick_str(item, "name", "cameraName", "camera_name", "title", "deviceName") or f"Camera {cid}"
         ip = _pick_str(item, "ip", "host", "address", "deviceIp")
         label = f"[IP] {name}"
@@ -121,7 +181,7 @@ def parse_ugos_cameras_response(resp: dict[str, Any]) -> list[WebcamSource]:
         rtsp = _pick_str(item, "rtspUrl", "rtsp_url", "streamUrl", "stream_url", "mainStreamUrl")
         meta: dict[str, Any] = {"ugos_id": cid, "name": name, "ip": ip}
         if rtsp:
-            meta["rtsp_url"] = rtsp
+            meta["rtsp_url"] = normalize_rtsp_url(rtsp)
         out.append(WebcamSource(key=f"ugos:{cid}", label=label, kind="ugos", meta=meta))
     return out
 
@@ -136,16 +196,14 @@ def extract_live_url(resp: dict[str, Any]) -> str:
         for key in ("url", "liveUrl", "live_url", "streamUrl", "stream_url", "rtspUrl", "rtsp_url", "playUrl"):
             v = data.get(key)
             if isinstance(v, str) and v.strip():
-                return v.strip()
+                return normalize_rtsp_url(v.strip())
     return ""
 
 
 def make_rtsp_source(url: str) -> WebcamSource | None:
-    u = (url or "").strip()
+    u = normalize_rtsp_url(url)
     if not u:
         return None
-    if not re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", u):
-        u = f"rtsp://{u}"
     short = u if len(u) <= 56 else (u[:53] + "...")
     return WebcamSource(key=f"rtsp:{u}", label=f"[RTSP] {short}", kind="rtsp", meta={"url": u})
 
@@ -162,9 +220,10 @@ def network_stream_url(src: WebcamSource, *, live_url: str = "") -> str:
     if not src:
         return ""
     if src.kind == "rtsp":
-        return str(src.meta.get("url") or "")
+        return normalize_rtsp_url(str(src.meta.get("url") or ""))
     if src.kind == "ugos":
-        return (live_url or "").strip() or str(src.meta.get("rtsp_url") or "")
+        raw = (live_url or "").strip() or str(src.meta.get("rtsp_url") or "")
+        return normalize_rtsp_url(raw) if raw else ""
     return ""
 
 

@@ -647,6 +647,8 @@ Each tile matches **one** `fan_devices` entry. Top of tile: **🌀 name** and **
 
 #### 24.2.4 Local configuration (`app_settings.json`)
 
+**Storage location (portable EXE / one-dir bundle):** JSON files such as `app_settings.json` and `nas_admin_connection.json` live in the **writable folder next to the EXE** (`…/UgreenNASAdmin/`). After switching from one-file to one-dir, the app migrates existing files from the **parent `dist/` folder** (legacy layout) or from **`%LOCALAPPDATA%\UgreenNASAdmin\`** on first start when the bundle folder is still empty. Installs under Program Files still use LocalAppData.
+
 Under **`dashboard`**:
 
 ```json

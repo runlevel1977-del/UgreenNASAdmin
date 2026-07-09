@@ -4,6 +4,40 @@
 
 _(keine offenen Änderungen)_
 
+## 23.8.40 — 2026-07-09
+
+### Deutsch
+
+- **Portable (One-Dir):** Einstellungen und Verbindung werden wieder gefunden — Migration aus dem alten `dist/`-Ordner (One-File) bzw. aus `%LOCALAPPDATA%\UgreenNASAdmin\`, wenn der neue Bundle-Ordner leer ist.
+
+### English (short)
+
+- **Portable (one-dir):** Settings and connection are found again — migrates from legacy `dist/` (one-file layout) or `%LOCALAPPDATA%\UgreenNASAdmin\` when the new bundle folder is empty.
+
+## 23.8.39 — 2026-07-08
+
+### Deutsch
+
+- **Hotfix:** App startet wieder — defekter Button „Verbindung testen“ entfernt (Methode war nie implementiert).
+- **Build:** One-Dir-Bundle statt One-File — `python312.dll` liegt dauerhaft neben der EXE (kein `_MEI*`-Temp-Ordner).
+
+### English (short)
+
+- **Hotfix:** App starts again — removed broken “Test connection” button.
+- **Build:** One-dir bundle instead of one-file — `python312.dll` stays beside the EXE (no `_MEI*` temp extraction).
+
+## 23.8.38 — 2026-07-08
+
+### Deutsch
+
+- **Webcam / RTSP:** Passwörter mit Sonderzeichen (`!`, `?`, `@` …) werden in RTSP-URLs automatisch encodiert — ffmpeg/ffprobe funktionieren damit.
+- **UGOS-Kamera-Scan:** Fallback auf `cameramgr/devices` wenn `device/cameras` leer; Tapo/ONVIF-Kameras aus verschachtelter Liste.
+
+### English (short)
+
+- **Webcam / RTSP:** Passwords with special characters are URL-encoded automatically for ffmpeg/ffprobe.
+- **UGOS camera scan:** Falls back to `cameramgr/devices` and parses nested camera entries.
+
 ## 23.8.37 — 2026-07-06
 
 ### Deutsch

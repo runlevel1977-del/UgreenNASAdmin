@@ -12,7 +12,8 @@
 #define MyAppUpdatesURL "https://github.com/runlevel1977-del/UgreenNASAdmin/releases"
 
 #define MyRepoRoot ".."
-#define DistExe MyRepoRoot + "\dist\" + MyAppExeName
+#define DistDir MyRepoRoot + "\dist\UgreenNASAdmin"
+#define DistExe DistDir + "\{#MyAppExeName}"
 #define RepoIcon MyRepoRoot + "\nas_icon.ico"
 #define RepoLicense MyRepoRoot + "\LICENSE"
 
@@ -64,7 +65,7 @@ Name: "chinesesimplified"; MessagesFile: "languages_unofficial\ChineseSimplified
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: {#DistExe}; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#DistDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"

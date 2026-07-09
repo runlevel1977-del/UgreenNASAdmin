@@ -103,9 +103,8 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name="UgreenNASAdmin",
     debug=False,
     bootloader_ignore_signals=False,
@@ -120,4 +119,14 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=[ICON],
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
+    name="UgreenNASAdmin",
 )

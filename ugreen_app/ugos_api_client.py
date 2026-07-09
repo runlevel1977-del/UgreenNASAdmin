@@ -188,12 +188,23 @@ class UgosApiClient:
 
     def fetch_surveillance_cameras(self) -> dict[str, Any]:
         """Kameraliste aus UGOS Überwachung (Surveillance Center)."""
+        from ugreen_app.webcam_sources import parse_ugos_cameras_response
+
         last_err: UgosApiError | None = None
+        best_resp: dict[str, Any] = {}
+        best_count = -1
         for path in ("/ugreen/v1/cameramgr/device/cameras", "/ugreen/v1/cameramgr/devices"):
             try:
-                return self.get(path)
+                resp = self.get(path)
             except UgosApiError as e:
                 last_err = e
+                continue
+            count = len(parse_ugos_cameras_response(resp))
+            if count > best_count:
+                best_resp = resp
+                best_count = count
+        if best_count >= 0:
+            return best_resp
         if last_err is not None:
             raise last_err
         return {}

@@ -23,7 +23,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 NAS_MANAGER = ROOT / "ugreen_app" / "nas_manager.py"
-DIST_EXE = ROOT / "dist" / "UgreenNASAdmin.exe"
+DIST_DIR = ROOT / "dist" / "UgreenNASAdmin"
+DIST_EXE = DIST_DIR / "UgreenNASAdmin.exe"
 INSTALLER_OUT = ROOT / "installer" / "output"
 RELEASE_DIR = ROOT / "release"
 
@@ -109,10 +110,11 @@ def main() -> int:
             if src.is_file():
                 shutil.copy2(src, src_root / name)
 
-        # dist nur die EXE (keine lokalen JSON/Logs aus dem Arbeits-dist)
-        dist_dst = src_root / "dist"
-        dist_dst.mkdir(parents=True)
-        shutil.copy2(DIST_EXE, dist_dst / DIST_EXE.name)
+        # dist: kompletter One-Dir-Ordner (EXE + DLLs)
+        dist_dst = src_root / "dist" / "UgreenNASAdmin"
+        if dist_dst.exists():
+            shutil.rmtree(dist_dst)
+        shutil.copytree(DIST_DIR, dist_dst)
 
         # Installer: nur Setup zur aktuellen Version (keine alten Builds im ZIP)
         setup_ver = INSTALLER_OUT / f"UgreenNASAdmin_setup_{ver}.exe"

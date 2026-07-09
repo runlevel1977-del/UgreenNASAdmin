@@ -50,6 +50,36 @@ class MixinConfigTelegram:
         except OSError:
             return False
 
+    _CONFIG_MARKER_FILES = (
+        "nas_admin_connection.json",
+        "app_settings.json",
+    )
+
+    @staticmethod
+    def _frozen_portable_candidate_dirs(exe_dir: str) -> tuple[str, ...]:
+        """One-Dir-Portable: alte One-File-Konfiguration lag oft im übergeordneten dist/-Ordner."""
+        dirs: list[str] = []
+        parent = os.path.dirname(exe_dir)
+        if os.path.basename(exe_dir) == "UgreenNASAdmin" and parent:
+            dirs.append(parent)
+        dirs.append(exe_dir)
+        return tuple(dirs)
+
+    @classmethod
+    def _dir_has_app_config(cls, d: str) -> bool:
+        return any(os.path.isfile(os.path.join(d, name)) for name in cls._CONFIG_MARKER_FILES)
+
+    def _localappdata_data_dir(self) -> str:
+        if sys.platform == "win32":
+            local = os.environ.get("LOCALAPPDATA") or ""
+            if not local:
+                local = os.path.join(os.path.expanduser("~"), "AppData", "Local")
+            return os.path.join(local, "UgreenNASAdmin")
+        if sys.platform == "darwin":
+            return os.path.join(os.path.expanduser("~"), "Library", "Application Support", "UgreenNASAdmin")
+        xdg = os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share")
+        return os.path.join(xdg, "UgreenNASAdmin")
+
     def _migrate_configs_from_exe_dir(self, exe_dir: str, target_dir: str) -> None:
         """Nach Installation unter Program Files: Kopien sind nur dort lesbar — übernehmen in target_dir."""
         if os.path.normcase(os.path.normpath(exe_dir)) == os.path.normcase(os.path.normpath(target_dir)):
@@ -83,23 +113,26 @@ class MixinConfigTelegram:
             self._cached_app_data_dir = root
             return root
         exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+        for d in self._frozen_portable_candidate_dirs(exe_dir):
+            if self._dir_has_app_config(d) and self._directory_is_user_writable(d):
+                self._cached_app_data_dir = d
+                return d
+        local_data = self._localappdata_data_dir()
         if self._directory_is_user_writable(exe_dir):
+            for src in self._frozen_portable_candidate_dirs(exe_dir):
+                if src != exe_dir:
+                    self._migrate_configs_from_exe_dir(src, exe_dir)
+            if not self._dir_has_app_config(exe_dir):
+                self._migrate_configs_from_exe_dir(local_data, exe_dir)
             self._cached_app_data_dir = exe_dir
             return exe_dir
-        if sys.platform == "win32":
-            local = os.environ.get("LOCALAPPDATA") or ""
-            if not local:
-                local = os.path.join(os.path.expanduser("~"), "AppData", "Local")
-            data = os.path.join(local, "UgreenNASAdmin")
-        elif sys.platform == "darwin":
-            data = os.path.join(os.path.expanduser("~"), "Library", "Application Support", "UgreenNASAdmin")
-        else:
-            xdg = os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share")
-            data = os.path.join(xdg, "UgreenNASAdmin")
-        os.makedirs(data, exist_ok=True)
-        self._migrate_configs_from_exe_dir(exe_dir, data)
-        self._cached_app_data_dir = data
-        return data
+        os.makedirs(local_data, exist_ok=True)
+        self._migrate_configs_from_exe_dir(exe_dir, local_data)
+        for src in self._frozen_portable_candidate_dirs(exe_dir):
+            if src != exe_dir:
+                self._migrate_configs_from_exe_dir(src, local_data)
+        self._cached_app_data_dir = local_data
+        return local_data
 
     def _connection_config_path(self):
         return os.path.join(self._app_data_dir(), "nas_admin_connection.json")
