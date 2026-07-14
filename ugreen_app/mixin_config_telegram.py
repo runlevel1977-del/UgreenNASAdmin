@@ -866,6 +866,11 @@ class MixinConfigTelegram:
 
     def _on_app_close(self):
         try:
+            if hasattr(self, "_save_main_window_geometry"):
+                self._save_main_window_geometry()
+        except Exception:
+            pass
+        try:
             if hasattr(self, "_runlevel_apps_shutdown"):
                 self._runlevel_apps_shutdown()
         except Exception:
@@ -959,6 +964,7 @@ class MixinConfigTelegram:
                 "cmd_timeout_sec": 120,
                 "long_timeout_sec": 0,
             },
+            "window": {},
         }
 
     def _second_nas_one_peer_dict(self, smb: dict) -> dict:

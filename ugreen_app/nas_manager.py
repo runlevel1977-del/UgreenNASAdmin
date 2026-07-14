@@ -50,7 +50,7 @@ from ugreen_app.mixin_runlevel_apps import MixinRunlevelApps
 from ugreen_app.mixin_pro_drawer import MixinProDrawer
 from ugreen_app.i18n import cron_mappings_for_lang, translate
 
-__version__ = "23.8.41"
+__version__ = "23.8.42"
 
 class NASManager(
     MixinSafetyLock,
@@ -91,8 +91,7 @@ class NASManager(
         self.base_width = 1680
         self.drawer_width = 640
         self.height = 1100
-        self.root.geometry(f"{self.base_width}x{self.height}")
-        self.root.minsize(1340, 940)
+        self.root.minsize(920, 560)
         self.scheduler_expanded = False
         self.is_monitoring = False
         self._dash_live_lock = threading.Lock()
@@ -117,6 +116,7 @@ class NASManager(
         self._init_danger_lock_state()
         self.setup_ui()
         self._load_connection_config()
+        self._apply_main_window_geometry(initial=True)
         self._finalize_installer_ui_lang_hint()
         self.root.after(250, self._probe_ssh_connection_async)
         self.root.protocol("WM_DELETE_WINDOW", self._on_app_close)

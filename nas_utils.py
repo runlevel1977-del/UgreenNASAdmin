@@ -706,3 +706,69 @@ BACKUP_USB_FALLBACK_PROBE_INNER = (
     "awk -v d=\"$bd\" '$1 ~ (\"^/dev/\" d) { print $2 }' /proc/mounts || true; "
     "done | sort -u"
 )
+
+
+def adaptive_window_minsize(
+    work_w: int,
+    work_h: int,
+    pref_min_w: int = 1340,
+    pref_min_h: int = 940,
+) -> tuple[int, int]:
+    """Mindestgröße begrenzen, damit das Fenster auf kleinen Displays passt."""
+    safe_w = max(920, int(work_w) - 16)
+    safe_h = max(560, int(work_h) - 16)
+    return min(max(320, int(pref_min_w)), safe_w), min(max(400, int(pref_min_h)), safe_h)
+
+
+def fit_window_size(
+    desired_w: int,
+    desired_h: int,
+    work_w: int,
+    work_h: int,
+    min_w: int,
+    min_h: int,
+    margin: int = 8,
+) -> tuple[int, int]:
+    """Wunschgröße in den sichtbaren Arbeitsbereich einpassen."""
+    max_w = max(min_w, int(work_w) - margin * 2)
+    max_h = max(min_h, int(work_h) - margin * 2)
+    w = max(min_w, min(int(desired_w), max_w))
+    h = max(min_h, min(int(desired_h), max_h))
+    return w, h
+
+
+def center_window_position(
+    w: int,
+    h: int,
+    work_x: int,
+    work_y: int,
+    work_w: int,
+    work_h: int,
+) -> tuple[int, int]:
+    """Fenster im Arbeitsbereich zentrieren."""
+    x = int(work_x) + max(0, (int(work_w) - int(w)) // 2)
+    y = int(work_y) + max(0, (int(work_h) - int(h)) // 2)
+    return x, y
+
+
+def clamp_window_rect(
+    x: int,
+    y: int,
+    w: int,
+    h: int,
+    work_x: int,
+    work_y: int,
+    work_w: int,
+    work_h: int,
+    min_w: int,
+    min_h: int,
+    margin: int = 8,
+) -> tuple[int, int, int, int]:
+    """Position und Größe so begrenzen, dass das Fenster vollständig sichtbar bleibt."""
+    w_fit, h_fit = fit_window_size(w, h, work_w, work_h, min_w, min_h, margin=margin)
+    x_clamped = max(int(work_x) + margin, min(int(x), int(work_x) + int(work_w) - w_fit - margin))
+    y_clamped = max(
+        int(work_y) + margin,
+        min(int(y), int(work_y) + int(work_h) - h_fit - margin),
+    )
+    return x_clamped, y_clamped, w_fit, h_fit

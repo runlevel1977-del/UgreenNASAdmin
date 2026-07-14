@@ -20,11 +20,14 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 
 **Links (immer aktuell):** [GitHub **Latest release**](https://github.com/runlevel1977-del/UgreenNASAdmin/releases/latest) · SourceForge „latest“ (oben) · [All releases](https://github.com/runlevel1977-del/UgreenNASAdmin/releases)
 
-**Portable (One-Dir):** Settings and connection JSON files live beside `UgreenNASAdmin.exe` inside the `UgreenNASAdmin/` folder. After upgrading from an older one-file EXE, the app migrates existing config from the parent folder or `%LOCALAPPDATA%\UgreenNASAdmin\` on first start.
+**Portable (One-Dir):** Settings and connection JSON files live beside `UgreenNASAdmin.exe` inside the `UgreenNASAdmin/` folder. After upgrading from an older one-file EXE, the app migrates existing config from the parent folder or `%LOCALAPPDATA%\UgreenNASAdmin\` on first start. **Window geometry** (size/position, taskbar-aware) is stored in `app_settings.json` → `window` (v23.8.42+).
 
 **Auto-update:** When a newer release is on GitHub, the app offers to download `UgreenNASAdmin_setup_*.exe` and run it (ℹ Info → **Check for updates**). No manual download needed.
 
-### What's new in v23.8.35
+### What's new in v23.8.42
+
+- **Window / laptop:** Startup size and position fit the visible work area; saved geometry prevents gradual drift off-screen on restart.
+
 
 - **Sidebar — Get Pro:** Five-step supporter flow — donate → Pro by email → install & fill fields → activation request → import license; request to `ugna@posteo.de`.
 - **Deutsch (kurz):** Get Pro — 5 Schritte: Spende → Pro per Mail → installieren → Anfrage → Lizenz — Details in [`CHANGELOG.md`](CHANGELOG.md).

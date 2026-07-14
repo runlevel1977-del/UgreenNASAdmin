@@ -38,6 +38,206 @@ from ugreen_app._paramiko import _paramiko
 from ugreen_app.rounded_ui import SidebarNavItem, create_rounded_button, create_rounded_outline_button, RoundedCard
 
 class MixinThemeUI:
+    def _main_window_work_area(self) -> tuple[int, int, int, int]:
+        """Liefert (x, y, Breite, Höhe) des sichtbaren Arbeitsbereichs (ohne Taskleiste)."""
+        try:
+            if sys.platform == "win32":
+                from ctypes import wintypes
+
+                class _Rect(ctypes.Structure):
+                    _fields_ = [
+                        ("left", wintypes.LONG),
+                        ("top", wintypes.LONG),
+                        ("right", wintypes.LONG),
+                        ("bottom", wintypes.LONG),
+                    ]
+
+                rect = _Rect()
+                if ctypes.windll.user32.SystemParametersInfoW(0x0030, 0, ctypes.byref(rect), 0):
+                    return (
+                        int(rect.left),
+                        int(rect.top),
+                        int(rect.right - rect.left),
+                        int(rect.bottom - rect.top),
+                    )
+        except Exception:
+            pass
+        try:
+            self.root.update_idletasks()
+        except Exception:
+            pass
+        return (
+            0,
+            0,
+            int(self.root.winfo_screenwidth()),
+            int(self.root.winfo_screenheight()),
+        )
+
+    def _apply_main_window_geometry(self, *, initial: bool = False) -> None:
+        """Startgröße/-position an Bildschirm anpassen und gespeicherte Werte wiederherstellen."""
+        work_x, work_y, work_w, work_h = self._main_window_work_area()
+        min_w, min_h = nas_utils.adaptive_window_minsize(work_w, work_h)
+        try:
+            self.root.minsize(min_w, min_h)
+        except Exception:
+            pass
+
+        pref_w = int(getattr(self, "base_width", 1680))
+        pref_h = int(getattr(self, "height", 1100))
+        win_cfg: dict[str, object] = {}
+        if hasattr(self, "_load_app_settings"):
+            try:
+                win_cfg = dict(self._load_app_settings().get("window") or {})
+            except Exception:
+                win_cfg = {}
+
+        def _as_int(key: str) -> int | None:
+            try:
+                if key not in win_cfg:
+                    return None
+                return int(win_cfg[key])
+            except (TypeError, ValueError):
+                return None
+
+        saved_x, saved_y = _as_int("x"), _as_int("y")
+        saved_w, saved_h = _as_int("w"), _as_int("h")
+        if None not in (saved_x, saved_y, saved_w, saved_h):
+            w, h = nas_utils.fit_window_size(saved_w, saved_h, work_w, work_h, min_w, min_h)
+            x, y, w, h = nas_utils.clamp_window_rect(
+                saved_x,
+                saved_y,
+                w,
+                h,
+                work_x,
+                work_y,
+                work_w,
+                work_h,
+                min_w,
+                min_h,
+            )
+        else:
+            w, h = nas_utils.fit_window_size(pref_w, pref_h, work_w, work_h, min_w, min_h)
+            x, y = nas_utils.center_window_position(w, h, work_x, work_y, work_w, work_h)
+            x, y, w, h = nas_utils.clamp_window_rect(
+                x,
+                y,
+                w,
+                h,
+                work_x,
+                work_y,
+                work_w,
+                work_h,
+                min_w,
+                min_h,
+            )
+
+        try:
+            self.root.geometry(f"{w}x{h}+{x}+{y}")
+            self._main_window_geom = (x, y, w, h)
+        except Exception:
+            pass
+
+        if initial:
+            try:
+                self.root.after(0, self._finalize_main_window_geometry)
+            except Exception:
+                pass
+
+    def _finalize_main_window_geometry(self) -> None:
+        """Nach erstem Layout erneut begrenzen (verhindert Taskleisten-Überdeckung)."""
+        try:
+            self.root.update_idletasks()
+        except Exception:
+            return
+        work_x, work_y, work_w, work_h = self._main_window_work_area()
+        min_w, min_h = nas_utils.adaptive_window_minsize(work_w, work_h)
+        try:
+            x = int(self.root.winfo_rootx())
+            y = int(self.root.winfo_rooty())
+            w = int(self.root.winfo_width())
+            h = int(self.root.winfo_height())
+        except Exception:
+            return
+        x, y, w, h = nas_utils.clamp_window_rect(
+            x,
+            y,
+            w,
+            h,
+            work_x,
+            work_y,
+            work_w,
+            work_h,
+            min_w,
+            min_h,
+        )
+        try:
+            self.root.geometry(f"{w}x{h}+{x}+{y}")
+            self._main_window_geom = (x, y, w, h)
+        except Exception:
+            pass
+
+    def _set_main_window_size(self, width: int, height: int) -> None:
+        """Hauptfensterbreite/-höhe ändern und Position im sichtbaren Bereich halten."""
+        work_x, work_y, work_w, work_h = self._main_window_work_area()
+        min_w, min_h = nas_utils.adaptive_window_minsize(work_w, work_h)
+        try:
+            x = int(self.root.winfo_rootx())
+            y = int(self.root.winfo_rooty())
+        except Exception:
+            x, y = work_x, work_y
+        w, h = nas_utils.fit_window_size(width, height, work_w, work_h, min_w, min_h)
+        x, y, w, h = nas_utils.clamp_window_rect(
+            x,
+            y,
+            w,
+            h,
+            work_x,
+            work_y,
+            work_w,
+            work_h,
+            min_w,
+            min_h,
+        )
+        try:
+            self.root.geometry(f"{w}x{h}+{x}+{y}")
+            self._main_window_geom = (x, y, w, h)
+        except Exception:
+            pass
+
+    def _save_main_window_geometry(self) -> None:
+        """Fensterposition für den nächsten Start in app_settings.json sichern."""
+        if not hasattr(self, "_load_app_settings") or not hasattr(self, "_app_settings_path"):
+            return
+        try:
+            self.root.update_idletasks()
+            x = int(self.root.winfo_rootx())
+            y = int(self.root.winfo_rooty())
+            w = int(self.root.winfo_width())
+            h = int(self.root.winfo_height())
+        except Exception:
+            return
+        work_x, work_y, work_w, work_h = self._main_window_work_area()
+        min_w, min_h = nas_utils.adaptive_window_minsize(work_w, work_h)
+        x, y, w, h = nas_utils.clamp_window_rect(
+            x,
+            y,
+            w,
+            h,
+            work_x,
+            work_y,
+            work_w,
+            work_h,
+            min_w,
+            min_h,
+        )
+        try:
+            cfg = self._load_app_settings()
+            cfg["window"] = {"x": x, "y": y, "w": w, "h": h}
+            with open(self._app_settings_path(), "w", encoding="utf-8") as f:
+                json.dump(cfg, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+
     def _header_refresh_model_async(self) -> None:
         """Liest NAS-Modell per DMI und zeigt es im Header an."""
         lbl = getattr(self, "_header_model_label", None)

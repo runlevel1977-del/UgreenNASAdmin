@@ -649,6 +649,8 @@ Each tile matches **one** `fan_devices` entry. Top of tile: **🌀 name** and **
 
 **Storage location (portable EXE / one-dir bundle):** JSON files such as `app_settings.json` and `nas_admin_connection.json` live in the **writable folder next to the EXE** (`…/UgreenNASAdmin/`). After switching from one-file to one-dir, the app migrates existing files from the **parent `dist/` folder** (legacy layout) or from **`%LOCALAPPDATA%\UgreenNASAdmin\`** on first start when the bundle folder is still empty. Installs under Program Files still use LocalAppData.
 
+**Window size and position (from v23.8.42):** On startup the main window fits the **visible work area** (Windows taskbar is taken into account). Size and position are saved under **`window`** in `app_settings.json` when you exit and restored on the next launch — including on small laptop screens. If the window would be off-screen, it is clamped back automatically.
+
 Under **`dashboard`**:
 
 ```json

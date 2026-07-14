@@ -4,7 +4,18 @@
 
 _(keine offenen Änderungen)_
 
-## 23.8.41 — 2026-07-09
+## 23.8.42 — 2026-07-14
+
+### Deutsch
+
+- **Fenster / Notebook:** Startgröße und -position passen sich dem sichtbaren Arbeitsbereich an (Taskleiste berücksichtigt). Gespeicherte Fensterposition in `app_settings.json` → `window` — kein schleichendes Verschieben nach rechts mehr bei jedem Neustart.
+- **Scheduler-Drawer:** Breitenänderung behält die Fensterposition bei.
+
+### English (short)
+
+- **Window / laptop:** Startup size and position fit the visible work area (taskbar-aware). Saved geometry in `app_settings.json` → `window` — fixes gradual drift off-screen on restart.
+- **Scheduler drawer:** width changes preserve window position.
+
 
 ### Deutsch
 

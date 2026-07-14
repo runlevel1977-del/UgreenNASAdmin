@@ -649,6 +649,8 @@ Jede Kachel entspricht **einem Eintrag** in `fan_devices`. Oben in der Kachel: *
 
 **Speicherort (portable EXE / One-Dir-Bundle):** JSON-Dateien wie `app_settings.json` und `nas_admin_connection.json` liegen im **beschreibbaren Ordner der EXE** (`…/UgreenNASAdmin/`). Nach dem Wechsel von One-File auf One-Dir übernimmt die App beim Start automatisch vorhandene Dateien aus dem **übergeordneten `dist/`-Ordner** (altes Layout) oder aus **`%LOCALAPPDATA%\UgreenNASAdmin\`**, falls der Bundle-Ordner noch leer ist. Installierte Versionen unter Program Files nutzen weiterhin LocalAppData.
 
+**Fenstergröße und -position (ab v23.8.42):** Beim Start passt sich das Hauptfenster dem **sichtbaren Arbeitsbereich** an (Windows-Taskleiste wird berücksichtigt). Position und Größe werden beim Beenden unter **`window`** in `app_settings.json` gespeichert und beim nächsten Start wiederhergestellt — auch auf kleinen Notebook-Displays. Liegt das Fenster außerhalb des sichtbaren Bereichs, wird es automatisch zurückgesetzt.
+
 Unter **`dashboard`** relevant:
 
 ```json

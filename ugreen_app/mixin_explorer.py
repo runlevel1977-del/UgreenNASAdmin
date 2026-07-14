@@ -1522,7 +1522,7 @@ class MixinExplorer:
                 target_w = max(current_w, self.base_width + self.drawer_width)
             except Exception:
                 target_w = self.base_width + self.drawer_width
-            self.root.geometry(f"{target_w}x{self.height}")
+            self._set_main_window_size(target_w, self.height)
             self.scheduler_drawer.pack(side=tk.RIGHT, fill=tk.BOTH)
             self.scheduler_expanded = True
             
@@ -1531,7 +1531,7 @@ class MixinExplorer:
                 self.sync_scheduler(fn)
         else: 
             self.scheduler_drawer.pack_forget()
-            self.root.geometry(f"{self.base_width}x{self.height}")
+            self._set_main_window_size(self.base_width, self.height)
             self.scheduler_expanded = False
 
     def edit_cronjobs(self):
