@@ -24,13 +24,24 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 
 **Auto-update:** When a newer release is on GitHub, the app offers to download `UgreenNASAdmin_setup_*.exe` and run it (ℹ Info → **Check for updates**). No manual download needed.
 
+### Unreleased / upcoming
+
+- **Transfer Hub / Wake & Sync (UGOS):** Folder picker includes **Home** (`/home/…/Photos`) without an SMB share; only `@…` system folders stay hidden. Transfer Hub **0.6.28** also supports **multi-select source folders** (one transfer per folder). Wake & Sync **0.1.32**.
+- **Deutsch:** Transfer Hub / Wake & Sync — Ordnerwahl inkl. Home/Photos und Mehrfach-Quellordner — siehe [`CHANGELOG.md`](CHANGELOG.md).
+
+### What's new in v23.8.43
+
+- **Explorer — copy/move on the NAS:** Right-click items in the NAS tree → **Copy to…** / **Move to…**, then pick the destination folder from the list (full path, e.g. `/volume2/Papa Sicherung/APPS`). Requires **full access**.
+- **Deutsch:** Explorer — Rechtsklick **Kopieren nach…** / **Verschieben nach…**, Zielordner aus der Liste wählen — Details in [`CHANGELOG.md`](CHANGELOG.md).
+
 ### What's new in v23.8.42
 
 - **Window / laptop:** Startup size and position fit the visible work area; saved geometry prevents gradual drift off-screen on restart.
 
 
-- **Sidebar — Get Pro:** Five-step supporter flow — donate → Pro by email → install & fill fields → activation request → import license; request to `ugna@posteo.de`.
-- **Deutsch (kurz):** Get Pro — 5 Schritte: Spende → Pro per Mail → installieren → Anfrage → Lizenz — Details in [`CHANGELOG.md`](CHANGELOG.md).
+- **Sidebar — Get Pro:** Five-step supporter flow — donate (PayPal or GitHub Sponsors) → Pro by email → install & fill fields → activation request → import license; request to `ugna@posteo.de`. Pro **Problems & errors** scan is stricter (real issues only). Pro **Storage** tab: **Backup now** after Analyze saves selected volumes as `.tar.gz` to the download folder.
+- **Deutsch (kurz):** Get Pro — 5 Schritte: Spende (PayPal / GitHub Sponsors) → Pro per Mail → installieren → Anfrage → Lizenz — Details in [`CHANGELOG.md`](CHANGELOG.md). Pro-Probleme-Scan ohne Rauschen; Speicher-Tab **„Backup jetzt“** vor dem Löschen.
+- **Support:** [GitHub Sponsors](https://github.com/sponsors/runlevel1977-del) · [PayPal](https://paypal.me/UgADMINapp)
 
 ### What's new in v23.8.34
 
@@ -262,9 +273,10 @@ Opens a **drawer** for **Cron scheduling**.
 
 **Purpose:** Browse the NAS and your **local PC**, upload/download files, and copy paths.
 
-- **Two panes:** NAS and **“This PC”** (or similar). Navigate folders, use **search** where available, and open the **context menu** for upload, delete, permissions helpers, and **load into script editor** for quick editing.
+- **Two panes:** NAS and **“This PC”** (or similar). Navigate folders, use **search** where available, and open the **context menu** for upload, delete, permissions helpers, **copy/move on the NAS**, and **load into script editor** for quick editing.
 - **UGREEN** panel: quick context for the active NAS (branding/labels as in the app).
 - **Transfers** may show progress, unpack steps, and ETA on large jobs.
+- **Copy/move on the NAS:** select items in the left tree, right-click **Copy to…** or **Move to…**, then pick the destination folder from the list (full path). Needs **full access**.
 
 **Typical flow:** pick a folder on the NAS, upload from PC (or the reverse), or open a file’s path to reuse in a script or Docker path field.
 
@@ -549,8 +561,9 @@ Kombinieren mit **Benachrichtigungen** in **Settings**, damit Nacht-Jobs per **T
 
 **Ziel:** NAS und **lokalen PC** durchsuchen, **hoch- und herunterladen**, Pfade kopieren, Kontextmenü nutzen.
 
-- Zwei **Bereiche** (NAS / Dieser PC), **Suche** wo verfügbar, **Kontextmenü** (u. a. in Editor laden, Löschen, Rechte, Upload). **UGREEN**-Panel: Kontext für den aktuellen Speicher.  
+- Zwei **Bereiche** (NAS / Dieser PC), **Suche** wo verfügbar, **Kontextmenü** (u. a. in Editor laden, Löschen, Rechte, Upload, **Kopieren/Verschieben auf der NAS**). **UGREEN**-Panel: Kontext für den aktuellen Speicher.  
 - Große Kopiervorgänge zeigen ggf. **Fortschritt / ETA** an (je nach Ablage).
+- **Auf der NAS kopieren/verschieben:** links Einträge markieren, Rechtsklick **Kopieren nach…** oder **Verschieben nach…**, Zielordner in der Liste wählen (voller Pfad). Braucht **volle Rechte**.
 
 **Typisch:** Zielordner wählen, Datei ziehen oder per Dialog **hochladen** / **herunterladen**.
 

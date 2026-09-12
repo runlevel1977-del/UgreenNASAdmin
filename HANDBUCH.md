@@ -176,7 +176,7 @@ Links befindet sich die feste Navigation mit allen Haupttabs.
 ### 4.2 Tool-Buttons unten in der Sidebar
 
 - **`Get Pro`**  
-  Öffnet die **Pro-Anleitung im Hauptbereich** für **Ugreen NAS Admin Pro** (separate App). **Nur Supporter** (nach PayPal-Spende) oder **ausgewählte Tester**. **Ablauf (5 Schritte):** (1) **Spende** über PayPal, (2) **Pro per E-Mail** an die angegebene Adresse, (3) **Pro installieren** und Felder im Tab Freischaltung ausfüllen, (4) **Freischaltungsanfrage** mit Text aus der Pro-App an **`ugna@posteo.de`**, (5) **`pro_entitlement.json`** erhalten und **Lizenz importieren**.
+  Öffnet die **Pro-Anleitung im Hauptbereich** für **Ugreen NAS Admin Pro** (separate App). **Nur Supporter** (nach Spende über **PayPal** oder **GitHub Sponsors**) oder **ausgewählte Tester**. **Ablauf (5 Schritte):** (1) **Spende** über PayPal oder GitHub Sponsors, (2) **Pro per E-Mail** an die angegebene Adresse, (3) **Pro installieren** und Felder im Tab Freischaltung ausfüllen, (4) **Freischaltungsanfrage** mit Text aus der Pro-App an **`ugna@posteo.de`**, (5) **`pro_entitlement.json`** erhalten und **Lizenz importieren**. In Pro zeigt **Probleme & Fehler** nur echte Auffälligkeiten (kein UGOS-/Docker-Rauschen, SMART nur bei FAIL/kritischen Zählern, Skript-Logs nur aktuell). Im Tab **Speicher**: **„Backup jetzt“** / **„Wiederherstellen“** sichern und spielen **Nutzerdaten** (ohne `@…`-Systemordner) vor/nach Plattentausch zurück; Apps in UGOS ggf. neu installieren.
 
 - `Alles aktualisieren`  
   Startet einen **Gesamt-Refresh** mehrerer Bereiche (Skriptliste, NAS-Scan, Docker-Liste, Health-Übersicht, Speicher-Tab usw.) über **SSH**. Technisch läuft das seit Version **23.8.1** in der Regel als **ein gebündelter sudo-Befehl** mit festen Markern in der Antwort (weniger Roundtrips, schneller als viele Einzelaufrufe). Schlägt das Bundling fehl, nutzt die App automatisch die **frühere Folge einzelner Befehle** (Fallback). Im selben Zyklus werden u. a. **`/etc/os-release`** (für die **UGOS/OS-Zeile** im Header) und die Liste der auf dem NAS aktiven **`*_serv.service`-Units** (für die **Service-Combobox** im Tab **NAS-Verwaltung**) eingelesen.
@@ -1101,6 +1101,8 @@ Wenn Job nicht laeuft:
 - In Editor laden
 - Perms 755
 - Pfad kopieren
+- Kopieren nach…
+- Verschieben nach…
 - Upload Dateien
 - Upload Ordner
 - Löschen
@@ -1161,6 +1163,8 @@ Sucht im aktuellen NAS-Kontext.
 ### 45.8 Kontextmenüs
 
 Die Kontextmenüs sind gleichwertige Aktionsauslöser zu Toolbar-Buttons, nicht nur Anzeigen.
+
+**NAS → NAS (Rechtsklick):** Dateien/Ordner im linken Baum markieren → Rechtsklick → **Kopieren nach…** oder **Verschieben nach…** → Zielordner **in der Liste wählen** (voller Pfad, z. B. `/volume2/Papa Sicherung/APPS`, nicht `/volume2/APPS`). Wenn ein Kurzpfad eindeutig einem Ordner im Baum entspricht, bietet die App ihn an. Systemordner (`@…`, Papierkorb) und Volume-Wurzeln als Quelle sind gesperrt. Existiert der Name im Ziel schon, bricht der Vorgang ab. Braucht **volle Rechte**.
 
 ---
 
@@ -1245,6 +1249,8 @@ Fehlerfall:
 ## 12. Tab Docker komplett (Knöpfe + Bedienung direkt zusammen)
 
 ### Aus dem Bereich: 30. Vollständige Referenz: Docker-Tab
+
+**Runlevel-Apps (Transfer Hub / Wake & Sync):** In der Ordnerwahl erscheinen lokale NAS-Pfade inkl. **Home** (`/home/…`, z. B. Photos) **ohne** SMB-Freigabe. Ausgeblendet bleiben nur Systemordner (`@…`). **Transfer Hub ab 0.6.28:** mehrere Quellordner per Häkchen wählen („Markierte übernehmen“) — pro Ordner ein eigener Transfer; Ziel bleibt ein Ordner. Nach Update der UPK-Apps neu starten/installieren (Transfer Hub **0.6.28+**, Wake & Sync **0.1.32+**).
 
 ### 30.1 Erstell-/Kataloggruppe
 

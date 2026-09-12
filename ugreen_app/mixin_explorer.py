@@ -1627,17 +1627,29 @@ class MixinExplorer:
                 pass
             u = self.danger_functions_unlocked
             if not u:
-                for idx in (1, 4, 5, 6):
+                for label in [
+                    self.t("explorer.ctx.perms755"),
+                    self.t("explorer.ctx.nas_copy_to"),
+                    self.t("explorer.ctx.nas_move_to"),
+                    self.t("explorer.ctx.upload_files"),
+                    self.t("explorer.ctx.upload_folder"),
+                    self.t("explorer.ctx.delete_nas"),
+                ]:
                     try:
-                        self.context_menu.entryconfig(idx, state=tk.DISABLED)
+                        self.context_menu.entryconfig(label, state=tk.DISABLED)
                     except Exception:
                         pass
             else:
-                try:
-                    self.context_menu.entryconfig(1, state=tk.NORMAL)
-                    self.context_menu.entryconfig(6, state=tk.NORMAL)
-                except Exception:
-                    pass
+                for label in [
+                    self.t("explorer.ctx.perms755"),
+                    self.t("explorer.ctx.nas_copy_to"),
+                    self.t("explorer.ctx.nas_move_to"),
+                    self.t("explorer.ctx.delete_nas"),
+                ]:
+                    try:
+                        self.context_menu.entryconfig(label, state=tk.NORMAL)
+                    except Exception:
+                        pass
             self.context_menu.post(event.x_root, event.y_root)
 
     def explorer_copy_path(self): 
@@ -1645,6 +1657,376 @@ class MixinExplorer:
         if sel:
             self.root.clipboard_clear()
             self.root.clipboard_append(self.get_full_path(sel[0]))
+
+    _NAS_CLIP_BLOCKED_NAMES = frozenset({"#recycle", "#snapshot", "lost+found"})
+    _NAS_CLIP_BLOCKED_ROOTS = frozenset({
+        "/", "/home", "/root", "/etc", "/usr", "/bin", "/sbin", "/var", "/tmp", "/opt", "/boot",
+    })
+
+    def _nas_clip_norm_path(self, path: str) -> str:
+        """Normalize a NAS POSIX path (no trailing slash except root)."""
+        raw = (path or "").replace("\\", "/").strip()
+        p = posixpath.normpath(raw)
+        if p != "/":
+            p = p.rstrip("/")
+        return p or "/"
+
+    def _nas_clip_is_protected_source(self, path: str) -> bool:
+        """Return True if path must not be copied or moved as a source."""
+        p = self._nas_clip_norm_path(path)
+        if p in self._NAS_CLIP_BLOCKED_ROOTS:
+            return True
+        if re.fullmatch(r"/volume\d+", p):
+            return True
+        blocked = {n.lower() for n in self._NAS_CLIP_BLOCKED_NAMES}
+        for part in p.split("/"):
+            if not part:
+                continue
+            if part.startswith("@") or part.lower() in blocked:
+                return True
+        return False
+
+    def _nas_clip_is_protected_dest(self, path: str) -> bool:
+        """Return True if path must not be used as paste destination."""
+        p = self._nas_clip_norm_path(path)
+        if p == "/":
+            return True
+        blocked = {n.lower() for n in self._NAS_CLIP_BLOCKED_NAMES}
+        for part in p.split("/"):
+            if not part:
+                continue
+            if part.startswith("@") or part.lower() in blocked:
+                return True
+        return False
+
+    def _nas_clip_selected_sources(self) -> list[str]:
+        """Return unique selected NAS paths, or an empty list."""
+        sel = self.tree.selection()
+        if not sel:
+            return []
+        out: list[str] = []
+        seen: set[str] = set()
+        for iid in sel:
+            p = self._nas_clip_norm_path(self.get_full_path(iid))
+            if p in seen:
+                continue
+            seen.add(p)
+            out.append(p)
+        return out
+
+    def _nas_clip_dest_inside_source(self, dest: str, sources: list[str]) -> bool:
+        """Return True if dest is a source folder or nested inside one."""
+        d = self._nas_clip_norm_path(dest)
+        for src in sources:
+            s = self._nas_clip_norm_path(src)
+            if d == s or d.startswith(s + "/"):
+                return True
+        return False
+
+    def _nas_tree_collect_folder_paths(self) -> list[str]:
+        """Return folder/drive paths currently loaded in the NAS explorer tree."""
+        folders: list[str] = []
+        seen: set[str] = set()
+        loading = self.t("explorer.loading")
+
+        def walk(parent: str) -> None:
+            for iid in self.tree.get_children(parent):
+                text = str(self.tree.item(iid, "text") or "").strip()
+                if not text or text == loading:
+                    continue
+                vals = self.tree.item(iid, "values")
+                is_dir = (self._explorer_type("folder") in vals) or (self._explorer_type("drive") in vals)
+                if is_dir:
+                    path = self._nas_clip_norm_path(self.get_full_path(iid))
+                    if path not in seen and not self._nas_clip_is_protected_dest(path):
+                        seen.add(path)
+                        folders.append(path)
+                walk(iid)
+
+        walk("")
+        folders.sort(key=lambda s: s.lower())
+        return folders
+
+    def _nas_clip_unique_folder_named(self, name: str, folders: list[str]) -> str | None:
+        """Return the only loaded folder whose basename matches name, else None."""
+        want = (name or "").strip().strip("/").lower()
+        if not want or want in {".", ".."}:
+            return None
+        hits = [p for p in folders if posixpath.basename(p).lower() == want]
+        if len(hits) == 1:
+            return hits[0]
+        return None
+
+    def _nas_clip_resolve_typed_dest(self, typed: str, folders: list[str]) -> str | None:
+        """Map a typed path to a real folder; offer unique basename matches."""
+        dest = self._nas_clip_norm_path(typed)
+        if dest in folders:
+            return dest
+        guess = self._nas_clip_unique_folder_named(posixpath.basename(dest), folders)
+        if guess and guess != dest:
+            if messagebox.askyesno(
+                self.t("msg.nas_paste_title"),
+                self.t("msg.nas_paste_resolved", typed=dest, found=guess),
+                parent=self.root,
+            ):
+                return guess
+            return None
+        return dest
+
+    def _nas_clip_pick_dest_dialog(self, default: str, sources: list[str]) -> str | None:
+        """Show a folder picker from the NAS tree (plus optional typed path)."""
+        folders = [
+            p
+            for p in self._nas_tree_collect_folder_paths()
+            if p not in sources and not self._nas_clip_dest_inside_source(p, sources)
+        ]
+        result: dict[str, str | None] = {"path": None}
+
+        dw = tk.Toplevel(self.root)
+        dw.title(self.t("msg.nas_paste_title"))
+        dw.geometry("640x460")
+        dw.minsize(480, 320)
+        dw.configure(bg=self.color_surface)
+        dw.transient(self.root)
+        dw.grab_set()
+
+        tk.Label(
+            dw,
+            text=self.t("msg.nas_paste_pick_hint"),
+            bg=self.color_surface,
+            fg=self.color_text,
+            font=self.font_base,
+            wraplength=600,
+            justify=tk.LEFT,
+            anchor="w",
+        ).pack(fill=tk.X, padx=14, pady=(12, 6))
+
+        row = tk.Frame(dw, bg=self.color_surface)
+        row.pack(fill=tk.X, padx=14, pady=(0, 6))
+        tk.Label(
+            row,
+            text=self.t("msg.nas_paste_filter"),
+            bg=self.color_surface,
+            fg=self.color_text_muted,
+            font=self.font_base,
+        ).pack(side=tk.LEFT)
+        filter_var = tk.StringVar(value="")
+        entry = tk.Entry(
+            row,
+            textvariable=filter_var,
+            font=self.font_mono,
+            bg=self.color_input_bg,
+            fg=self.color_input_fg,
+            insertbackground=self.color_input_fg,
+            relief="flat",
+            highlightbackground=self.color_border,
+            highlightthickness=1,
+        )
+        entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(8, 0), ipady=3)
+
+        list_fr = tk.Frame(dw, bg=self.color_surface)
+        list_fr.pack(fill=tk.BOTH, expand=True, padx=14, pady=(0, 8))
+        ysb = ttk.Scrollbar(list_fr, orient="vertical")
+        lb = tk.Listbox(
+            list_fr,
+            font=self.font_mono,
+            bg=self.color_input_bg,
+            fg=self.color_input_fg,
+            selectbackground=self.color_selected_bg,
+            selectforeground=self.color_selected_fg,
+            relief="flat",
+            highlightbackground=self.color_border,
+            highlightthickness=1,
+            yscrollcommand=ysb.set,
+        )
+        ysb.config(command=lb.yview)
+        ysb.pack(side=tk.RIGHT, fill=tk.Y)
+        lb.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        shown: list[str] = []
+
+        def refresh_list(*_args: object) -> None:
+            needle = (filter_var.get() or "").strip().lower()
+            want_base = posixpath.basename(needle.strip("/")) if needle else ""
+            lb.delete(0, tk.END)
+            shown.clear()
+            for path in folders:
+                if needle:
+                    pl = path.lower()
+                    if needle not in pl and posixpath.basename(path).lower() != want_base:
+                        continue
+                shown.append(path)
+                lb.insert(tk.END, path)
+            if default in shown:
+                idx = shown.index(default)
+                lb.selection_set(idx)
+                lb.see(idx)
+            elif shown:
+                lb.selection_set(0)
+
+        def accept(_evt: object | None = None) -> None:
+            sel = lb.curselection()
+            if sel:
+                result["path"] = shown[int(sel[0])]
+                dw.destroy()
+                return
+            typed = (filter_var.get() or "").strip()
+            dw.destroy()
+            if not typed:
+                return
+            result["path"] = self._nas_clip_resolve_typed_dest(typed, folders)
+
+        def cancel() -> None:
+            result["path"] = None
+            dw.destroy()
+
+        filter_var.trace_add("write", refresh_list)
+        refresh_list()
+        lb.bind("<Double-Button-1>", accept)
+        dw.bind("<Return>", accept)
+        dw.bind("<Escape>", lambda e: cancel())
+
+        btns = tk.Frame(dw, bg=self.color_surface)
+        btns.pack(fill=tk.X, padx=14, pady=(0, 12))
+        tk.Button(
+            btns,
+            text=self.t("msg.nas_paste_cancel"),
+            command=cancel,
+            font=self.font_bold,
+            padx=10,
+            pady=5,
+            relief=tk.RAISED,
+            borderwidth=2,
+            cursor="hand2",
+        ).pack(side=tk.RIGHT)
+        tk.Button(
+            btns,
+            text=self.t("msg.nas_paste_ok"),
+            command=accept,
+            font=self.font_bold,
+            padx=10,
+            pady=5,
+            relief=tk.RAISED,
+            borderwidth=2,
+            cursor="hand2",
+        ).pack(side=tk.RIGHT, padx=(0, 8))
+
+        entry.focus_set()
+        dw.wait_window()
+        return result["path"]
+
+    def explorer_nas_copy_to(self) -> None:
+        """Copy selected NAS items into a destination folder (right-click)."""
+        self._explorer_nas_transfer("copy")
+
+    def explorer_nas_move_to(self) -> None:
+        """Move selected NAS items into a destination folder (right-click)."""
+        self._explorer_nas_transfer("move")
+
+    def _explorer_nas_transfer(self, mode: str) -> None:
+        """Ask for a NAS destination, then copy or move the current selection there."""
+        if not self._danger_gate():
+            return
+        if getattr(self, "_nas_clip_busy", False):
+            messagebox.showinfo(self.t("msg.nas_paste_title"), self.t("msg.nas_paste_busy"))
+            return
+        sources = self._nas_clip_selected_sources()
+        if not sources:
+            messagebox.showinfo(self.t("msg.nas_paste_title"), self.t("msg.nas_clip_empty_sel"))
+            return
+        for p in sources:
+            if self._nas_clip_is_protected_source(p):
+                messagebox.showwarning(self.t("msg.nas_paste_title"), self.t("msg.nas_clip_blocked", path=p))
+                return
+        names: set[str] = set()
+        for src in sources:
+            base = posixpath.basename(src)
+            if base in names:
+                messagebox.showwarning(self.t("msg.nas_paste_title"), self.t("msg.nas_paste_same_name", name=base))
+                return
+            names.add(base)
+        default = posixpath.dirname(sources[0]) if sources else "/volume1"
+        dest = self._nas_clip_pick_dest_dialog(default, sources)
+        if not dest:
+            return
+        if self._nas_clip_is_protected_dest(dest):
+            messagebox.showwarning(self.t("msg.nas_paste_title"), self.t("msg.nas_paste_blocked_dest", path=dest))
+            return
+        if self._nas_clip_dest_inside_source(dest, sources):
+            messagebox.showwarning(self.t("msg.nas_paste_title"), self.t("msg.nas_paste_inside"))
+            return
+        preview = "\n".join(sources[:8])
+        if len(sources) > 8:
+            preview += f"\n... +{len(sources) - 8}"
+        confirm_key = "msg.nas_paste_confirm_move" if mode == "move" else "msg.nas_paste_confirm_copy"
+        if not messagebox.askyesno(
+            self.t("msg.nas_paste_title"),
+            self.t(confirm_key, n=len(sources), dest=dest, preview=preview),
+        ):
+            return
+        self._nas_clip_busy = True
+        self.set_status(self.t("status.nas_paste_running"))
+        self.log(f"{'Verschieben' if mode == 'move' else 'Kopieren'} → {dest}")
+
+        def worker() -> None:
+            err = ""
+            try:
+                check = (
+                    f"if [ ! -d {shlex.quote(dest)} ]; then echo UG_NOTDIR; exit 10; fi; "
+                )
+                for src in sources:
+                    tgt = posixpath.join(dest, posixpath.basename(src))
+                    check += (
+                        f"if [ ! -e {shlex.quote(src)} ]; then echo UG_MISSING:{shlex.quote(src)}; exit 11; fi; "
+                        f"if [ -e {shlex.quote(tgt)} ]; then echo UG_EXISTS:{shlex.quote(tgt)}; exit 12; fi; "
+                    )
+                pre = self.run_ssh_cmd_ex(check, True, update_status=False, command_timeout=60)
+                out = (pre.output or "").strip()
+                if (not pre.ok) or out.startswith("UG_"):
+                    if "UG_NOTDIR" in out:
+                        err = self.t("msg.nas_paste_not_dir", path=dest)
+                    elif "UG_MISSING" in out:
+                        err = self.t("msg.nas_paste_missing", detail=out)
+                    elif "UG_EXISTS" in out:
+                        err = self.t("msg.nas_paste_exists", detail=out.replace("UG_EXISTS:", "", 1))
+                    else:
+                        err = out or self.t("msg.nas_paste_fail")
+                else:
+                    for idx, src in enumerate(sources, start=1):
+                        if mode == "move":
+                            cmd = f"mv -- {shlex.quote(src)} {shlex.quote(dest)}/"
+                        else:
+                            cmd = f"rsync -aH -- {shlex.quote(src)} {shlex.quote(dest)}/"
+                        res = self.run_ssh_cmd_ex(cmd, True, update_status=True, long_running=True)
+                        if not res.ok:
+                            detail = (res.output or "").strip()[-1200:]
+                            err = detail or self.t("msg.nas_paste_fail")
+                            break
+                        self.root.after(
+                            0,
+                            lambda i=idx: self.set_status(
+                                self.t("status.nas_paste_progress", idx=i, total=len(sources))
+                            ),
+                        )
+            except Exception as exc:
+                err = str(exc)
+
+            def done() -> None:
+                self._nas_clip_busy = False
+                if err:
+                    self.set_status(self.t("msg.nas_paste_fail"))
+                    self.log(f"NAS Kopieren/Verschieben fehlgeschlagen: {err}")
+                    messagebox.showerror(self.t("msg.nas_paste_title"), err)
+                    return
+                ok_key = "msg.nas_paste_ok_move" if mode == "move" else "msg.nas_paste_ok_copy"
+                self.log(self.t(ok_key, n=len(sources), dest=dest))
+                self.set_status(self.t(ok_key, n=len(sources), dest=dest))
+                self.scan_nas()
+                messagebox.showinfo(self.t("msg.nas_paste_title"), self.t(ok_key, n=len(sources), dest=dest))
+
+            self.root.after(0, done)
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def explorer_delete_item(self):
         if not self._danger_gate():

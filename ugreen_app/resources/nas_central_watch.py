@@ -531,7 +531,13 @@ def run_checks(cfg: dict[str, Any], state: dict[str, Any], *, force_notify: bool
                 )
 
     if cfg.get("check_systemd_failed", False):
-        _, failed = _run("systemctl --failed --no-pager 2>/dev/null | head -40", 20)
+        _, failed = _run(
+            "systemctl --failed --no-legend --plain 2>/dev/null | "
+            "grep -E 'failed|not-found' | "
+            "grep -viE 'hdmi-action|[[:space:]]run-r[0-9a-f]+\\.service|^run-r[0-9a-f]+\\.service|session-[0-9]+\\.scope' | "
+            "head -40",
+            20,
+        )
         if failed.strip() and "0 loaded units listed" not in failed and "0 loaded" not in failed.lower():
             if "failed" in failed.lower() or "not-found" in failed.lower():
                 emit(
@@ -637,24 +643,46 @@ def run_checks(cfg: dict[str, Any], state: dict[str, Any], *, force_notify: bool
     if cfg.get("check_docker", True):
         code, dinfo = _run("docker info 2>/dev/null", 45)
         if code != 0 or not dinfo.strip():
-            emit(
-                "docker_daemon",
-                _tr(cfg, "Docker antwortet nicht (docker info fehlgeschlagen).", "Docker not responding (docker info failed)."),
-            )
+            code2, dinfo2 = _run("sudo -n docker info 2>/dev/null", 45)
+            if code2 == 0 and dinfo2.strip():
+                code, dinfo = code2, dinfo2
+        if code != 0 or not dinfo.strip():
+            d_a, _d_e = _svc_state("docker.service")
+            ds_a, _ds_e = _svc_state("docker_serv.service")
+            if ds_a == "unknown":
+                ds_a, _ds_e = _svc_state("docker_serv")
+            if d_a in ("active", "activating") or ds_a in ("active", "activating"):
+                # UGOS/Dockhand: Daemon läuft, SSH-User oft ohne docker-Gruppe.
+                pass
+            else:
+                emit(
+                    "docker_daemon",
+                    _tr(
+                        cfg,
+                        "Docker antwortet nicht (docker info fehlgeschlagen).",
+                        "Docker not responding (docker info failed).",
+                    ),
+                )
         else:
             d_a, _d_e = _svc_state("docker.service")
             c_a, _c_e = _svc_state("containerd.service")
-            if d_a != "active" or c_a != "active":
-                emit(
-                    "docker_runtime",
-                    _tr(
-                        cfg,
-                        f"Docker Runtime auffällig: dockerd={d_a}, containerd={c_a}",
-                        f"Docker runtime looks wrong: dockerd={d_a}, containerd={c_a}",
-                    ),
-                )
+            if d_a not in ("active", "activating", "unknown") or c_a not in (
+                "active",
+                "activating",
+                "unknown",
+            ):
+                if d_a not in ("active", "activating") and c_a not in ("active", "activating"):
+                    emit(
+                        "docker_runtime",
+                        _tr(
+                            cfg,
+                            f"Docker Runtime auffällig: dockerd={d_a}, containerd={c_a}",
+                            f"Docker runtime looks wrong: dockerd={d_a}, containerd={c_a}",
+                        ),
+                    )
             _, ps = _run(
-                "docker ps -a --no-trunc --format '{{.Names}}\\t{{.Status}}' 2>/dev/null",
+                "docker ps -a --no-trunc --format '{{.Names}}\\t{{.Status}}' 2>/dev/null || "
+                "sudo -n docker ps -a --no-trunc --format '{{.Names}}\\t{{.Status}}' 2>/dev/null",
                 90,
             )
             ignore = list(cfg.get("docker_ignore_patterns") or [])
@@ -676,7 +704,11 @@ def run_checks(cfg: dict[str, Any], state: dict[str, Any], *, force_notify: bool
                     _tr(cfg, "Docker-Container:\n", "Docker containers:\n") + "\n".join(bad_lines[:40]),
                 )
             if require:
-                _, running = _run("docker ps --format '{{.Names}}' 2>/dev/null", 45)
+                _, running = _run(
+                    "docker ps --format '{{.Names}}' 2>/dev/null || "
+                    "sudo -n docker ps --format '{{.Names}}' 2>/dev/null",
+                    45,
+                )
                 run_set = {x.strip() for x in running.splitlines() if x.strip()}
                 missing = [r for r in require if r not in run_set]
                 if missing:
@@ -692,14 +724,18 @@ def run_checks(cfg: dict[str, Any], state: dict[str, Any], *, force_notify: bool
                 for nm in restart_names:
                     qn = shlex.quote(nm)
                     _, st_raw = _run(
-                        "docker inspect -f '{{.State.Status}}' " + qn + " 2>/dev/null",
+                        "docker inspect -f '{{.State.Status}}' " + qn + " 2>/dev/null || "
+                        "sudo -n docker inspect -f '{{.State.Status}}' " + qn + " 2>/dev/null",
                         45,
                     )
                     st = (st_raw or "").strip()
                     if st in ("exited", "dead"):
                         key = f"autorst_{nm}"
                         if force_notify or _cooldown_ok(state, key, rst_cool):
-                            rc, out = _run("docker start " + qn + " 2>&1", 120)
+                            rc, out = _run(
+                                "docker start " + qn + " 2>&1 || sudo -n docker start " + qn + " 2>&1",
+                                120,
+                            )
                             if rc != 0:
                                 emit(
                                     f"docker_autostart_fail_{nm}",

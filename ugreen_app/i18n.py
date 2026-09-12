@@ -630,18 +630,19 @@ TRANSLATIONS_DE = _merge(
         "pro.drawer.note": "Pro gibt es nur für Supporter (nach Spende) oder ausgewählte Tester — nicht für alle.",
         "pro.drawer.body": (
             "Wer bekommt Pro?\n"
-            "• Supporter: nach einer Spende über PayPal\n"
+            "• Supporter: nach einer Spende über PayPal oder GitHub Sponsors\n"
             "• Tester: nur auf Einladung\n"
             "Ohne Spende (bzw. ohne Tester-Einladung) gibt es keine Freischaltung.\n\n"
             "Ablauf für Supporter — Schritt für Schritt:\n\n"
-            "1) Spende über PayPal (Button unten).\n"
+            "1) Spende über PayPal oder GitHub Sponsors (Buttons unten).\n"
             "   Nutze beim Spenden die E-Mail-Adresse, an die du alles erhalten möchtest. "
-            "Alternativ kannst du eine andere Wunsch-Adresse in die PayPal-Nachricht schreiben. "
-            "Diese Adresse brauchen wir, um Spende und Freischaltung eindeutig zuzuordnen.\n\n"
+            "Bei PayPal kannst du eine andere Wunsch-Adresse in die Nachricht schreiben. "
+            "Bei GitHub Sponsors schreib uns danach kurz an ugna@posteo.de mit der gewünschten "
+            "Empfänger-Adresse. Diese Adresse brauchen wir, um Spende und Freischaltung "
+            "eindeutig zuzuordnen.\n\n"
             "2) Ugreen NAS Admin Pro per E-Mail erhalten.\n"
             "   Nach deiner Spende schicken wir dir Ugreen NAS Admin Pro an genau diese "
-            "angegebene Adresse — also die PayPal-Absender-E-Mail oder die in der "
-            "Spenden-Nachricht genannte Adresse. In der Mail findest du den Download "
+            "angegebene Adresse. In der Mail findest du den Download "
             "bzw. die Hinweise zur Installation der separaten Pro-App.\n\n"
             "3) Pro installieren und starten.\n"
             "   Installiere Ugreen NAS Admin Pro auf deinem PC und starte die App. "
@@ -660,6 +661,7 @@ TRANSLATIONS_DE = _merge(
             "Bei einem neuen PC bitte erneut anfragen."
         ),
         "pro.drawer.btn_paypal": "☕ Spenden (PayPal)",
+        "pro.drawer.btn_sponsors": "♥ GitHub Sponsors",
         "pro.drawer.btn_email": "✉ Lizenz anfragen (E-Mail)",
         "pro.drawer.btn_close": "Zurück",
         "tab.pro": "Get Pro",
@@ -669,13 +671,17 @@ TRANSLATIONS_DE = _merge(
             "ich möchte Ugreen NAS Admin Pro als Supporter freischalten lassen.\n\n"
             "Name:\n"
             "E-Mail (für die Lizenz):\n"
-            "PayPal-Spende von (E-Mail / Datum):\n\n"
+            "Spende über (PayPal / GitHub Sponsors) — E-Mail bzw. GitHub-User / Datum:\n\n"
             "(Bitte die Freischaltungsanfrage aus der Pro-App hier einfügen — "
             "inkl. Fingerprint UGP-…)\n\n"
-            "Falls die Lizenz an eine andere Adresse als die PayPal-Adresse soll, "
-            "bitte hier angeben (muss mit der Spenden-Nachricht übereinstimmen).\n\n"
+            "Falls die Lizenz an eine andere Adresse soll, "
+            "bitte hier angeben.\n\n"
             "Vielen Dank!"
         ),
+        "support.choose_title": "Unterstützung",
+        "support.choose_body": "Wie möchtest du unterstützen?",
+        "support.btn_paypal": "☕ PayPal",
+        "support.btn_sponsors": "♥ GitHub Sponsors",
         "webcam.title": "📷 Webcam Recorder",
         "webcam.settings": "Webcam-Einstellungen",
         "webcam.device": "Webcam:",
@@ -947,6 +953,8 @@ TRANSLATIONS_DE = _merge(
         "explorer.ctx.load_editor": "📄 In Editor laden",
         "explorer.ctx.perms755": "🛡️ Rechte 755 setzen",
         "explorer.ctx.copy_path": "📋 Pfad kopieren",
+        "explorer.ctx.nas_copy_to": "📋 Kopieren nach…",
+        "explorer.ctx.nas_move_to": "✂️ Verschieben nach…",
         "explorer.ctx.upload_files": "⬆️ Upload Dateien...",
         "explorer.ctx.upload_folder": "📁 Upload Ordner...",
         "explorer.ctx.delete_nas": "🗑️ Löschen (NAS)",
@@ -1927,17 +1935,17 @@ TRANSLATIONS_EN = _merge(
         "pro.drawer.note": "Pro is only for supporters (after a donation) or selected testers — not for everyone.",
         "pro.drawer.body": (
             "Who gets Pro?\n"
-            "• Supporters: after a PayPal donation\n"
+            "• Supporters: after a PayPal or GitHub Sponsors donation\n"
             "• Testers: by invitation only\n"
             "Without a donation (or tester invite), there is no license.\n\n"
             "Steps for supporters — one by one:\n\n"
-            "1) Donate via PayPal (button below).\n"
+            "1) Donate via PayPal or GitHub Sponsors (buttons below).\n"
             "   Use the email address where you want to receive everything. "
-            "Alternatively, put a different preferred address in the PayPal message. "
-            "We need this address to match your donation and activation clearly.\n\n"
+            "With PayPal you can put a different preferred address in the message. "
+            "With GitHub Sponsors, please email ugna@posteo.de afterwards with your "
+            "preferred recipient address. We need this address to match donation and activation.\n\n"
             "2) Receive Ugreen NAS Admin Pro by email.\n"
-            "   After your donation we send Ugreen NAS Admin Pro to that exact address — "
-            "the PayPal sender email or the one named in your donation message. "
+            "   After your donation we send Ugreen NAS Admin Pro to that exact address. "
             "The email contains the download or installation instructions for the separate Pro app.\n\n"
             "3) Install and start Pro.\n"
             "   Install Ugreen NAS Admin Pro on your PC and launch the app. "
@@ -1954,6 +1962,7 @@ TRANSLATIONS_EN = _merge(
             "On a new PC, please request again."
         ),
         "pro.drawer.btn_paypal": "☕ Donate (PayPal)",
+        "pro.drawer.btn_sponsors": "♥ GitHub Sponsors",
         "pro.drawer.btn_email": "✉ Request license (email)",
         "pro.drawer.btn_close": "Back",
         "tab.pro": "Get Pro",
@@ -1963,13 +1972,17 @@ TRANSLATIONS_EN = _merge(
             "I would like to activate Ugreen NAS Admin Pro as a supporter.\n\n"
             "Name:\n"
             "Email (for the license):\n"
-            "PayPal donation from (email / date):\n\n"
+            "Donation via (PayPal / GitHub Sponsors) — email or GitHub user / date:\n\n"
             "(Please paste the activation request from the Pro app here — "
             "including fingerprint UGP-…)\n\n"
-            "If the license should go to an address other than your PayPal email, "
-            "state it here (must match your donation message).\n\n"
+            "If the license should go to a different address, "
+            "state it here.\n\n"
             "Thank you!"
         ),
+        "support.choose_title": "Support",
+        "support.choose_body": "How would you like to support?",
+        "support.btn_paypal": "☕ PayPal",
+        "support.btn_sponsors": "♥ GitHub Sponsors",
         "webcam.title": "📷 Webcam Recorder",
         "webcam.settings": "Webcam settings",
         "webcam.device": "Webcam:",
@@ -2241,6 +2254,8 @@ TRANSLATIONS_EN = _merge(
         "explorer.ctx.load_editor": "📄 Open in editor",
         "explorer.ctx.perms755": "🛡️ Set permissions 755",
         "explorer.ctx.copy_path": "📋 Copy path",
+        "explorer.ctx.nas_copy_to": "📋 Copy to…",
+        "explorer.ctx.nas_move_to": "✂️ Move to…",
         "explorer.ctx.upload_files": "⬆️ Upload files...",
         "explorer.ctx.upload_folder": "📁 Upload folder...",
         "explorer.ctx.delete_nas": "🗑️ Delete (NAS)",
@@ -2750,6 +2765,29 @@ _MSG_DE = {
     "msg.copy_nas_no_files": "Keine Dateien zum Übertragen (nur leere Ordner?).",
     "msg.copy_nas_select_target": "Bitte im linken NAS-Baum das Ziel wählen (Ordner, Laufwerk oder Datei im Zielordner).",
     "msg.copy_pc_select_nas": "Bitte im NAS-Baum Dateien oder Ordner auswählen.",
+    "msg.nas_clip_empty_sel": "Bitte im NAS-Baum Dateien oder Ordner auswählen.",
+    "msg.nas_clip_blocked": "Dieser Pfad darf nicht kopiert oder verschoben werden:\n{path}",
+    "msg.nas_paste_title": "NAS kopieren / verschieben",
+    "msg.nas_paste_ask_dest": "Zielordner auf dem NAS (voller Pfad, z. B. /volume2/Papa Sicherung/APPS):",
+    "msg.nas_paste_pick_hint": "Zielordner in der Liste wählen. Der volle Pfad zählt — z. B. /volume2/Papa Sicherung/APPS, nicht /volume2/APPS.",
+    "msg.nas_paste_filter": "Suche / Pfad:",
+    "msg.nas_paste_ok": "OK",
+    "msg.nas_paste_cancel": "Abbrechen",
+    "msg.nas_paste_resolved": "„{typed}“ gibt es so nicht. Gemeint war vermutlich:\n{found}\n\nDieses Ziel verwenden?",
+    "msg.nas_paste_blocked_dest": "Dieser Zielordner ist nicht erlaubt:\n{path}",
+    "msg.nas_paste_inside": "Das Ziel darf nicht im Quellordner liegen.",
+    "msg.nas_paste_exists": "Im Ziel existiert bereits ein Eintrag gleichen Namens:\n{detail}",
+    "msg.nas_paste_busy": "Es läuft bereits ein Kopieren/Verschieben.",
+    "msg.nas_paste_confirm_copy": "{n} Element(e) kopieren nach:\n{dest}\n\n{preview}",
+    "msg.nas_paste_confirm_move": "{n} Element(e) verschieben nach:\n{dest}\n\n{preview}",
+    "msg.nas_paste_ok_copy": "{n} Element(e) nach {dest} kopiert.",
+    "msg.nas_paste_ok_move": "{n} Element(e) nach {dest} verschoben.",
+    "msg.nas_paste_fail": "Kopieren/Verschieben fehlgeschlagen.",
+    "msg.nas_paste_not_dir": "Ziel ist kein Ordner (oder existiert nicht):\n{path}",
+    "msg.nas_paste_missing": "Quelle nicht gefunden:\n{detail}",
+    "msg.nas_paste_same_name": "Zwei ausgewählte Einträge haben denselben Namen: {name}",
+    "status.nas_paste_running": "Kopiere/verschiebe auf dem NAS…",
+    "status.nas_paste_progress": "{idx}/{total} …",
     "msg.telegram_integers": "Bitte nur ganze Zahlen bei Intervall/Schwellen eingeben.",
     "msg.telegram_warn_lt_crit": "Disk „warn“ muss kleiner sein als „kritisch“.",
     "msg.telegram_test_sent": "Test-Nachricht wurde gesendet.",
@@ -2988,6 +3026,29 @@ _MSG_EN = {
     "msg.copy_nas_no_files": "No files to transfer (empty folders only?).",
     "msg.copy_nas_select_target": "Choose destination in the NAS tree (folder, drive, or file in target folder).",
     "msg.copy_pc_select_nas": "Select files or folders in the NAS tree.",
+    "msg.nas_clip_empty_sel": "Select files or folders in the NAS tree.",
+    "msg.nas_clip_blocked": "This path cannot be copied or moved:\n{path}",
+    "msg.nas_paste_title": "NAS copy / move",
+    "msg.nas_paste_ask_dest": "Destination folder on the NAS (full path, e.g. /volume2/Papa Sicherung/APPS):",
+    "msg.nas_paste_pick_hint": "Pick the destination from the list. The full path matters — e.g. /volume2/Papa Sicherung/APPS, not /volume2/APPS.",
+    "msg.nas_paste_filter": "Search / path:",
+    "msg.nas_paste_ok": "OK",
+    "msg.nas_paste_cancel": "Cancel",
+    "msg.nas_paste_resolved": "“{typed}” does not exist. Did you mean:\n{found}\n\nUse this destination?",
+    "msg.nas_paste_blocked_dest": "This destination folder is not allowed:\n{path}",
+    "msg.nas_paste_inside": "The destination cannot be inside the source folder.",
+    "msg.nas_paste_exists": "An item with the same name already exists at the destination:\n{detail}",
+    "msg.nas_paste_busy": "A copy/move is already running.",
+    "msg.nas_paste_confirm_copy": "Copy {n} item(s) to:\n{dest}\n\n{preview}",
+    "msg.nas_paste_confirm_move": "Move {n} item(s) to:\n{dest}\n\n{preview}",
+    "msg.nas_paste_ok_copy": "Copied {n} item(s) to {dest}.",
+    "msg.nas_paste_ok_move": "Moved {n} item(s) to {dest}.",
+    "msg.nas_paste_fail": "Copy/move failed.",
+    "msg.nas_paste_not_dir": "Destination is not a folder (or does not exist):\n{path}",
+    "msg.nas_paste_missing": "Source not found:\n{detail}",
+    "msg.nas_paste_same_name": "Two selected items share the same name: {name}",
+    "status.nas_paste_running": "Copying/moving on the NAS…",
+    "status.nas_paste_progress": "{idx}/{total} …",
     "msg.telegram_integers": "Please use whole numbers for interval/thresholds.",
     "msg.telegram_warn_lt_crit": "Disk “warn” must be less than “critical”.",
     "msg.telegram_test_sent": "Test message sent.",

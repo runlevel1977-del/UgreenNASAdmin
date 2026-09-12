@@ -631,6 +631,7 @@ class MixinTabsSetup:
         self.tree.bind("<Control-a>", lambda e: self._tree_select_all(self.tree))
         self.tree.bind("<Control-A>", lambda e: self._tree_select_all(self.tree))
         self.tree.bind("<Button-1>", lambda e: self._tree_toggle_multiselect_click(self.tree, e), add="+")
+        self._nas_clip_busy = False
 
         tk.Label(right_pane, text=self.t("explorer.this_pc"), bg=self.color_surface, fg=self.color_text_muted, font=self.font_bold, anchor="w", padx=8, pady=4).pack(fill=tk.X)
         loc_bar = tk.Frame(right_pane, bg=self.color_surface)
@@ -690,6 +691,8 @@ class MixinTabsSetup:
         self.context_menu.add_command(label=self.t("explorer.ctx.load_editor"), command=self.explorer_load_to_editor)
         self.context_menu.add_command(label=self.t("explorer.ctx.perms755"), command=self.explorer_fix_perms_manual)
         self.context_menu.add_command(label=self.t("explorer.ctx.copy_path"), command=self.explorer_copy_path)
+        self.context_menu.add_command(label=self.t("explorer.ctx.nas_copy_to"), command=self.explorer_nas_copy_to)
+        self.context_menu.add_command(label=self.t("explorer.ctx.nas_move_to"), command=self.explorer_nas_move_to)
         self.context_menu.add_separator()
         self.context_menu.add_command(label=self.t("explorer.ctx.upload_files"), command=self.explorer_upload_files)
         self.context_menu.add_command(label=self.t("explorer.ctx.upload_folder"), command=self.explorer_upload_folder)

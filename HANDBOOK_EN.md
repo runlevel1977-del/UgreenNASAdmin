@@ -176,7 +176,7 @@ On the left is the fixed navigation with all main tabs.
 ### 4.2 Tool buttons at the bottom of the sidebar
 
 - **`Get Pro`**  
-  Opens the **Pro guide in the main area** for **Ugreen NAS Admin Pro** (separate app). **Supporters only** (after PayPal donation) or **selected testers**. **Flow (5 steps):** (1) **Donate** via PayPal, (2) receive **Pro by email** at the address you specified, (3) **install Pro** and fill in the Activation tab, (4) send **activation request** with text from the Pro app to **`ugna@posteo.de`**, (5) receive **`pro_entitlement.json`** and **import the license**.
+  Opens the **Pro guide in the main area** for **Ugreen NAS Admin Pro** (separate app). **Supporters only** (after a **PayPal** or **GitHub Sponsors** donation) or **selected testers**. **Flow (5 steps):** (1) **Donate** via PayPal or GitHub Sponsors, (2) receive **Pro by email** at the address you specified, (3) **install Pro** and fill in the Activation tab, (4) send **activation request** with text from the Pro app to **`ugna@posteo.de`**, (5) receive **`pro_entitlement.json`** and **import the license**. In Pro, **Problems & errors** reports real issues only (no UGOS/Docker noise, SMART only on FAIL/critical counters, recent script logs only). On the **Storage** tab: **Backup now** / **Restore** handle **user data** (no `@…` system folders) before/after a disk swap; reinstall apps in UGOS if needed.
 
 - `Update everything`
 Starts an overall refresh of several areas (scripts list, NAS scan, Docker list, health overview, storage tab, …) over **SSH**. Since **v23.8.1** this usually runs as **one batched sudo command** with markers in the response (fewer round trips). If batching fails, the app **falls back** to the older **sequence of single commands**. The same cycle also reads **`/etc/os-release`** (for the **UGOS/OS line** in the header) and the list of active **`*_serv.service`** units on the NAS (for the **service combobox** in **NAS management**).
@@ -1101,6 +1101,8 @@ If job doesn't run:
 - Load into editor
 - Perms 755
 - Copy path
+- Copy to…
+- Move to…
 - Upload files
 - Upload folder
 - Delete
@@ -1161,6 +1163,8 @@ Searches in the current NAS context.
 ### 45.8 Context menus
 
 The context menus are equivalent action triggers to toolbar buttons, not just ads.
+
+**NAS → NAS (right-click):** Select files/folders in the left tree → right-click → **Copy to…** or **Move to…** → **pick the destination from the list** (full path, e.g. `/volume2/Papa Sicherung/APPS`, not `/volume2/APPS`). If a short path uniquely matches a folder in the tree, the app offers it. System folders (`@…`, recycle bin) and volume roots as source are blocked. If the name already exists at the destination, the action stops. Requires **full access**.
 
 ---
 
@@ -1245,6 +1249,8 @@ Error case:
 ## 12. Tab Docker complete (buttons + operation directly together)
 
 ### From range: 30. Full reference: Docker tab
+
+**Runlevel apps (Transfer Hub / Wake & Sync):** The folder picker shows local NAS paths including **Home** (`/home/…`, e.g. Photos) **without** an SMB share. Only system folders (`@…`) stay hidden. **Transfer Hub 0.6.28+:** multi-select source folders (check boxes → “Add checked”) — one transfer per folder; destination stays a single folder. After updating the UPK apps, restart/reinstall (Transfer Hub **0.6.28+**, Wake & Sync **0.1.32+**).
 
 ### 30.1 Creation/Catalog Group
 

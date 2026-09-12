@@ -13,6 +13,7 @@ from ugreen_app.rounded_ui import create_rounded_button
 _PRO_ACCENT = "#d97706"
 _PRO_LICENSE_EMAIL = "ugna@posteo.de"
 _PRO_PAYPAL_URL = "https://paypal.me/UgADMINapp"
+_PRO_SPONSORS_URL = "https://github.com/sponsors/runlevel1977-del"
 PRO_TAB_INDEX = 15
 
 
@@ -95,7 +96,14 @@ class MixinProDrawer:
             self.t("pro.drawer.btn_paypal"),
             self._open_pro_paypal,
             _PRO_ACCENT,
-            width_chars=22,
+            width_chars=20,
+        ).pack(side=tk.LEFT, padx=(0, 10))
+        create_rounded_button(
+            btn_inner,
+            self.t("pro.drawer.btn_sponsors"),
+            self._open_pro_sponsors,
+            _PRO_ACCENT,
+            width_chars=24,
         ).pack(side=tk.LEFT, padx=(0, 10))
         create_rounded_button(
             btn_inner,
@@ -116,6 +124,13 @@ class MixinProDrawer:
         """Öffnet die PayPal-Spenden-Seite."""
         try:
             webbrowser.open(_PRO_PAYPAL_URL, new=2)
+        except Exception:
+            pass
+
+    def _open_pro_sponsors(self) -> None:
+        """Öffnet GitHub Sponsors."""
+        try:
+            webbrowser.open(_PRO_SPONSORS_URL, new=2)
         except Exception:
             pass
 

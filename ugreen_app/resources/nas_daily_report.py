@@ -202,6 +202,12 @@ def _failed_units() -> list[tuple[str, str]]:
         s = line.strip()
         if not s or "units listed" in s.lower() or s.startswith("UNIT "):
             continue
+        # UGOS-Rauschen: systemd-run + HDMI-Hook oft „failed“, Funktion aber ok.
+        low = s.lower()
+        if "hdmi-action" in low or re.search(r"\brun-r[0-9a-f]+\.service\b", low):
+            continue
+        if re.search(r"\bsession-\d+\.scope\b", low):
+            continue
         parts = s.split()
         name = ""
         for p in parts:

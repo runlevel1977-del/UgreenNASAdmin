@@ -715,9 +715,66 @@ class MixinThemeUI:
         )
         return btn
 
-    def _open_paypal_support(self):
+    def _open_paypal_support(self) -> None:
+        """Öffnet PayPal Me (direkter Link)."""
         try:
             webbrowser.open("https://paypal.me/UgADMINapp", new=2)
+        except Exception:
+            pass
+
+    def _open_github_sponsors(self) -> None:
+        """Öffnet GitHub Sponsors."""
+        try:
+            webbrowser.open("https://github.com/sponsors/runlevel1977-del", new=2)
+        except Exception:
+            pass
+
+    def _open_support_options(self) -> None:
+        """Kleine Auswahl: PayPal oder GitHub Sponsors."""
+        win = tk.Toplevel(self.root)
+        win.title(self.t("support.choose_title"))
+        win.transient(self.root)
+        win.resizable(False, False)
+        win.configure(bg=self.color_surface)
+        pad = tk.Frame(win, bg=self.color_surface, padx=18, pady=16)
+        pad.pack(fill=tk.BOTH, expand=True)
+        tk.Label(
+            pad,
+            text=self.t("support.choose_body"),
+            bg=self.color_surface,
+            fg=self.color_text,
+            font=("Segoe UI", 10),
+            justify=tk.LEFT,
+            wraplength=360,
+        ).pack(anchor=tk.W, pady=(0, 12))
+        row = tk.Frame(pad, bg=self.color_surface)
+        row.pack(fill=tk.X)
+
+        def _go_paypal() -> None:
+            win.destroy()
+            self._open_paypal_support()
+
+        def _go_sponsors() -> None:
+            win.destroy()
+            self._open_github_sponsors()
+
+        self.create_modern_btn(
+            row,
+            self.t("support.btn_paypal"),
+            _go_paypal,
+            self.color_btn_blue,
+            width=16,
+        ).pack(side=tk.LEFT, padx=(0, 8))
+        self.create_modern_btn(
+            row,
+            self.t("support.btn_sponsors"),
+            _go_sponsors,
+            self.color_btn_purple,
+            width=18,
+        ).pack(side=tk.LEFT)
+        try:
+            win.grab_set()
+            win.focus_force()
         except Exception:
             pass
 
@@ -915,7 +972,7 @@ class MixinThemeUI:
             cursor="hand2",
         )
         sup.pack(anchor=tk.W, pady=(0, 8))
-        sup.bind("<Button-1>", lambda e: self._open_paypal_support())
+        sup.bind("<Button-1>", lambda e: self._open_support_options())
         sup.bind("<Enter>", lambda e: sup.config(fg=_sup_hov))
         sup.bind("<Leave>", lambda e: sup.config(fg=_sup_fg))
 
@@ -1104,7 +1161,7 @@ class MixinThemeUI:
             cursor="hand2",
         )
         self._paypal_label.pack(side=tk.RIGHT, padx=(12, 4))
-        self._paypal_label.bind("<Button-1>", lambda e: self._open_paypal_support())
+        self._paypal_label.bind("<Button-1>", lambda e: self._open_support_options())
         self._paypal_label.bind("<Enter>", lambda e: self._paypal_label.config(fg=_pp_hov))
         self._paypal_label.bind("<Leave>", lambda e: self._paypal_label.config(fg=_pp_fg))
 

@@ -1011,7 +1011,9 @@ class MixinStorageAclSnap:
             "E3=$(systemctl is-enabled nftables.service 2>/dev/null || true); "
             "printf 'nftables.service: active=%s enabled=%s\\n' \"$A3\" \"$E3\"; "
             "echo '--- failed units (top 20) ---'; "
-            "systemctl --failed --no-pager --plain 2>/dev/null | head -20"
+            "systemctl --failed --no-pager --plain 2>/dev/null | "
+            "grep -viE 'hdmi-action|[[:space:]]run-r[0-9a-f]+\\.service|^run-r[0-9a-f]+\\.service|session-[0-9]+\\.scope' | "
+            "head -20"
         )
         sec_rec_out = self.run_ssh_cmd(sec_rec_cmd, True, update_status=False)
         self._health_write((sec_rec_out or "").strip() if (sec_rec_out or "").strip() else "Keine Security/Recovery-Daten")

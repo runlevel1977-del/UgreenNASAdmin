@@ -2,7 +2,35 @@
 
 ## Unreleased
 
-_(keine offenen Änderungen)_
+### Deutsch
+
+- **Transfer Hub 0.6.28:** Mehrfachauswahl der Quellordner wie bei Wake & Sync (Häkchen → „Markierte übernehmen“). Pro Ordner ein eigener Transfer; Zielordner bleibt einzeln. Ganzes Volume nicht mit weiteren Ordnern kombinierbar.
+- **Transfer Hub / Wake & Sync:** Ordnerauswahl zeigt jetzt auch **Home** (`/home`, z. B. `papa/Photos`) — ohne SMB-Freigabe. Weiterhin ausgeblendet nur Systemordner (`@…`). Transfer Hub **0.6.28**, Wake & Sync **0.1.32**.
+- **Pro-Toolkit:** Beim Pro-Release (Build + GitHub) wird die Patch-Version automatisch um +1 erhöht (Checkbox in der Toolkit-App, Standard an).
+
+### English (short)
+
+- **Transfer Hub 0.6.28:** Multi-select source folders like Wake & Sync (check boxes → “Add checked”). One transfer per folder; destination stays single. Whole volume cannot be combined with other folders.
+- **Transfer Hub / Wake & Sync:** Folder picker now includes **Home** (`/home`, e.g. `papa/Photos`) without requiring an SMB share. Still hides only system folders (`@…`). Transfer Hub **0.6.28**, Wake & Sync **0.1.32**.
+- **Pro toolkit:** Pro release (build + GitHub) auto-increments the patch version (checkbox in the toolkit app, on by default).
+
+## 23.8.43 — 2026-09-12
+
+### Deutsch
+
+- **Explorer (NAS → NAS):** Rechtsklick → **Kopieren nach…** / **Verschieben nach…**, Zielordner aus der Liste wählen (voller Pfad, z. B. `/volume2/Papa Sicherung/APPS`). Kurzpfade wie `/volume2/APPS` werden erkannt, wenn der Name im Baum eindeutig ist. Systemordner (`@…`, Papierkorb) und Volume-Wurzeln als Quelle sind gesperrt. Bricht ab, wenn der Name im Ziel schon existiert. Braucht **volle Rechte**.
+- **Unterstützung:** GitHub Sponsors vorbereitet (neben PayPal). Header „☕ Coffee“ und Info-Link öffnen eine Auswahl PayPal / GitHub Sponsors. Get Pro: zusätzlicher Button **GitHub Sponsors**. `.github/FUNDING.yml` enthält `github: [runlevel1977-del]` + PayPal.
+- **System Health / NAS-Wächter:** Harmlose UGOS-Units (`run-r*.service` / `hdmi-action`) werden bei „failed systemd“ ausgeblendet. Docker-Check: kein Fehlalarm mehr, wenn der Daemon läuft, die CLI aber ohne Rechte ist (z. B. nur Dockhand).
+- **Pro — Speicher-Backup/Restore:** **„Backup jetzt“** sichert **Nutzerdaten** auf Volumes **plus Home** (`/home`, z. B. Photos); alle `@…`-Systemordner und Papierkorb ausgelassen. **„Wiederherstellen“** auf genau ein Volume **oder** Home. Apps in UGOS ggf. neu installieren.
+- **Pro — Probleme-Scan (genauer):** Nur echte Auffälligkeiten — SMART nur bei FAIL oder kritischen Zählern > 0; kein overlayfs-/Erfolgs-Rauschen; optionale UGOS-Dienste (`domain_tool`/`smbftpd`) und Exited-(0)-Container ausgeblendet; Skript-Logs nur ≤ 14 Tage; Journal/SSH ohne Scan-Eigenlärm.
+
+### English (short)
+
+- **Explorer (NAS → NAS):** Right-click → **Copy to…** / **Move to…**, pick the destination from the list (full path, e.g. `/volume2/Papa Sicherung/APPS`). Short paths like `/volume2/APPS` are resolved when the name is unique in the tree. System folders (`@…`, recycle) and volume roots as source are blocked. Aborts if the name already exists at the destination. Requires **full access**.
+- **Support:** GitHub Sponsors prepared (alongside PayPal). Header “☕ Coffee” and Info support link open a PayPal / GitHub Sponsors chooser. Get Pro: extra **GitHub Sponsors** button. `.github/FUNDING.yml` lists `github: [runlevel1977-del]` + PayPal.
+- **System Health / NAS watch:** Harmless UGOS units (`run-r*.service` / `hdmi-action`) filtered from failed-systemd noise. Docker check: no false alarm when the daemon runs but the CLI lacks rights (e.g. Dockhand-only).
+- **Pro — storage backup/restore:** **Backup now** backs up volume **user data plus Home** (`/home`, e.g. Photos); skips `@…` system folders and recycle bins. **Restore** onto exactly one volume **or** Home. Reinstall apps in UGOS if needed.
+- **Pro — problems scan (stricter):** Real issues only — SMART only on FAIL or critical counters > 0; no overlayfs/success noise; optional UGOS units (`domain_tool`/`smbftpd`) and Exited-(0) containers ignored; script logs only ≤ 14 days; journal/SSH without scan self-noise.
 
 ## 23.8.42 — 2026-07-14
 
