@@ -1977,6 +1977,7 @@ class MixinTabsSetup:
         self.backup_output.pack(fill=tk.X, expand=False, padx=10, pady=10)
 
         self._backup_log(self.t("backup.ready"), reset=True)
+        self._backup_log(self.t("backup.retention_notice"))
         self._backup_on_scope_change()
         self._backup_on_destination_change()
         self.backup_refresh_sources()
@@ -2085,9 +2086,10 @@ class MixinTabsSetup:
             "mv -- \"$TEMP_FILE\" \"$DEST_FILE\"; trap - EXIT;"
             "echo \"__UG_BACKUP_FILE__:$DEST_FILE\";"
             "du -h \"$DEST_FILE\" 2>/dev/null | awk '{print \"__UG_BACKUP_SIZE__:\"$1}' || true;"
-            # Pro TAG (docker_scripts / user_data_… / all_data_…) max. 2 Archive; älteste desselben Typs löschen
-            "( set +e; cd \"$DEST_DIR\" && ls -1t \"$TAG\"_*.tar.gz 2>/dev/null | awk 'NR>2' "
-            "| while IFS= read -r _UG_OLD; do [ -n \"$_UG_OLD\" ] && rm -f -- \"$_UG_OLD\"; done; true );"
+            # A shared filename prefix does not establish archive ownership.
+            "echo 'Aufbewahrung / Retention: Keine automatische Archivlöschung. "
+            "Speicherplatz und alte Sicherungen manuell verwalten. / "
+            "No automatic archive deletion; manage free space and old backups manually.';"
         )
         return f"/bin/bash -lc {shlex.quote(inner)}"
 
@@ -2630,6 +2632,7 @@ class MixinTabsSetup:
                 messagebox.showwarning(self.t("backup.title"), self.t("backup.dest_usb_select"))
                 return
         self._backup_log(self.t(title_key), reset=True)
+        self._backup_log(self.t("backup.retention_notice"))
         self._backup_log(self.t("backup.sources"))
         for p in src:
             self._backup_log(f"  - {p}")
@@ -3021,6 +3024,7 @@ class MixinTabsSetup:
         if not self._danger_gate():
             return
         self._backup_log(self.t("backup.sched.sync_start"))
+        self._backup_log(self.t("backup.retention_notice"))
 
         def worker():
             err_msg = ""

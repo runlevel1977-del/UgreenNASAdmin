@@ -20,39 +20,8 @@ from typing import Any, Sequence
 
 _VOL_RE = re.compile(r"^/volume\d+$", re.I)
 
-# Je Backup-Typ (tar-DateinamePrefix = tag_) maximal so viele .tar.gz im Ordner behalten
-_ARCHIVE_KEEP_PER_TAG = 2
-
-
-def _prune_archives_same_tag(dest_dir: str, tag: str, keep: int = _ARCHIVE_KEEP_PER_TAG) -> None:
-    """Behält nur die `keep` neuesten Archive mit Präfix ``tag_*.tar.gz`` (mtime), löscht ältere."""
-    tag_s = str(tag or "").strip()
-    if not tag_s:
-        return
-    keep = max(1, int(keep))
-    prefix = tag_s + "_"
-    suf = ".tar.gz"
-    try:
-        names = os.listdir(dest_dir)
-    except OSError:
-        return
-    paths: list[tuple[float, str]] = []
-    for fn in names:
-        if not fn.startswith(prefix) or not fn.endswith(suf):
-            continue
-        p = os.path.join(dest_dir, fn)
-        if not os.path.isfile(p):
-            continue
-        try:
-            paths.append((os.path.getmtime(p), p))
-        except OSError:
-            continue
-    paths.sort(key=lambda x: x[0], reverse=True)
-    for _mt, p in paths[keep:]:
-        try:
-            os.unlink(p)
-        except OSError:
-            pass
+# A tag is a backup type, not an ownership record. Never delete archives based
+# on filenames alone: several jobs and manual backups can share the same tag.
 
 
 def _uniq_sort(paths: Sequence[str]) -> list[str]:
@@ -147,6 +116,12 @@ def _run_tar(
     *,
     archive_parent: str | None = None,
 ) -> bool:
+    print(
+        "Aufbewahrung / Retention: Keine automatische Archivlöschung. "
+        "Speicherplatz und alte Sicherungen manuell verwalten. / "
+        "No automatic archive deletion; manage free space and old backups manually.",
+        flush=True,
+    )
     src_ok_filtered: list[str] = []
     for p in sources:
         rp = str(p).strip().rstrip("/")
@@ -203,7 +178,6 @@ def _run_tar(
             print(f"__UG_BACKUP_SIZE__:{sz}", flush=True)
     except Exception:
         pass
-    _prune_archives_same_tag(dest_dir, tag)
     return True
 
 

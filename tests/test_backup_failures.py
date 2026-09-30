@@ -60,16 +60,17 @@ class BackupFailureTests(unittest.TestCase):
                 self.assertNotIn("__UG_BACKUP_FILE__", text)
                 self.assertEqual({p.name: p.read_bytes() for p in directory.iterdir()}, old)
 
-    def test_success_publishes_then_applies_retention(self):
+    def test_success_publishes_without_deleting_existing_archives(self):
         with tempfile.TemporaryDirectory() as base:
-            directory, _ = self.seed_archives(base)
+            directory, old = self.seed_archives(base)
             ok, text = self.run_scheduled(base)
             self.assertTrue(ok)
             self.assertIn("__UG_BACKUP_FILE__", text)
             files = list(directory.iterdir())
-            self.assertEqual(len(files), 2)
+            self.assertEqual(len(files), 4)
             self.assertTrue(all(p.name.endswith(".tar.gz") for p in files))
             self.assertTrue(any(p.read_bytes() == b"synthetic archive" for p in files))
+            self.assertEqual({name: (directory / name).read_bytes() for name in old}, old)
 
     def test_publish_failure_preserves_old_archives(self):
         with tempfile.TemporaryDirectory() as base:
