@@ -29,8 +29,16 @@ import urllib.parse
 import nas_ssh
 import nas_utils
 from ugreen_app._paramiko import _paramiko
+from ugreen_app.script_commands import script_path, docker_script_commands
 
 class MixinEditorCron:
+    def _script_path_for_action(self, filename, *, for_cron=False):
+        try:
+            return script_path(filename, for_cron=for_cron)
+        except ValueError as exc:
+            messagebox.showerror(self.t("msg.save_error"), str(exc))
+            return None
+
     @staticmethod
     def _sanitize_stable_cron_text(text: str) -> str:
         """Entfernt Zeilen wie `[sudo] password for …` (stderr von sudo -S oder einmal falsch mitgespeichert)."""
@@ -49,6 +57,9 @@ class MixinEditorCron:
             fn = self.script_listbox.get(sel[0]).strip()
             if hasattr(self, "_script_notify_clean_list_name"):
                 fn = self._script_notify_clean_list_name(fn)
+            path = self._script_path_for_action(fn)
+            if path is None:
+                return
             if hasattr(self, "_script_notify_update_scripts_overview_ui"):
                 try:
                     self._script_notify_update_scripts_overview_ui()
@@ -57,7 +68,7 @@ class MixinEditorCron:
             self.entry_filename.delete(0, tk.END)
             self.entry_filename.insert(0, fn)
             
-            res = self.run_ssh_cmd(f"cat /volume1/scripts/{fn}")
+            res = self.run_ssh_cmd(f"cat -- {shlex.quote(path)}")
             self.text_editor.delete("1.0", tk.END)
             self.text_editor.insert("1.0", res)
             self.sync_scheduler(fn)
@@ -130,7 +141,9 @@ class MixinEditorCron:
                 return
             self.log("✅ Zeitplan (Roh) gespeichert.")
         else:
-            path = f"/volume1/scripts/{fn}"
+            path = self._script_path_for_action(fn)
+            if path is None:
+                return
             if as_root:
                 if not self.write_root_file(path, content):
                     return
@@ -178,9 +191,11 @@ class MixinEditorCron:
             return
         fn = self.entry_filename.get().strip()
         if not fn or fn == "STABLE_TASKS": return
+        script_path = self._script_path_for_action(fn, for_cron=True)
+        if script_path is None:
+            return
         
         v = [self.get_cron_val(k, self.cron_fields[k].get()) for k in ["Minute", "Stunde", "Tag", "Monat", "Wochentag"]]
-        script_path = posixpath.join("/volume1/scripts", posixpath.basename(fn))
         if fn.lower().endswith(".py"):
             cmd = f"/usr/bin/python3 {shlex.quote(script_path)}"
         else:
@@ -210,13 +225,13 @@ class MixinEditorCron:
             return
         fn = self.entry_filename.get().strip()
         if not fn or fn == "STABLE_TASKS": return
+        if self._script_path_for_action(fn, for_cron=True) is None:
+            return
         
         v = [self.get_cron_val(k, self.cron_fields[k].get()) for k in ["Minute", "Stunde", "Tag", "Monat", "Wochentag"]]
         
-        container_name = f"job_{fn.replace('.', '_')}"
-        
-        docker_cmd = f"docker rm -f {container_name} 2>/dev/null; docker run --name {container_name} -v /volume1:/volume1 -v /volume2:/volume2 ubuntu:latest /bin/bash -c 'apt-get update -qq && apt-get install -yqq curl sudo wget && /bin/bash /volume1/scripts/{fn}'"
-        cmd = f'/bin/bash -lc "{docker_cmd}"'
+        remove_cmd, run_cmd = docker_script_commands(fn, scheduled=True)
+        cmd = shlex.join(["/bin/bash", "-lc", f"{remove_cmd}; {run_cmd}"])
         if hasattr(self, "ensure_script_notify_runner_on_nas"):
             ok_run, err_run = self.ensure_script_notify_runner_on_nas()
             if not ok_run:

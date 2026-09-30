@@ -23,6 +23,7 @@ import string
 import socket
 import errno
 import ctypes
+import subprocess
 import webbrowser
 import urllib.request
 import urllib.parse
@@ -30,6 +31,7 @@ import urllib.parse
 import nas_ssh
 import nas_utils
 from ugreen_app._paramiko import _paramiko
+from ugreen_app.script_commands import docker_script_commands
 from ugreen_app import docker_deploy_wizard as _ddw
 from ugreen_app.scroll_helpers import (
     smooth_bind_mousewheel_tree,
@@ -1553,8 +1555,11 @@ class MixinExplorer:
             fn = self.script_listbox.get(sel[0]).strip()
             if hasattr(self, "_script_notify_clean_list_name"):
                 fn = self._script_notify_clean_list_name(fn)
+            path = self._script_path_for_action(fn)
+            if path is None:
+                return
             if messagebox.askyesno(self.t("msg.delete"), self.t("msg.delete_confirm_file", fn=fn)):
-                self.run_ssh_cmd(f"rm /volume1/scripts/{fn}", True)
+                self.run_ssh_cmd(f"rm -- {shlex.quote(path)}", True)
                 self.refresh_script_list()
                 self.clear_fields()
 
@@ -1563,10 +1568,12 @@ class MixinExplorer:
             return
         fn = self.entry_filename.get().strip()
         if fn and fn != "STABLE_TASKS":
+            path = self._script_path_for_action(fn)
+            if path is None:
+                return
             self.log(f"🚀 Testlauf (Host) {fn}...")
             marker = "__UG_SCRIPT_EXIT__:"
-            qfn = shlex.quote(fn)
-            cmd = f"/bin/bash /volume1/scripts/{qfn}; rc=$?; echo {marker}$rc"
+            cmd = f"/bin/bash {shlex.quote(path)}; rc=$?; echo {marker}$rc"
             out = self.run_ssh_cmd(cmd, True)
             self.log(out)
             ok = False
@@ -1586,12 +1593,11 @@ class MixinExplorer:
             return
         fn = self.entry_filename.get().strip()
         if fn and fn != "STABLE_TASKS": 
+            if self._script_path_for_action(fn) is None:
+                return
             self.log(f"🐳 Starte {fn} manuell in Docker...")
-            container_name = f"manual_{fn.replace('.', '_')}"
-            
-            self.run_ssh_cmd(f"docker rm -f {container_name} 2>/dev/null", True)
-            
-            cmd = f"docker run -d --name {container_name} -v /volume1:/volume1 -v /volume2:/volume2 ubuntu:latest /bin/bash -c 'apt-get update -qq && apt-get install -yqq curl sudo wget && /bin/bash /volume1/scripts/{fn}'"
+            remove_cmd, cmd = docker_script_commands(fn)
+            self.run_ssh_cmd(remove_cmd, True)
             out = self.run_ssh_cmd(cmd, True)
             
             self.log(f"✅ Container gestartet! ID: {out.strip()[:12]}")
@@ -1606,8 +1612,14 @@ class MixinExplorer:
             port = int((self.entry_port.get() or "22").strip())
         except Exception:
             port = 22
-        os.system(
-            f'start powershell.exe -NoExit -Command "ssh -p {port} {self.entry_user.get()}@{self.entry_ip.get()}"'
+        # Keep profile values out of cmd.exe and quote PowerShell literals.
+        user = "'" + self.entry_user.get().replace("'", "''") + "'"
+        host = "'" + self.entry_ip.get().replace("'", "''") + "'"
+        command = f"& ssh.exe -p {port} -l {user} -- {host}"
+        encoded = base64.b64encode(command.encode("utf-16le")).decode("ascii")
+        subprocess.Popen(
+            ["powershell.exe", "-NoProfile", "-NoExit", "-EncodedCommand", encoded],
+            creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
         )
 
     def show_context_menu(self, event):
