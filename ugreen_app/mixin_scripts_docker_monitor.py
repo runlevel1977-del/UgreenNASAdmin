@@ -643,10 +643,31 @@ class MixinScriptsDockerMonitor:
     def docker_fix_perms(self):
         if not self._danger_gate():
             return
-        res = self.run_ssh_cmd("docker inspect --format '{{ range .Mounts }}{{ .Source }} {{ end }}' $(docker ps -a -q)", True)
-        for p in set(res.split()):
-            if "/volume" in p: 
-                self.run_ssh_cmd(f"chmod -R 777 {p}", True)
+        res = self.run_ssh_cmd("docker inspect --format '{{json .Mounts}}' $(docker ps -a -q)", True)
+        paths = set()
+        try:
+            for line in res.splitlines():
+                if not line.strip():
+                    continue
+                mounts = json.loads(line)
+                if not isinstance(mounts, list):
+                    raise ValueError("Invalid Docker mount list")
+                for mount in mounts:
+                    if not isinstance(mount, dict):
+                        raise ValueError("Invalid Docker mount")
+                    raw = str(mount.get("Source") or "")
+                    p = posixpath.normpath(raw)
+                    if re.fullmatch(r"/volume[0-9]+/.+", p) and not any(ord(c) < 32 for c in p):
+                        paths.add(p)
+        except (ValueError, TypeError):
+            messagebox.showerror(self.t("msg.docker_admin"), "Docker-Mounts konnten nicht sicher gelesen werden / Invalid mount data.")
+            return
+        if not paths:
+            return
+        if not messagebox.askyesno(self.t("msg.docker_admin"), self.t("acl.chmod777_confirm", path="\n".join(sorted(paths)))):
+            return
+        for p in sorted(paths):
+            self.run_ssh_cmd(f"chmod -R 777 -- {shlex.quote(p)}", True)
         messagebox.showinfo(self.t("msg.docker_admin"), self.t("msg.docker_chmod_ok"))
 
     def docker_compose_path_raw(self):
@@ -819,7 +840,7 @@ class MixinScriptsDockerMonitor:
             name = self.docker_tree.item(sel[0], "text").strip()
 
             def worker():
-                res = self.run_ssh_cmd(f"docker logs --tail 100 {name}", True, update_status=False)
+                res = self.run_ssh_cmd(f"docker logs --tail 100 {shlex.quote(name)}", True, update_status=False)
 
                 def apply():
                     self.docker_log_view.delete("1.0", tk.END)
