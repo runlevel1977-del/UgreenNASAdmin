@@ -13,7 +13,9 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
+import uuid
 from typing import Any, Sequence
 
 _VOL_RE = re.compile(r"^/volume\d+$", re.I)
@@ -53,18 +55,12 @@ def _prune_archives_same_tag(dest_dir: str, tag: str, keep: int = _ARCHIVE_KEEP_
             pass
 
 
-def _discover_volumes() -> list[str]:
-    def _uniq_sort(paths: Sequence[str]) -> list[str]:
-        found: list[str] = []
-        seen: set[str] = set()
-        for p in paths:
-            s = str(p).strip()
-            if not s or s in seen or _VOL_RE.match(s) is None:
-                continue
-            seen.add(s)
-            found.append(s)
-        return sorted(found, key=lambda x: int(re.sub(r"\D+", "", x) or "0"))
+def _uniq_sort(paths: Sequence[str]) -> list[str]:
+    found = {str(p).strip() for p in paths if _VOL_RE.fullmatch(str(p).strip())}
+    return sorted(found, key=lambda x: int(re.sub(r"\D+", "", x)))
 
+
+def _discover_volumes() -> list[str]:
     bash = """
     {
       awk '$2 ~ /^\\/volume[0-9]+$/{print $2}' /proc/mounts 2>/dev/null
@@ -150,7 +146,7 @@ def _run_tar(
     excludes: Sequence[str],
     *,
     archive_parent: str | None = None,
-) -> None:
+) -> bool:
     src_ok_filtered: list[str] = []
     for p in sources:
         rp = str(p).strip().rstrip("/")
@@ -160,19 +156,20 @@ def _run_tar(
             src_ok_filtered.append(rp)
     if not src_ok_filtered:
         print("__UG_BACKUP_NO_SOURCE__", flush=True)
-        return
+        return False
     arc = str(archive_parent or "").strip().rstrip("/")
     root_base = arc if arc else (target_volume.rstrip("/") or "/volume1")
     dest_dir = os.path.join(root_base, "backup", "ugreen_admin")
     os.makedirs(dest_dir, exist_ok=True)
     ts = time.strftime("%Y%m%d_%H%M%S")
-    dest_file = os.path.join(dest_dir, f"{tag}_{ts}.tar.gz")
+    dest_file = os.path.join(dest_dir, f"{tag}_{ts}_{uuid.uuid4().hex[:12]}.tar.gz")
+    fd, partial = tempfile.mkstemp(prefix=".ugreen-backup-", suffix=".partial", dir=dest_dir)
+    os.close(fd)
     cmd = [
         "tar",
         "-czf",
-        dest_file,
-        "--warning=no-file-changed",
-        "--ignore-failed-read",
+        partial,
+        f"--exclude={dest_dir}",
     ]
     for g in excludes:
         g = str(g).strip()
@@ -182,11 +179,21 @@ def _run_tar(
     cmd.extend(src_ok_filtered)
     try:
         proc = subprocess.run(cmd, capture_output=False, timeout=86400, check=False)
-        if proc.returncode not in (0, 1):
+        if proc.returncode != 0:
             print(f"tar exit {proc.returncode}", flush=True)
+            return False
+        if not os.path.isfile(partial) or os.path.getsize(partial) == 0:
+            print("tar produced no archive", flush=True)
+            return False
+        os.replace(partial, dest_file)
     except Exception as e:
         print(f"tar failed: {e}", flush=True)
-        return
+        return False
+    finally:
+        try:
+            os.unlink(partial)
+        except FileNotFoundError:
+            pass
     print(f"__UG_BACKUP_FILE__:{dest_file}", flush=True)
     try:
         du = subprocess.run(["du", "-h", dest_file], capture_output=True, text=True, timeout=120, check=False)
@@ -197,6 +204,7 @@ def _run_tar(
     except Exception:
         pass
     _prune_archives_same_tag(dest_dir, tag)
+    return True
 
 
 def _load_jobs(path: str) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -243,7 +251,8 @@ def main(argv: Sequence[str]) -> None:
         sys.exit(4)
     target_vol = str(job.get("target_volume") or "/volume1").rstrip("/") or "/volume1"
     usb_arc = str(job.get("backup_dest_base") or "").strip().rstrip("/")
-    _run_tar(tag, sources, target_volume=target_vol, excludes=excludes, archive_parent=(usb_arc or None))
+    if not _run_tar(tag, sources, target_volume=target_vol, excludes=excludes, archive_parent=(usb_arc or None)):
+        sys.exit(5)
 
 
 if __name__ == "__main__":

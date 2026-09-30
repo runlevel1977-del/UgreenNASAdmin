@@ -2072,12 +2072,17 @@ class MixinTabsSetup:
             f"SOURCES=({q_sources});"
             "SRC_OK=();"
             "for p in \"${SOURCES[@]}\"; do [ -e \"$p\" ] && SRC_OK+=(\"$p\"); done;"
-            "if [ ${#SRC_OK[@]} -eq 0 ]; then echo '__UG_BACKUP_NO_SOURCE__'; exit 0; fi;"
+            "if [ ${#SRC_OK[@]} -eq 0 ]; then echo '__UG_BACKUP_NO_SOURCE__'; exit 1; fi;"
             f"DEST_DIR={shlex.quote(arch_base + '/backup/ugreen_admin')};"
             f"TAG={shlex.quote(tag)};"
             "mkdir -p \"$DEST_DIR\";"
-            "DEST_FILE=\"$DEST_DIR/${TAG}_$(date +%Y%m%d_%H%M%S).tar.gz\";"
-            f"tar -czf \"$DEST_FILE\" --warning=no-file-changed --ignore-failed-read {ex_args} \"${{SRC_OK[@]}}\";"
+            "TEMP_FILE=$(mktemp \"$DEST_DIR/.ugreen-backup-XXXXXXXXXXXX.partial\");"
+            "trap 'rm -f -- \"$TEMP_FILE\"' EXIT;"
+            "RUN_ID=${TEMP_FILE##*/}; RUN_ID=${RUN_ID#.ugreen-backup-}; RUN_ID=${RUN_ID%.partial};"
+            "DEST_FILE=\"$DEST_DIR/${TAG}_$(date +%Y%m%d_%H%M%S)_${RUN_ID}.tar.gz\";"
+            f"tar -czf \"$TEMP_FILE\" --exclude=\"$DEST_DIR\" {ex_args} -- \"${{SRC_OK[@]}}\";"
+            "test -s \"$TEMP_FILE\";"
+            "mv -- \"$TEMP_FILE\" \"$DEST_FILE\"; trap - EXIT;"
             "echo \"__UG_BACKUP_FILE__:$DEST_FILE\";"
             "du -h \"$DEST_FILE\" 2>/dev/null | awk '{print \"__UG_BACKUP_SIZE__:\"$1}' || true;"
             # Pro TAG (docker_scripts / user_data_… / all_data_…) max. 2 Archive; älteste desselben Typs löschen
@@ -2643,10 +2648,13 @@ class MixinTabsSetup:
                     exclude_globs=exclude_globs,
                     archive_parent_override=(usb_root if mode == "usb" else None),
                 )
-                out = self.run_ssh_cmd(cmd, True, update_status=False)
-                text = str(out or "")
+                result = self.run_ssh_cmd_ex(cmd, True, update_status=False, long_running=True)
+                text = str(result.output or "")
                 if "__UG_BACKUP_NO_SOURCE__" in text:
                     self.root.after(0, lambda: self._backup_log(self.t("backup.no_source")))
+                    return
+                if not result.ok:
+                    self.root.after(0, lambda detail=text: self._backup_log(self.t("backup.failed", err=detail)))
                     return
                 file_path = ""
                 file_size = ""
@@ -2690,7 +2698,7 @@ class MixinTabsSetup:
                     ),
                 )
             except Exception as e:
-                self.root.after(0, lambda: self._backup_log(self.t("backup.failed", err=str(e))))
+                self.root.after(0, lambda detail=str(e): self._backup_log(self.t("backup.failed", err=detail)))
 
         threading.Thread(target=worker, daemon=True).start()
 
