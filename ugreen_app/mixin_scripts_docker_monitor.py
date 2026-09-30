@@ -734,7 +734,7 @@ class MixinScriptsDockerMonitor:
     def _docker_log_tail_worker(self, container_name: str):
         pk = _paramiko()
         ssh = pk.SSHClient()
-        ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
+        nas_ssh.configure_host_key_verification(ssh, pk)
         stop_ev = getattr(self, "_docker_tail_stop_event", None)
         try:
             ssh.connect(self.entry_ip.get().strip(), **self._ssh_connect_kwargs(timeout=25, banner_timeout=45, auth_timeout=45))
@@ -3885,7 +3885,7 @@ class MixinScriptsDockerMonitor:
         try:
             pk = _paramiko()
             ssh = pk.SSHClient()
-            ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
+            nas_ssh.configure_host_key_verification(ssh, pk)
             ssh.connect(
                 self.entry_ip.get(),
                 **self._ssh_connect_kwargs(timeout=5, banner_timeout=20, auth_timeout=20),
@@ -5089,7 +5089,7 @@ echo "$max"
             while not w._webcam_preview_stop.is_set():
                 if ssh is None:
                     ssh = pk.SSHClient()
-                    ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
+                    nas_ssh.configure_host_key_verification(ssh, pk)
                     try:
                         ssh.connect(self.entry_ip.get().strip(), **self._ssh_connect_kwargs(timeout=25, banner_timeout=45, auth_timeout=45))
                         self._ssh_transport_keepalive(ssh)

@@ -211,7 +211,7 @@ class MixinStorageAclSnap:
         def worker():
             pk = _paramiko()
             ssh = pk.SSHClient()
-            ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
+            nas_ssh.configure_host_key_verification(ssh, pk)
             try:
                 ssh.connect(self.entry_ip.get().strip(), **self._ssh_connect_kwargs(timeout=40, banner_timeout=60, auth_timeout=60))
                 self._ssh_transport_keepalive(ssh)
@@ -315,7 +315,7 @@ class MixinStorageAclSnap:
         def worker():
             pk = _paramiko()
             ssh = pk.SSHClient()
-            ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
+            nas_ssh.configure_host_key_verification(ssh, pk)
             try:
                 ssh.connect(self.entry_ip.get().strip(), **self._ssh_connect_kwargs(timeout=40, banner_timeout=60, auth_timeout=60))
                 self._ssh_transport_keepalive(ssh)

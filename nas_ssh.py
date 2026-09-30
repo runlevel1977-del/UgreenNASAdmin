@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import io
 import os
 import posixpath
@@ -24,6 +25,31 @@ def _paramiko():
 
         _paramiko_mod = p
     return _paramiko_mod
+
+
+def configure_host_key_verification(ssh, pk) -> None:
+    """Use the user's OpenSSH trust store; never learn server keys implicitly."""
+    known_hosts = os.path.expanduser("~/.ssh/known_hosts")
+    # A missing store means no trusted hosts yet. Unreadable/malformed existing
+    # stores must fail closed instead of silently disabling verification.
+    try:
+        ssh.load_system_host_keys(known_hosts)
+    except FileNotFoundError:
+        pass
+
+    class RequireKnownHost(pk.MissingHostKeyPolicy):
+        def missing_host_key(self, client, hostname, key):
+            fingerprint = base64.b64encode(hashlib.sha256(key.asbytes()).digest()).decode("ascii").rstrip("=")
+            raise pk.SSHException(
+                f"Unbekannter SSH-Server / Unknown SSH server: {hostname}\n"
+                f"{key.get_name()} SHA256:{fingerprint}\n"
+                "Server-Fingerprint über einen unabhängigen, vertrauenswürdigen Weg prüfen. "
+                "Erst danach mit OpenSSH verbinden und den geprüften Schlüssel bestätigen.\n"
+                "Verify the fingerprint independently, then accept that verified key using OpenSSH.\n"
+                f"Trust store: {known_hosts}"
+            )
+
+    ssh.set_missing_host_key_policy(RequireKnownHost())
 
 
 def _decode_out(data: bytes) -> str:
@@ -140,7 +166,7 @@ class SSHManager:
             self._client = None
         pk = _paramiko()
         ssh = pk.SSHClient()
-        ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
+        configure_host_key_verification(ssh, pk)
         conn_kwargs = {
             "username": user,
             "password": password,

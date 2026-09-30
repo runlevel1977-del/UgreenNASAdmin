@@ -672,11 +672,12 @@ class MixinQnapSmb:
         self._start_upload_queue(remote_dir, items, title_suffix=self.t("nas2nas.upload_peer_to_ugreen"))
 
     def _n2n_open_transfer_sftp(self):
+        import nas_ssh
         from ugreen_app._paramiko import _paramiko
 
         pk = _paramiko()
         ssh = pk.SSHClient()
-        ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
+        nas_ssh.configure_host_key_verification(ssh, pk)
         ssh.connect(
             self.entry_ip.get().strip(),
             **self._ssh_connect_kwargs(
