@@ -3408,7 +3408,7 @@ class MixinTabsSetup:
             activebackground=self.color_surface,
             font=("Segoe UI", 8),
         ).pack(side=tk.LEFT, padx=(0, 8))
-        self.var_settings_ugos_api_verify_ssl = tk.BooleanVar(value=False)
+        self.var_settings_ugos_api_verify_ssl = tk.BooleanVar(value=True)
         tk.Checkbutton(
             conn_row3,
             text=self.t("settings.ugos_api_verify_ssl"),

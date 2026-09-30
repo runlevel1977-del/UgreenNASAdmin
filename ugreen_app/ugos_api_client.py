@@ -16,6 +16,13 @@ class UgosApiError(Exception):
     pass
 
 
+class _RejectRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        # API calls carry credentials/session tokens. Never forward them or
+        # downgrade HTTPS in response to a redirect, even within the same host.
+        raise UgosApiError("UGOS-API: HTTP-Weiterleitung aus Sicherheitsgründen abgewiesen.")
+
+
 def _ssl_context(*, verify: bool) -> ssl.SSLContext | None:
     if not verify:
         ctx = ssl.create_default_context()
@@ -67,7 +74,7 @@ class UgosApiClient:
         username: str,
         password: str,
         use_https: bool = True,
-        verify_ssl: bool = False,
+        verify_ssl: bool = True,
         token: str = "",
     ) -> None:
         self.host = (host or "").strip()
@@ -84,6 +91,12 @@ class UgosApiClient:
             return None
         return _ssl_context(verify=self.verify_ssl)
 
+    def _open(self, request, *, timeout):
+        opener = urllib.request.build_opener(
+            urllib.request.HTTPSHandler(context=self._ctx()), _RejectRedirects()
+        )
+        return opener.open(request, timeout=timeout)
+
     def _request(self, method: str, path: str, payload: dict | None = None) -> dict[str, Any]:
         if not self.token and not self.login():
             raise UgosApiError("UGOS-API-Login fehlgeschlagen.")
@@ -96,7 +109,7 @@ class UgosApiClient:
         headers = _api_headers(json_body=payload is not None)
         req = urllib.request.Request(url, data=data, method=method, headers=headers)
         try:
-            with urllib.request.urlopen(req, timeout=20, context=self._ctx()) as resp:
+            with self._open(req, timeout=20) as resp:
                 body = resp.read().decode("utf-8", errors="replace")
                 out = json.loads(body) if body.strip() else {}
         except urllib.error.HTTPError as e:
@@ -131,7 +144,7 @@ class UgosApiClient:
             headers=_api_headers(json_body=True),
         )
         try:
-            with urllib.request.urlopen(req, timeout=15, context=self._ctx()) as resp:
+            with self._open(req, timeout=15) as resp:
                 hdr = resp.headers.get("x-rsa-token") or resp.headers.get("X-Rsa-Token") or ""
                 pub = _load_public_key(hdr)
                 enc = base64.b64encode(
@@ -157,7 +170,7 @@ class UgosApiClient:
             headers=_api_headers(json_body=True),
         )
         try:
-            with urllib.request.urlopen(req2, timeout=15, context=self._ctx()) as resp:
+            with self._open(req2, timeout=15) as resp:
                 data = json.loads(resp.read().decode("utf-8", errors="replace"))
         except Exception as e:
             raise UgosApiError(f"Login fehlgeschlagen: {e}") from e

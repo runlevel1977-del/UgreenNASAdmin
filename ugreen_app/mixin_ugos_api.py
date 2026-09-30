@@ -51,7 +51,7 @@ class MixinUgosApi:
         return {
             "port": max(1, min(65535, port)),
             "use_https": bool(ua.get("use_https", True)),
-            "verify_ssl": bool(ua.get("verify_ssl", False)),
+            "verify_ssl": bool(ua.get("verify_ssl", True)),
         }
 
     def _ugos_api_credentials(self) -> tuple[str, str, str]:

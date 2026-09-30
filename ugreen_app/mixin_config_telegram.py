@@ -957,7 +957,7 @@ class MixinConfigTelegram:
             "ugos_api": {
                 "port": 9443,
                 "use_https": True,
-                "verify_ssl": False,
+                "verify_ssl": True,
                 "dashboard_live": True,
             },
             "ssh": {
@@ -1785,7 +1785,7 @@ if __name__ == "__main__":
                 else True,
                 "verify_ssl": bool(self.var_settings_ugos_api_verify_ssl.get())
                 if hasattr(self, "var_settings_ugos_api_verify_ssl")
-                else False,
+                else True,
             },
             "ssh": {
                 "cmd_timeout_sec": max(
@@ -2120,7 +2120,7 @@ if __name__ == "__main__":
         if hasattr(self, "var_settings_ugos_api_https"):
             self.var_settings_ugos_api_https.set(bool(ua.get("use_https", True)))
         if hasattr(self, "var_settings_ugos_api_verify_ssl"):
-            self.var_settings_ugos_api_verify_ssl.set(bool(ua.get("verify_ssl", False)))
+            self.var_settings_ugos_api_verify_ssl.set(bool(ua.get("verify_ssl", True)))
         sh = dict(cfg.get("ssh") or {})
         if hasattr(self, "entry_settings_ssh_cmd_timeout"):
             self.entry_settings_ssh_cmd_timeout.delete(0, tk.END)
