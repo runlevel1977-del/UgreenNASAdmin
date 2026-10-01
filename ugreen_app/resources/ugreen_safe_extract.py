@@ -15,7 +15,7 @@ import zipfile
 
 
 def member_parts(name, directory=False):
-    if not isinstance(name, str) or not name or "\\" in name or any(ord(c) < 32 for c in name):
+    if not isinstance(name, str) or not name or name.startswith("/") or "\\" in name or any(ord(c) < 32 for c in name):
         raise ValueError("Invalid archive member name")
     while name.startswith("./"):
         name = name[2:]
@@ -142,8 +142,16 @@ def write_member(parent, name, source, size, metadata=None):
         except FileNotFoundError:
             metadata = (0o644, -1, -1, None)
     temporary = ".ugreen-extract-" + uuid.uuid4().hex
-    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=parent)
+    os.mkdir(temporary, 0o700, dir_fd=parent)
+    staging = None
+    created = False
     try:
+        staging = os.open(temporary, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+        info = os.fstat(staging)
+        if info.st_uid != os.geteuid() or info.st_mode & 0o077:
+            raise ValueError("Unsafe archive staging directory")
+        fd = os.open("payload", os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=staging)
+        created = True
         with os.fdopen(fd, "wb") as output:
             copied = 0
             while True:
@@ -164,10 +172,17 @@ def write_member(parent, name, source, size, metadata=None):
                 os.utime(output.fileno(), (mtime, mtime))
             os.fsync(output.fileno())
         check_leaf(parent, name, False)
-        os.replace(temporary, name, src_dir_fd=parent, dst_dir_fd=parent)
+        os.replace("payload", name, src_dir_fd=staging, dst_dir_fd=parent)
     finally:
+        if staging is not None:
+            if created:
+                try:
+                    os.unlink("payload", dir_fd=staging)
+                except FileNotFoundError:
+                    pass
+            os.close(staging)
         try:
-            os.unlink(temporary, dir_fd=parent)
+            os.rmdir(temporary, dir_fd=parent)
         except FileNotFoundError:
             pass
 

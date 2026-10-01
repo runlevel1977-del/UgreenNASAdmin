@@ -7,6 +7,7 @@ import shlex
 import stat
 import tarfile
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 import zipfile
@@ -46,6 +47,10 @@ class ArchiveSafetyTests(unittest.TestCase):
             with self.subTest(kind=kind), self.tar([("ordinary", tarfile.REGTYPE), ("unsafe", kind)]) as archive:
                 with self.assertRaises(ValueError):
                     safe.plan_members(archive)
+
+    def test_absolute_directory_entries_rejected(self):
+        with self.tar([('/',tarfile.DIRTYPE)]) as archive,self.assertRaises(ValueError):
+            safe.plan_members(archive)
 
     def test_duplicates_and_file_directory_collisions_rejected(self):
         for members in ([('file', tarfile.REGTYPE), ('file', tarfile.REGTYPE)],
@@ -102,14 +107,29 @@ class ArchiveSafetyTests(unittest.TestCase):
         # are adapted, without claiming to exercise UGOS permissions.
         original_open, original_stat = os.open, os.stat
         original_unlink, original_replace = os.unlink, os.replace
+        original_mkdir, original_rmdir, original_close = os.mkdir, os.rmdir, os.close
+        original_fstat = os.fstat
+        directories = {10:root}
+        counter = [10000]
+        def resolve(name, dir_fd):
+            return directories.get(dir_fd,root) / name
         def open_at(name, flags, mode=0o777, *, dir_fd=None):
-            return original_open(root / name, flags & ~getattr(os, "O_NOFOLLOW", 0), mode)
+            path=resolve(name,dir_fd)
+            if flags & 0x40000000:
+                counter[0]+=1;directories[counter[0]]=path
+                return counter[0]
+            return original_open(path, flags & ~getattr(os, "O_NOFOLLOW", 0), mode)
         def stat_at(name, *, dir_fd=None, follow_symlinks=True):
-            return original_stat(root / name, follow_symlinks=follow_symlinks)
+            return original_stat(resolve(name,dir_fd), follow_symlinks=follow_symlinks)
         with contextlib.ExitStack() as stack:
             for name, value in dict(open=open_at, stat=stat_at,
-                    unlink=lambda name, **kw: original_unlink(root / name),
-                    replace=lambda src, dst, **kw: original_replace(root / src, root / dst),
+                    unlink=lambda name, dir_fd=None: original_unlink(resolve(name,dir_fd)),
+                    replace=lambda src, dst, src_dir_fd=None,dst_dir_fd=None: original_replace(resolve(src,src_dir_fd),resolve(dst,dst_dir_fd)),
+                    mkdir=lambda name,mode=0o777,dir_fd=None: original_mkdir(resolve(name,dir_fd),mode),
+                    rmdir=lambda name,dir_fd=None: original_rmdir(resolve(name,dir_fd)),
+                    close=lambda fd: directories.pop(fd) if fd in directories else original_close(fd),
+                    fstat=lambda fd: SimpleNamespace(st_uid=0,st_mode=stat.S_IFDIR|0o700) if fd in directories else original_fstat(fd),
+                    geteuid=lambda:0,O_DIRECTORY=0x40000000,
                     fchown=lambda *a: None, fchmod=lambda *a: None,
                     O_NOFOLLOW=getattr(os, "O_NOFOLLOW", 0)).items():
                 stack.enter_context(patch.object(safe.os, name, value, create=True))
