@@ -2,7 +2,7 @@
 
 Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: **Dashboard** with live metrics (incl. **UGOS API** storage tile), **scripts** and cron planner, **Explorer**, **NAS ↔ NAS** SMB copy, **network devices**, **Docker**, **Runlevel Apps**, **system health** / Telegram guard, **Login Track** (client-IP access log: SSH, SMB, UGOS app/web, live/history, sort, export, optional IP block), **NAS management** (power/WoL, **UGOS power scheduler**, HDD spin-down, scheduled shutdown, USB eject, SMART, RAID/trim/scrub, SSH drop-in, services + **`.slog` logs**, **network read-only**, NGINX, earlyOOM, Samba, LED/beeper), **storage**, **ACL**, **snapshots**, dedicated **Backup** tab (**Docker+scripts**, **user data**, **full data exports**; destinations **NAS / PC folder / USB on the NAS / second NAS SMB**; **cron scheduling on the NAS** without leaving a PC running), **Settings**, plus optional Telegram/Email notifications. The UI is available in many languages; switch in **Settings** (and often the status bar).
 
-**This file** is the **public release** README (folder **`öffentlich/`**). The step-by-step guide below mirrors the **private** project’s main `README.md` (English + German), including **an extended Backup chapter** users asked for — release notes in [`CHANGELOG.md`](CHANGELOG.md).
+**This file** is the README of the **public GitHub repository** ([UgreenNASAdmin](https://github.com/runlevel1977-del/UgreenNASAdmin)). The step-by-step guide below is in **English + German**, including an **extended Backup chapter** — release notes in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Download — which button on GitHub?
 
@@ -202,9 +202,9 @@ All files are under **`images/`**. **Do not** show real passwords or private IPs
 </p>
 <p align="center"><sub>Info (README / changelog / manual PDFs)</sub></p>
 
-### About this public folder
+### About this repository
 
-This folder **`öffentlich/`** is the **canonical public release tree** for GitHub (separate `.git` when published). The parent project **`NAS_Admin_Project`** (private) may not include this copy. Set the remote with **`setup_public_remote.ps1`** or `git remote add origin …` here. **Do not delete** it — it contains what you need to **run** the app and **build** the EXE.
+This repository is the **public source tree** for Ugreen NAS Admin. Clone or download it to **run from source** or **build** the EXE (`python builder.py`). Packaged installers and ZIPs are under **[Releases](https://github.com/runlevel1977-del/UgreenNASAdmin/releases)**.
 
 ---
 
@@ -495,10 +495,9 @@ For **another Ugreen/QNAP/SMB NAS** as a destination, configure **SMB peer profi
 - **YouTube (demo, may vary by version):** https://youtu.be/RDaEZhuEbCc  
 - **Changelog (this folder):** [`CHANGELOG.md`](CHANGELOG.md)  
 
-**Run from source (in this `öffentlich` folder):**
+**Run from source (repository root):**
 
 ```text
-cd öffentlich
 python -m pip install -r requirements.txt
 python ugreen_nas_admin.py
 ```
@@ -728,10 +727,9 @@ Je nach Kombobox (Bezeichnung leicht sprachabhängig):
 
 **Versionshinweise:** [`CHANGELOG.md`](CHANGELOG.md) in diesem Ordner. Screenshots: siehe oben in diesem README.
 
-**Start aus den Quellen (dieser Ordner):**
+**Start aus den Quellen (Repo-Wurzel):**
 
 ```text
-cd öffentlich
 python -m pip install -r requirements.txt
 python ugreen_nas_admin.py
 ```
@@ -791,7 +789,7 @@ python builder.py
 
 Python 3.13+ often breaks frozen EXEs (`python3xx.dll`). From source (`python ugreen_nas_admin.py`) newer Pythons are fine for day-to-day testing.
 
-**Sync from the private project:** use `python tools/sync_public_repo.py` (includes `tools/build_python.py`) or copy changed files into `öffentlich/` before a public release. Include `UgreenNASAdmin.spec` when the build changed.
+**Maintainers:** publish updates with `python tools/sync_public_repo.py` from the private project (includes `tools/build_python.py`). Include `UgreenNASAdmin.spec` when the build changed.
 
 ### Local files (do not commit to git)
 
@@ -833,7 +831,7 @@ Wie Tabelle im englischen Block. **Build:** `pip install -r requirements.txt` �
 
 **Python:** Für die EXE **3.12** verwenden (`tools/build_python.py` / `py -3.12`; optional `UGREEN_BUILD_PYTHON`).
 
-**Abgleich** mit öffentlichem Repo: `python tools/sync_public_repo.py` (nimmt u. a. `tools/build_python.py` mit) oder Dateien nach `öffentlich/` spiegeln. **`UgreenNASAdmin.spec`** mitnehmen, wenn am Build etwas geändert wurde.
+**Abgleich** (Maintainer): aus dem privaten Projekt `python tools/sync_public_repo.py` (nimmt u. a. `tools/build_python.py` mit). **`UgreenNASAdmin.spec`** mitnehmen, wenn am Build etwas geändert wurde.
 
 ### Lokale Dateien (nicht ins Repo)
 
