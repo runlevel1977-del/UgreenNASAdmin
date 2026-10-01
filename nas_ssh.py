@@ -29,29 +29,66 @@ _paramiko_mod = None
 
 
 def _atomic_root_write_code(path: str, mode: int, data_code: str) -> str:
-    """Remote Python: publish a new root-owned inode only after a complete write."""
-    if path.startswith(ROOT_RUNTIME_DIR + "/") and posixpath.dirname(path) != ROOT_RUNTIME_DIR:
+    """Publish through pinned parent/staging handles; never reopen checked paths."""
+    if not path.startswith("/") or path == "/" or posixpath.normpath(path) != path:
+        raise ValueError("Canonical absolute root file path required")
+    private = path.startswith(ROOT_RUNTIME_DIR + "/")
+    if private and posixpath.dirname(path) != ROOT_RUNTIME_DIR:
         raise ValueError("Bundled helper files must be direct children of the private runtime directory")
-    return (
-        "import base64,hashlib,os,stat,tempfile\n"
-        + (private_runtime_directory_code() if path.startswith(ROOT_RUNTIME_DIR + "/") else "")
-        + data_code
-        + "\n"
-        + f"target = {path!r}\n"
-        "if os.path.islink(target):\n"
-        "    raise ValueError('Refusing symbolic-link destination')\n"
-        "fd, temporary = tempfile.mkstemp(prefix='.ugreen-root-', dir=os.path.dirname(target))\n"
-        "try:\n"
+    if private:
+        prepare = private_runtime_directory_code(keep_open=True) + "parent = _ugreen_runtime_fd\n"
+    else:
+        prepare = (
+            "flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW\n"
+            "parent = os.open('/', flags)\n"
+            "try:\n"
+            + f"    for component in {tuple(posixpath.dirname(path).strip('/').split('/')) if posixpath.dirname(path) != '/' else ()!r}:\n"
+            "        child = os.open(component, flags, dir_fd=parent)\n"
+            "        os.close(parent)\n"
+            "        parent = child\n"
+            "except BaseException:\n"
+            "    os.close(parent)\n"
+            "    raise\n"
+        )
+    return "import base64,hashlib,os,stat,uuid\n" + prepare + (
+        "staging = None\nstaging_fd = None\ncreated = False\ntry:\n"
+        + "".join("    " + line + "\n" for line in data_code.splitlines())
+        + f"    name = {posixpath.basename(path)!r}\n"
+        "    try:\n"
+        "        info = os.stat(name, dir_fd=parent, follow_symlinks=False)\n"
+        "        if not stat.S_ISREG(info.st_mode):\n"
+        "            raise ValueError('Refusing non-regular root destination')\n"
+        "    except FileNotFoundError:\n"
+        "        pass\n"
+        "    staging = '.ugreen-root-' + uuid.uuid4().hex\n"
+        "    os.mkdir(staging, 0o700, dir_fd=parent)\n"
+        "    staging_fd = os.open(staging, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)\n"
+        "    info = os.fstat(staging_fd)\n"
+        "    if info.st_uid != 0 or info.st_mode & 0o077:\n"
+        "        raise PermissionError('Unsafe root staging directory')\n"
+        "    fd = os.open('payload', os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=staging_fd)\n"
+        "    created = True\n"
         "    with os.fdopen(fd, 'wb') as output:\n"
         "        output.write(data)\n"
         "        output.flush()\n"
-        "        os.fsync(output.fileno())\n"
         "        os.fchown(output.fileno(), 0, 0)\n"
         + f"        os.fchmod(output.fileno(), {mode})\n"
-        "    os.replace(temporary, target)\n"
+        "        os.fsync(output.fileno())\n"
+        "    os.replace('payload', name, src_dir_fd=staging_fd, dst_dir_fd=parent)\n"
         "finally:\n"
-        "    if os.path.exists(temporary):\n"
-        "        os.unlink(temporary)\n"
+        "    if staging_fd is not None:\n"
+        "        if created:\n"
+        "            try:\n"
+        "                os.unlink('payload', dir_fd=staging_fd)\n"
+        "            except FileNotFoundError:\n"
+        "                pass\n"
+        "        os.close(staging_fd)\n"
+        "    if staging is not None:\n"
+        "        try:\n"
+        "            os.rmdir(staging, dir_fd=parent)\n"
+        "        except FileNotFoundError:\n"
+        "            pass\n"
+        "    os.close(parent)\n"
     )
 
 
