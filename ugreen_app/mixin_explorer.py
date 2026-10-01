@@ -23,6 +23,7 @@ import string
 import socket
 import errno
 import ctypes
+import subprocess
 import webbrowser
 import urllib.request
 import urllib.parse
@@ -30,6 +31,7 @@ import urllib.parse
 import nas_ssh
 import nas_utils
 from ugreen_app._paramiko import _paramiko
+from ugreen_app.script_commands import docker_script_commands
 from ugreen_app import docker_deploy_wizard as _ddw
 from ugreen_app.scroll_helpers import (
     smooth_bind_mousewheel_tree,
@@ -1553,31 +1555,28 @@ class MixinExplorer:
             return
         sel = self.script_listbox.curselection()
         if sel:
-            fn_raw = self.script_listbox.get(sel[0]).strip()
+            fn = self.script_listbox.get(sel[0]).strip()
             if hasattr(self, "_script_notify_clean_list_name"):
-                fn_raw = self._script_notify_clean_list_name(fn_raw)
-            fn = nas_utils.safe_script_basename(fn_raw)
-            if not fn:
-                messagebox.showerror(self.t("msg.save_error"), self.t("scripts.unsafe_filename", name=fn_raw))
+                fn = self._script_notify_clean_list_name(fn)
+            path = self._script_path_for_action(fn)
+            if path is None:
                 return
             if messagebox.askyesno(self.t("msg.delete"), self.t("msg.delete_confirm_file", fn=fn)):
-                self.run_ssh_cmd(f"rm -f -- {shlex.quote('/volume1/scripts/' + fn)}", True)
+                self.run_ssh_cmd(f"rm -- {shlex.quote(path)}", True)
                 self.refresh_script_list()
                 self.clear_fields()
 
     def test_script_now(self):
         if not self._danger_gate():
             return
-        fn_raw = self.entry_filename.get().strip()
-        if fn_raw and fn_raw != "STABLE_TASKS":
-            fn = nas_utils.safe_script_basename(fn_raw)
-            if not fn:
-                messagebox.showerror(self.t("msg.save_error"), self.t("scripts.unsafe_filename", name=fn_raw))
+        fn = self.entry_filename.get().strip()
+        if fn and fn != "STABLE_TASKS":
+            path = self._script_path_for_action(fn)
+            if path is None:
                 return
             self.log(f"🚀 Testlauf (Host) {fn}...")
             marker = "__UG_SCRIPT_EXIT__:"
-            qfn = shlex.quote("/volume1/scripts/" + fn)
-            cmd = f"/bin/bash {qfn}; rc=$?; echo {marker}$rc"
+            cmd = f"/bin/bash {shlex.quote(path)}; rc=$?; echo {marker}$rc"
             out = self.run_ssh_cmd(cmd, True)
             self.log(out)
             ok = False
@@ -1595,25 +1594,14 @@ class MixinExplorer:
     def test_script_docker(self):
         if not self._danger_gate():
             return
-        fn_raw = self.entry_filename.get().strip()
-        if fn_raw and fn_raw != "STABLE_TASKS":
-            fn = nas_utils.safe_script_basename(fn_raw)
-            if not fn:
-                messagebox.showerror(self.t("msg.save_error"), self.t("scripts.unsafe_filename", name=fn_raw))
+        fn = self.entry_filename.get().strip()
+        if fn and fn != "STABLE_TASKS":
+            if self._script_path_for_action(fn) is None:
                 return
             self.log(f"🐳 Starte {fn} manuell in Docker...")
-            container_name = f"manual_{re.sub(r'[^A-Za-z0-9_]+', '_', fn)}"
-            inner_bash = (
-                "apt-get update -qq && apt-get install -yqq curl sudo wget && "
-                f"/bin/bash {shlex.quote('/volume1/scripts/' + fn)}"
-            )
-            cmd = (
-                f"docker rm -f {shlex.quote(container_name)} 2>/dev/null; "
-                f"docker run -d --name {shlex.quote(container_name)} "
-                f"-v /volume1:/volume1 -v /volume2:/volume2 ubuntu:latest "
-                f"/bin/bash -c {shlex.quote(inner_bash)}"
-            )
-            out = self.run_ssh_cmd(f"/bin/bash -lc {shlex.quote(cmd)}", True)
+            remove_cmd, cmd = docker_script_commands(fn)
+            self.run_ssh_cmd(remove_cmd, True)
+            out = self.run_ssh_cmd(cmd, True)
 
             self.log(f"✅ Container gestartet! ID: {out.strip()[:12]}")
             self.log("Wechsle in den 'Docker Manager' Tab für den Status und die Logs.")
@@ -1627,8 +1615,14 @@ class MixinExplorer:
             port = int((self.entry_port.get() or "22").strip())
         except Exception:
             port = 22
-        os.system(
-            f'start powershell.exe -NoExit -Command "ssh -p {port} {self.entry_user.get()}@{self.entry_ip.get()}"'
+        # Keep profile values out of cmd.exe and quote PowerShell literals.
+        user = "'" + self.entry_user.get().replace("'", "''") + "'"
+        host = "'" + self.entry_ip.get().replace("'", "''") + "'"
+        command = f"& ssh.exe -p {port} -l {user} -- {host}"
+        encoded = base64.b64encode(command.encode("utf-16le")).decode("ascii")
+        subprocess.Popen(
+            ["powershell.exe", "-NoProfile", "-NoExit", "-EncodedCommand", encoded],
+            creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
         )
 
     def show_context_menu(self, event):

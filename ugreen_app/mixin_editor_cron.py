@@ -29,8 +29,18 @@ import urllib.parse
 import nas_ssh
 import nas_utils
 from ugreen_app._paramiko import _paramiko
+from ugreen_app.script_commands import script_path, docker_script_commands
 
 class MixinEditorCron:
+    def _script_path_for_action(self, filename, *, for_cron=False):
+        try:
+            if nas_utils.safe_script_basename(filename) != filename:
+                raise ValueError(self.t("scripts.unsafe_filename", name=filename))
+            return script_path(filename, for_cron=for_cron)
+        except ValueError as exc:
+            messagebox.showerror(self.t("msg.save_error"), str(exc))
+            return None
+
     @staticmethod
     def _sanitize_stable_cron_text(text: str) -> str:
         """Entfernt Zeilen wie `[sudo] password for …` (stderr von sudo -S oder einmal falsch mitgespeichert)."""
@@ -49,11 +59,9 @@ class MixinEditorCron:
             fn = self.script_listbox.get(sel[0]).strip()
             if hasattr(self, "_script_notify_clean_list_name"):
                 fn = self._script_notify_clean_list_name(fn)
-            safe = nas_utils.safe_script_basename(fn)
-            if not safe:
-                messagebox.showerror(self.t("msg.save_error"), self.t("scripts.unsafe_filename", name=fn))
+            path = self._script_path_for_action(fn)
+            if path is None:
                 return
-            fn = safe
             if hasattr(self, "_script_notify_update_scripts_overview_ui"):
                 try:
                     self._script_notify_update_scripts_overview_ui()
@@ -62,7 +70,7 @@ class MixinEditorCron:
             self.entry_filename.delete(0, tk.END)
             self.entry_filename.insert(0, fn)
             
-            res = self.run_ssh_cmd(f"cat {shlex.quote('/volume1/scripts/' + fn)}")
+            res = self.run_ssh_cmd(f"cat -- {shlex.quote(path)}")
             self.text_editor.delete("1.0", tk.END)
             self.text_editor.insert("1.0", res)
             self.sync_scheduler(fn)
@@ -124,22 +132,20 @@ class MixinEditorCron:
     def save_script(self, as_root):
         if not self._danger_gate():
             return
-        fn_raw = self.entry_filename.get().strip()
-        if not fn_raw:
+        fn = self.entry_filename.get().strip()
+        if not fn:
             messagebox.showwarning(self.t("msg.save_error"), self.t("msg.editor_save_no_fn"))
             return
         content = self.text_editor.get("1.0", tk.END).strip()
         
-        if fn_raw == "STABLE_TASKS": 
+        if fn == "STABLE_TASKS":
             if not self.write_root_file(self.stable_cron_path, content):
                 return
             self.log("✅ Zeitplan (Roh) gespeichert.")
         else:
-            fn = nas_utils.safe_script_basename(fn_raw)
-            if not fn:
-                messagebox.showerror(self.t("msg.save_error"), self.t("scripts.unsafe_filename", name=fn_raw))
+            path = self._script_path_for_action(fn)
+            if path is None:
                 return
-            path = f"/volume1/scripts/{fn}"
             if as_root:
                 if not self.write_root_file(path, content):
                     return
@@ -185,18 +191,16 @@ class MixinEditorCron:
     def add_to_stable_cron(self):
         if not self._danger_gate():
             return
-        fn_raw = self.entry_filename.get().strip()
-        fn = nas_utils.safe_script_basename(fn_raw)
-        if not fn or fn == "STABLE_TASKS":
-            if fn_raw and fn_raw != "STABLE_TASKS":
-                messagebox.showerror(self.t("msg.save_error"), self.t("scripts.unsafe_filename", name=fn_raw))
+        fn = self.entry_filename.get().strip()
+        if not fn or fn == "STABLE_TASKS": return
+        script_path = self._script_path_for_action(fn, for_cron=True)
+        if script_path is None:
             return
         
         v = [self.get_cron_val(k, self.cron_fields[k].get()) for k in ["Minute", "Stunde", "Tag", "Monat", "Wochentag"]]
         if not nas_utils.validate_cron_fields(v):
             messagebox.showerror(self.t("msg.save_error"), self.t("scripts.unsafe_cron"))
             return
-        script_path = posixpath.join("/volume1/scripts", fn)
         if fn.lower().endswith(".py"):
             cmd = f"/usr/bin/python3 {shlex.quote(script_path)}"
         else:
@@ -224,11 +228,9 @@ class MixinEditorCron:
     def add_to_docker_cron(self):
         if not self._danger_gate():
             return
-        fn_raw = self.entry_filename.get().strip()
-        fn = nas_utils.safe_script_basename(fn_raw)
-        if not fn or fn == "STABLE_TASKS":
-            if fn_raw and fn_raw != "STABLE_TASKS":
-                messagebox.showerror(self.t("msg.save_error"), self.t("scripts.unsafe_filename", name=fn_raw))
+        fn = self.entry_filename.get().strip()
+        if not fn or fn == "STABLE_TASKS": return
+        if self._script_path_for_action(fn, for_cron=True) is None:
             return
         
         v = [self.get_cron_val(k, self.cron_fields[k].get()) for k in ["Minute", "Stunde", "Tag", "Monat", "Wochentag"]]
@@ -236,18 +238,8 @@ class MixinEditorCron:
             messagebox.showerror(self.t("msg.save_error"), self.t("scripts.unsafe_cron"))
             return
         
-        container_name = f"job_{re.sub(r'[^A-Za-z0-9_]+', '_', fn)}"
-        inner_bash = (
-            "apt-get update -qq && apt-get install -yqq curl sudo wget && "
-            f"/bin/bash {shlex.quote('/volume1/scripts/' + fn)}"
-        )
-        docker_cmd = (
-            f"docker rm -f {shlex.quote(container_name)} 2>/dev/null; "
-            f"docker run --name {shlex.quote(container_name)} "
-            f"-v /volume1:/volume1 -v /volume2:/volume2 ubuntu:latest "
-            f"/bin/bash -c {shlex.quote(inner_bash)}"
-        )
-        cmd = f"/bin/bash -lc {shlex.quote(docker_cmd)}"
+        remove_cmd, run_cmd = docker_script_commands(fn, scheduled=True)
+        cmd = shlex.join(["/bin/bash", "-lc", f"{remove_cmd}; {run_cmd}"])
         if hasattr(self, "ensure_script_notify_runner_on_nas"):
             ok_run, err_run = self.ensure_script_notify_runner_on_nas()
             if not ok_run:
