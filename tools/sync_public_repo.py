@@ -45,6 +45,7 @@ TOP_FILES = frozenset(
 
 TOOL_FILES = frozenset(
     {
+        "build_python.py",
         "build_handbuch_pdf.py",
         "build_handbook_en_pdf.py",
         "handbuch_pdf_from_md.py",
@@ -81,6 +82,8 @@ SENSITIVE_UGREEN_FILES = frozenset(
         "qnap_smb_prefs.json",
         "transfer_log.txt",
         "last_github_update_check.txt",
+        "ssh_known_hosts.json",
+        "ugos_tls_certs.json",
     }
 )
 

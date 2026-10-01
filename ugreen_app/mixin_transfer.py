@@ -305,7 +305,7 @@ class MixinTransfer:
 
     def _ssh_sudo_bash(self, ssh, inner_bash_script):
         """sudo bash -c '...' mit Passwort auf stdin (kein Passwort in der Shell-Zeile)."""
-        pw = self.entry_pwd.get()
+        pw = self._get_effective_ssh_password()
         if pw is None:
             pw = ""
         cmd = "sudo -S bash -c " + shlex.quote(inner_bash_script)
@@ -335,7 +335,7 @@ class MixinTransfer:
         """Eigene SSH-Verbindung — nie dieselbe Session wie SFTP (sonst oft „Socket is closed“)."""
         pk = _paramiko()
         ssh = pk.SSHClient()
-        ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
+        self._prepare_ssh_client(ssh)
         try:
             ssh.connect(
                 self.entry_ip.get(),
@@ -420,7 +420,7 @@ class MixinTransfer:
             raise ValueError(f"Ungültiger Remote-Pfad: {remote_path!r}")
         pk = _paramiko()
         ssh = pk.SSHClient()
-        ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
+        self._prepare_ssh_client(ssh)
         ssh.connect(
             self.entry_ip.get(),
             **self._ssh_connect_kwargs(
@@ -938,7 +938,7 @@ class MixinTransfer:
                     time.sleep(pause_close)
                 pk = _paramiko()
                 ssh = pk.SSHClient()
-                ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
+                self._prepare_ssh_client(ssh)
                 ssh.connect(
                     self.entry_ip.get(),
                     **self._ssh_connect_kwargs(
@@ -1260,7 +1260,7 @@ class MixinTransfer:
                         elif uploaded_meta:
                             pkv = _paramiko()
                             sshv = pkv.SSHClient()
-                            sshv.set_missing_host_key_policy(pkv.AutoAddPolicy())
+                            self._prepare_ssh_client(sshv)
                             sshv.connect(
                                 self.entry_ip.get(),
                                 **self._ssh_connect_kwargs(
@@ -1478,7 +1478,7 @@ class MixinTransfer:
                     time.sleep(0.12)
                 pk = _paramiko()
                 ssh = pk.SSHClient()
-                ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
+                self._prepare_ssh_client(ssh)
                 ssh.connect(
                     self.entry_ip.get(),
                     **self._ssh_connect_kwargs(

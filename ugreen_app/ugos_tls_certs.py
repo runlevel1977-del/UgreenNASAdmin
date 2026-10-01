@@ -1,0 +1,215 @@
+# -*- coding: utf-8 -*-
+"""UGOS HTTPS certificate store (TOFU): trust first cert, reject later changes."""
+from __future__ import annotations
+
+import base64
+import hashlib
+import json
+import ssl
+import threading
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+_lock = threading.RLock()
+_store_path: Path | None = None
+
+
+class TlsCertChangedError(Exception):
+    """Raised when the remote TLS certificate differs from the trusted one."""
+
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        expected_fp: str,
+        got_fp: str,
+    ) -> None:
+        self.host = host
+        self.port = int(port)
+        self.expected_fp = expected_fp
+        self.got_fp = got_fp
+        super().__init__(self.format_message())
+
+    def format_message(self) -> str:
+        return (
+            f"TLS-Zertifikat geändert für {self.host}:{self.port}.\n"
+            f"Vertraut: {self.expected_fp}\n"
+            f"Empfangen: {self.got_fp}\n"
+            "Nach NAS-Neuinstallation: Settings → TLS-Zertifikat vergessen, dann erneut verbinden."
+        )
+
+
+@dataclass(frozen=True)
+class TlsCertEntry:
+    pem: str
+    fingerprint: str
+    first_seen: str
+
+
+def fingerprint_der(der: bytes) -> str:
+    digest = hashlib.sha256(der).digest()
+    return "SHA256:" + base64.b64encode(digest).decode("ascii").rstrip("=")
+
+
+def fingerprint_pem(pem: str) -> str:
+    text = (pem or "").strip()
+    if not text:
+        raise ValueError("empty PEM")
+    if not text.endswith("\n"):
+        text = text + "\n"
+    der = ssl.PEM_cert_to_DER_cert(text)
+    return fingerprint_der(der)
+
+
+def host_port_key(host: str, port: int) -> str:
+    return f"{(host or '').strip().lower()}:{int(port or 443)}"
+
+
+def set_store_path(path: str | Path) -> None:
+    """Set JSON path for trusted TLS certs (call once at app start)."""
+    global _store_path
+    with _lock:
+        _store_path = Path(path)
+
+
+def get_store_path() -> Path:
+    global _store_path
+    with _lock:
+        if _store_path is None:
+            _store_path = Path.home() / ".ugreen_nas_admin_ugos_tls_certs.json"
+        return _store_path
+
+
+def _load_raw() -> dict[str, Any]:
+    path = get_store_path()
+    if not path.is_file():
+        return {"certs": {}}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"certs": {}}
+    if not isinstance(data, dict):
+        return {"certs": {}}
+    certs = data.get("certs")
+    if not isinstance(certs, dict):
+        data["certs"] = {}
+    return data
+
+
+def _save_raw(data: dict[str, Any]) -> None:
+    path = get_store_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(path)
+
+
+def get_entry(host: str, port: int) -> TlsCertEntry | None:
+    with _lock:
+        raw = _load_raw()
+        item = (raw.get("certs") or {}).get(host_port_key(host, port))
+        if not isinstance(item, dict):
+            return None
+        try:
+            pem = str(item["pem"])
+            fp = str(item.get("fingerprint") or fingerprint_pem(pem))
+            return TlsCertEntry(
+                pem=pem,
+                fingerprint=fp,
+                first_seen=str(item.get("first_seen") or ""),
+            )
+        except (KeyError, TypeError, ValueError):
+            return None
+
+
+def trust_pem(host: str, port: int, pem: str) -> TlsCertEntry:
+    """Persist server certificate (TOFU / explicit re-trust)."""
+    text = (pem or "").strip()
+    if not text.endswith("\n"):
+        text = text + "\n"
+    entry = TlsCertEntry(
+        pem=text,
+        fingerprint=fingerprint_pem(text),
+        first_seen=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    )
+    with _lock:
+        raw = _load_raw()
+        certs = raw.setdefault("certs", {})
+        certs[host_port_key(host, port)] = {
+            "pem": entry.pem,
+            "fingerprint": entry.fingerprint,
+            "first_seen": entry.first_seen,
+        }
+        _save_raw(raw)
+    return entry
+
+
+def forget_host(host: str, port: int) -> bool:
+    """Remove trusted cert for host:port. Returns True if an entry was removed."""
+    with _lock:
+        raw = _load_raw()
+        certs = raw.get("certs") or {}
+        key = host_port_key(host, port)
+        if key not in certs:
+            return False
+        del certs[key]
+        raw["certs"] = certs
+        _save_raw(raw)
+        return True
+
+
+def fetch_server_cert_pem(host: str, port: int, *, timeout: float = 15.0) -> str:
+    """Fetch the current leaf certificate (PEM). Uses an unauthenticated TLS peek."""
+    h = (host or "").strip()
+    p = int(port)
+    # ssl.get_server_certificate has no timeout on older Pythons; wrap via create_connection.
+    with ssl.create_connection((h, p), timeout=timeout) as raw:
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        with ctx.wrap_socket(raw, server_hostname=h) as sock:
+            der = sock.getpeercert(binary_form=True)
+    if not der:
+        raise OSError(f"No peer certificate from {h}:{p}")
+    return ssl.DER_cert_to_PEM_cert(der)
+
+
+def ssl_context_tofu(host: str, port: int, *, timeout: float = 15.0) -> ssl.SSLContext:
+    """
+    Build an SSLContext that requires the TOFU-pinned leaf certificate.
+
+    First contact stores the cert; later contacts verify against the pin
+    (self-signed UGOS works without a custom CA on the PC).
+    """
+    h = (host or "").strip()
+    p = int(port)
+    entry = get_entry(h, p)
+    if entry is None:
+        pem = fetch_server_cert_pem(h, p, timeout=timeout)
+        entry = trust_pem(h, p, pem)
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_REQUIRED
+    ctx.load_verify_locations(cadata=entry.pem)
+    return ctx
+
+
+def explain_ssl_failure(host: str, port: int, exc: BaseException) -> Exception | None:
+    """
+    If handshake failed because the server cert changed, return TlsCertChangedError.
+    Otherwise return None (caller keeps original error).
+    """
+    try:
+        pem = fetch_server_cert_pem(host, port)
+        got_fp = fingerprint_pem(pem)
+    except Exception:
+        return None
+    entry = get_entry(host, port)
+    if entry is None:
+        return None
+    if entry.fingerprint != got_fp:
+        return TlsCertChangedError(host, port, entry.fingerprint, got_fp)
+    return None

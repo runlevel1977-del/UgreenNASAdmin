@@ -2,7 +2,7 @@
 
 Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: **Dashboard** with live metrics (incl. **UGOS API** storage tile), **scripts** and cron planner, **Explorer**, **NAS ↔ NAS** SMB copy, **network devices**, **Docker**, **Runlevel Apps**, **system health** / Telegram guard, **Login Track** (client-IP access log: SSH, SMB, UGOS app/web, live/history, sort, export, optional IP block), **NAS management** (power/WoL, **UGOS power scheduler**, HDD spin-down, scheduled shutdown, USB eject, SMART, RAID/trim/scrub, SSH drop-in, services + **`.slog` logs**, **network read-only**, NGINX, earlyOOM, Samba, LED/beeper), **storage**, **ACL**, **snapshots**, dedicated **Backup** tab (**Docker+scripts**, **user data**, **full data exports**; destinations **NAS / PC folder / USB on the NAS / second NAS SMB**; **cron scheduling on the NAS** without leaving a PC running), **Settings**, plus optional Telegram/Email notifications. The UI is available in many languages; switch in **Settings** (and often the status bar).
 
-**This file** is the **public release** README (folder **`öffentlich/`**). The step-by-step guide below mirrors the **private** project’s main `README.md` (English + German), including **an extended Backup chapter** users asked for — release notes in [`CHANGELOG.md`](CHANGELOG.md).
+**This file** is the README of the **public GitHub repository** ([UgreenNASAdmin](https://github.com/runlevel1977-del/UgreenNASAdmin)). The step-by-step guide below is in **English + German**, including an **extended Backup chapter** — release notes in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Download — which button on GitHub?
 
@@ -22,7 +22,7 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 
 **Portable (One-Dir):** Settings and connection JSON files live beside `UgreenNASAdmin.exe` inside the `UgreenNASAdmin/` folder. After upgrading from an older one-file EXE, the app migrates existing config from the parent folder or `%LOCALAPPDATA%\UgreenNASAdmin\` on first start. **Window geometry** (size/position, taskbar-aware) is stored in `app_settings.json` → `window` (v23.8.42+).
 
-**Auto-update:** When a newer release is on GitHub, the app offers to download `UgreenNASAdmin_setup_*.exe` and run it (ℹ Info → **Check for updates**). No manual download needed.
+**Auto-update:** When a newer release is on GitHub, the app offers to download `UgreenNASAdmin_setup_*.exe`, verifies its **SHA-256** against the GitHub asset digest, and only then runs it (ℹ Info → **Check for updates**). No manual download needed.
 
 ### Unreleased / upcoming
 
@@ -80,7 +80,7 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 - **Handbook from the header:** **📖 Manual / Handbuch** in the top bar (between **Info** and **Screenshot**) opens the **handbook chapter for the active tab** — e.g. Docker → chapter 12, Backup → chapter 19. Jumps to the right **PDF page** when possible (`handbook_page_index.json`); otherwise shows a **Markdown excerpt** in a dialog.
 - **Migration assistant** (Backup & NAS↔NAS): rsync scripts for volume moves, NAS→NAS, Synology/QNAP templates; dry-run, save under `/volume1/scripts/`.
 - **Docker — not in App Center:** 15 compose recipes (MeTube, Jellyfin, Immich, Paperless, Vaultwarden, Nextcloud, AdGuard, *arr stack, qBittorrent, Uptime Kuma, Home Assistant, Syncthing, Portainer) with UGREEN paths.
-- **UGOS API** (Dashboard): live snapshot via official web API (CPU/RAM, pools, disks); optional HTTPS port in Settings.
+- **UGOS API** (Dashboard): live snapshot via official web API (CPU/RAM, pools, disks); optional HTTPS port in Settings. Default HTTPS uses **certificate TOFU** (pin on first contact); enable **Verify SSL (CA)** only with a PC-trusted CA cert. **Forget TLS certificate** after NAS cert change.
 - **SSH:** configurable command timeouts (Settings → Connection); migration pre-flight and background rsync; storage Top-20 scan in background.
 - **Deutsch (kurz):** **Handbuch-Button** in der Kopfzeile (passendes Kapitel pro Tab); Migrations-Assistent; 15 Docker-Rezepte; UGOS-API; SSH-Timeouts — Details in [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -106,7 +106,7 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 ### What's new in v23.6.0
 
 - **Dashboard + fan control refresh:** expanded live dashboard with trend lines/sparklines and a stronger two-channel fan control flow (System/CPU, Silent/Standard/Max/manual %, UGOS handover, boot-profile persistence).
-- **Settings SSH workflow:** create SSH key pair and install public key to UGREEN or second NAS/QNAP directly from the app.
+- **Settings SSH workflow:** create SSH key pair and install public key to UGREEN or second NAS/QNAP directly from the app. **TOFU host keys** (`ssh_known_hosts.json`) — first connect trusts the key; later changes are rejected (Settings → **Forget SSH host key**).
 - **Health improvements:** Scheduler inventory and expanded UGOS/service visibility.
 - **Updated screenshots:** `images/` now reflects the newest app state (latest captures provided by the maintainer).
 - **Version** **23.6.0** — see full details in [`CHANGELOG.md`](CHANGELOG.md).
@@ -202,9 +202,9 @@ All files are under **`images/`**. **Do not** show real passwords or private IPs
 </p>
 <p align="center"><sub>Info (README / changelog / manual PDFs)</sub></p>
 
-### About this public folder
+### About this repository
 
-This folder **`öffentlich/`** is the **canonical public release tree** for GitHub (separate `.git` when published). The parent project **`NAS_Admin_Project`** (private) may not include this copy. Set the remote with **`setup_public_remote.ps1`** or `git remote add origin …` here. **Do not delete** it — it contains what you need to **run** the app and **build** the EXE.
+This repository is the **public source tree** for Ugreen NAS Admin. Clone or download it to **run from source** or **build** the EXE (`python builder.py`). Packaged installers and ZIPs are under **[Releases](https://github.com/runlevel1977-del/UgreenNASAdmin/releases)**.
 
 ---
 
@@ -463,7 +463,7 @@ For **another Ugreen/QNAP/SMB NAS** as a destination, configure **SMB peer profi
 **Purpose:** Central configuration for the **app on your PC** (and optional files pushed to the **NAS**).
 
 - **Load / apply / save** — read JSON from disk, apply values to the current session, and persist to your **per-user** app data directory. Many builds store **sensitive** values only locally (never commit these files to git).  
-- **Connection profiles** — multiple **IP / port / user / password** sets; optional **SSH key** and **keyring** (OS vault) for passwords on Windows. **Save connection** may write **plain text** password next to the executable unless you use the **vault** option — read the in-app **security** hint.  
+- **Connection profiles** — multiple **IP / port / user / password** sets; optional **SSH key**. **Save connection** stores the SSH password in the **OS credential vault** by default (`keyring`); the JSON file keeps an empty password field.  
 - **UI language** — pick a language, then **apply**; the UI may rebuild.  
 - **Default paths** — scripts directory, default **Docker compose** path, **Explorer root** (as used in other tabs).  
 - **Telegram** — `bot token`, `chat id` (from the bot chapter above).  
@@ -495,10 +495,9 @@ For **another Ugreen/QNAP/SMB NAS** as a destination, configure **SMB peer profi
 - **YouTube (demo, may vary by version):** https://youtu.be/RDaEZhuEbCc  
 - **Changelog (this folder):** [`CHANGELOG.md`](CHANGELOG.md)  
 
-**Run from source (in this `öffentlich` folder):**
+**Run from source (repository root):**
 
 ```text
-cd öffentlich
 python -m pip install -r requirements.txt
 python ugreen_nas_admin.py
 ```
@@ -728,10 +727,9 @@ Je nach Kombobox (Bezeichnung leicht sprachabhängig):
 
 **Versionshinweise:** [`CHANGELOG.md`](CHANGELOG.md) in diesem Ordner. Screenshots: siehe oben in diesem README.
 
-**Start aus den Quellen (dieser Ordner):**
+**Start aus den Quellen (Repo-Wurzel):**
 
 ```text
-cd öffentlich
 python -m pip install -r requirements.txt
 python ugreen_nas_admin.py
 ```
@@ -753,7 +751,7 @@ At the top of the window, or in **Settings**, you enter the **SSH** connection t
 | **Use SSH key** | When enabled, uses your private key file (and optional passphrase). |
 | **Key path** | Path to the private key on your **Windows** PC. |
 
-**Save connection** stores IP, port, user, password, key settings, **profiles**, and UI language next to the EXE, unless you use the **vault** for the password. **Header right (typical):** **Full access**, **theme**, **Save**, **PW vault**, **Info**, **Coffee** — exact labels depend on version. **Live monitor** and **Webcam** are in the **left sidebar** (lower area) in many builds. **Status bar (bottom):** language and **connection** state.
+**Save connection** stores IP, port, user, key settings, **profiles**, and UI language next to the EXE. The **SSH password** goes into the **OS credential vault** (not the JSON). **Header right (typical):** **Full access**, **theme**, **Info**, **Coffee** — exact labels depend on version. Connection fields live under **Settings**. **Status bar (bottom):** language and **connection** state.
 
 ### Restricted mode & "Full access" (v22.2+)
 
@@ -768,35 +766,44 @@ By default, risky actions are **off** until you enable **Full access** and confi
 | `nas_ssh.py`, `nas_utils.py` | SSH helpers |
 | `UgreenNASAdmin.spec` | PyInstaller spec (needed for a correct EXE rebuild) |
 | `builder.py`, `create_icon.py`, `RUN_BUILDER.bat` | Build tooling |
+| `tools/build_python.py` | Picks a stable Python for PyInstaller (prefers 3.12; `UGREEN_BUILD_PYTHON`) |
 | `CHANGELOG.md` | Release notes |
-| `requirements.txt` | Python dependencies |
+| `requirements.txt` | Python dependencies (`Pillow`, `pyinstaller`, `keyring`, …) |
 
-**Build (EXE):**
+**Build (portable EXE / one-dir):**
 
 ```text
-cd öffentlich
+python -m pip install -r requirements.txt
+python -m pip install "paramiko>=3.0"
 python builder.py
 ```
 
-Output: `öffentlich/dist/UgreenNASAdmin.exe`.
+Output: `dist/UgreenNASAdmin/UgreenNASAdmin.exe` (folder next to the EXE is the portable bundle).
 
-**Sync from the private project:** if you develop in the parent `NAS_Admin_Project` folder, copy changed files into `öffentlich/` before a public release. Include `UgreenNASAdmin.spec` when the build changed.
+**Python version:** Use **Python 3.12** for EXE builds. `builder.py` calls `tools/build_python.py`, which prefers `py -3.12` on Windows. Override with:
+
+```text
+set UGREEN_BUILD_PYTHON=C:\Path\to\Python312\python.exe
+python builder.py
+```
+
+Python 3.13+ often breaks frozen EXEs (`python3xx.dll`). From source (`python ugreen_nas_admin.py`) newer Pythons are fine for day-to-day testing.
+
+**Maintainers:** publish updates with `python tools/sync_public_repo.py` from the private project (includes `tools/build_python.py`). Include `UgreenNASAdmin.spec` when the build changed.
 
 ### Local files (do not commit to git)
 
 `nas_admin_connection.json`, `telegram_notify.json`, and similar are created at runtime next to the EXE. **Do not** commit (see `.gitignore` in this folder).
 
-### SSH password in the OS vault (optional, v22.1+)
+### SSH password in the OS vault (default, v23.8.46+)
 
-Without `keyring`, **Save connection** may store the password in **plain text** in `nas_admin_connection.json`.
+**Save connection** stores the SSH password in **Windows Credential Manager** via `keyring`. The JSON file keeps an empty password field. Existing plaintext passwords are migrated on startup.
 
-**With `keyring`**, the password can live in **Windows Credential Manager**:
+1. `python -m pip install keyring` (same Python as for `python ugreen_nas_admin.py` / `python builder.py`) — also listed in `requirements.txt`.
+2. Rebuild the EXE if needed: `python builder.py`.
+3. In the app: set **IP**, user, **password** → **Save connection**.
 
-1. `python -m pip install keyring` (same Python as for `python ugreen_nas_admin.py` / `python builder.py`).
-2. Rebuild the EXE if you need the package bundled: `python builder.py`.
-3. In the app: set **IP**, user, **password**; click **PW vault**; optionally **clear the password** field and **Save** so the JSON no longer holds the password.
-
-**Without `keyring`:** the app still works; the button shows a hint.
+**Without `keyring`:** the app falls back to plaintext in `nas_admin_connection.json` and shows a warning.
 
 > **Public repos:** do not use real passwords or private IPs in screenshots.
 
@@ -820,17 +827,19 @@ Siehe `CHANGELOG.md` (22.2.0).
 
 ## Entwickler: Dateien, Build, Abgleich
 
-Wie Tabelle im englischen Block. **Build:** `cd öffentlich` → `python builder.py` → `dist/UgreenNASAdmin.exe`.
+Wie Tabelle im englischen Block. **Build:** `pip install -r requirements.txt` → `python builder.py` → `dist/UgreenNASAdmin/UgreenNASAdmin.exe`.
 
-**Abgleich** mit privatem Projekt: geänderte Dateien nach `öffentlich/` spiegeln. **`UgreenNASAdmin.spec`** mitnehmen, wenn am Build etwas geändert wurde.
+**Python:** Für die EXE **3.12** verwenden (`tools/build_python.py` / `py -3.12`; optional `UGREEN_BUILD_PYTHON`).
+
+**Abgleich** (Maintainer): aus dem privaten Projekt `python tools/sync_public_repo.py` (nimmt u. a. `tools/build_python.py` mit). **`UgreenNASAdmin.spec`** mitnehmen, wenn am Build etwas geändert wurde.
 
 ### Lokale Dateien (nicht ins Repo)
 
 Laufzeit-JSON neben der EXE — **nicht** committen.
 
-### SSH-Passwort im Windows-Tresor (optional, ab v22.1+)
+### SSH-Passwort im Windows-Tresor (Standard, ab v23.8.46+)
 
-Kurz: `pip install keyring`, in der App **PW-Tresor** nutzen, ggf. Passwortfeld leeren und erneut speichern. Ohne `keyring` funktioniert die App dennoch mit Passwort in der JSON.
+**Verbindung speichern** legt das SSH-Passwort im **System-Tresor** ab. In der JSON bleibt das Passwort-Feld leer; alte Klartext-Einträge werden beim Start migriert. Ohne `keyring`: Fallback Klartext + Warnung.
 
 > **Screenshots:** keine echten Zugangsdaten zeigen.
 

@@ -2,6 +2,7 @@
 """Vergleich mit GitHub Releases oder Tags (öffentliches Repo UgreenNASAdmin)."""
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import ssl
@@ -47,6 +48,54 @@ def remote_is_newer(local_version: str, remote_tag: str) -> bool:
     return normalize_version_tuple(remote_tag) > normalize_version_tuple(local_version)
 
 
+def parse_github_asset_digest(raw: str | None) -> str | None:
+    """Parse GitHub asset ``digest`` (``sha256:<hex>``) to lowercase hex, or None."""
+    s = (raw or "").strip().lower()
+    if not s:
+        return None
+    if s.startswith("sha256:"):
+        s = s[7:].strip()
+    if re.fullmatch(r"[0-9a-f]{64}", s):
+        return s
+    return None
+
+
+def sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
+    """Return lowercase hex SHA-256 of a file."""
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while True:
+            chunk = handle.read(chunk_size)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def verify_file_sha256(path: Path, expected: str) -> tuple[bool, str]:
+    """
+    Verify ``path`` against an expected SHA-256 (hex or ``sha256:hex``).
+
+    Returns:
+        Tuple of (ok, detail). On success detail is the actual hex digest.
+        On failure detail is an error code or the mismatched actual digest.
+    """
+    exp = parse_github_asset_digest(expected)
+    if exp is None:
+        exp = (expected or "").strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{64}", exp or ""):
+            return False, "missing_or_invalid_expected_digest"
+    if not path.is_file():
+        return False, "file_missing"
+    try:
+        actual = sha256_file(path)
+    except OSError as exc:
+        return False, str(exc)
+    if actual != exp:
+        return False, actual
+    return True, actual
+
+
 def _pick_installer_asset(assets: list[dict]) -> dict | None:
     for asset in assets:
         name = str(asset.get("name") or "")
@@ -70,12 +119,14 @@ def _release_from_api_payload(data: dict) -> dict | None:
     download_url = str(asset.get("browser_download_url") or "").strip()
     if not download_url:
         return None
+    digest = parse_github_asset_digest(str(asset.get("digest") or ""))
     return {
         "tag_name": tag,
         "html_url": (data.get("html_url") or "").strip() or WEB_RELEASES_LATEST,
         "asset_name": str(asset.get("name") or ""),
         "asset_download_url": download_url,
         "asset_size": int(asset.get("size") or 0),
+        "asset_digest": digest or "",
     }
 
 

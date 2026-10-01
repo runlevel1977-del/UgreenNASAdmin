@@ -676,7 +676,7 @@ class MixinQnapSmb:
 
         pk = _paramiko()
         ssh = pk.SSHClient()
-        ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
+        self._prepare_ssh_client(ssh)
         ssh.connect(
             self.entry_ip.get().strip(),
             **self._ssh_connect_kwargs(

@@ -139,7 +139,7 @@ class MixinEditorCron:
                 ok, err = self._ssh_mgr.write_remote_file_user(
                     self.entry_ip.get(),
                     self.entry_user.get(),
-                    self.entry_pwd.get(),
+                    self._get_effective_ssh_password(),
                     data,
                     path,
                     **self._ssh_auth_payload(),
@@ -157,7 +157,7 @@ class MixinEditorCron:
         ok, err = self._ssh_mgr.write_remote_file_sudo(
             self.entry_ip.get(),
             self.entry_user.get(),
-            self.entry_pwd.get(),
+            self._get_effective_ssh_password(),
             data,
             target_path.strip(),
             chmod_mode="644",
