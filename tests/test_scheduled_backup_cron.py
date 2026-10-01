@@ -99,7 +99,7 @@ class ScheduledBackupCronTests(unittest.TestCase):
         ui.write_root_file.assert_not_called()
         self.assertEqual(ui.run_ssh_cmd_ex.call_count, 1)
 
-    def test_valid_sync_preserves_other_jobs_and_quotes_mkdir_path(self):
+    def test_valid_sync_preserves_other_jobs_and_uses_checked_writer(self):
         ui = self.ui([job()])
         ui.run_ssh_cmd_ex.side_effect = [
             SimpleNamespace(ok=True, output="0 2 * * * root /trusted/other-job\n"),
@@ -109,16 +109,16 @@ class ScheduledBackupCronTests(unittest.TestCase):
         self.assertEqual(ui.write_root_file.call_count, 3)
         cron = ui.write_root_file.call_args.args[1]
         self.assertIn("0 2 * * * root /trusted/other-job\n", cron)
-        self.assertEqual(
-            shlex.split(ui.run_ssh_cmd_ex.call_args.args[0]),
-            ["mkdir", "-p", "--", ROOT_RUNTIME_DIR],
-        )
+        self.assertEqual(ui.run_ssh_cmd_ex.call_count, 1)  # Read existing cron only.
+        self.assertEqual(ui.write_root_file.call_args_list[0].args[0], RUNNER)
 
-    def test_directory_failure_stops_before_file_writes(self):
+    def test_checked_helper_write_failure_preserves_state_and_cron(self):
         ui = self.ui([job()])
-        ui.run_ssh_cmd_ex.side_effect = [SimpleNamespace(ok=True, output=""), SimpleNamespace(ok=False, output="mkdir failed")]
+        ui.write_root_file.return_value = False
         self.sync(ui)
-        ui.write_root_file.assert_not_called()
+        self.assertEqual(ui.write_root_file.call_count, 1)
+        self.assertEqual(ui.write_root_file.call_args.args[0], RUNNER)
+        self.assertIn("sync_fail", ui._backup_log.call_args.args[0])
 
 
 if __name__ == "__main__":

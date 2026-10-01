@@ -1871,10 +1871,6 @@ if __name__ == "__main__":
             runner_b = self._script_notify_runner_fallback_bytes()
         cfg_obj = self._script_notify_nas_cfg_from_settings(cfg)
         cfg_b = (json.dumps(cfg_obj, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
-        try:
-            self.run_ssh_cmd("mkdir -p /volume1/scripts", True, update_status=False)
-        except Exception:
-            pass
         ok1, err1 = self._ssh_mgr.write_remote_file_sudo(
             host, user, pwd, runner_b, self._script_notify_runner_remote_path(), chmod_mode="755", **self._ssh_auth_payload()
         )

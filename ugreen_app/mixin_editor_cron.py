@@ -209,6 +209,7 @@ class MixinEditorCron:
             ok_run, err_run = self.ensure_script_notify_runner_on_nas()
             if not ok_run:
                 self.log(f"⚠️ Script-Notify-Runner konnte nicht auf NAS aktualisiert werden: {err_run}")
+                return
         runner = "/var/lib/ugreen-nas-admin/ugreen_script_notify_runner.py"
         cmd = f"/usr/bin/python3 {shlex.quote(runner)} --script-name {shlex.quote(fn)} -- {cmd}"
 
@@ -244,6 +245,7 @@ class MixinEditorCron:
             ok_run, err_run = self.ensure_script_notify_runner_on_nas()
             if not ok_run:
                 self.log(f"⚠️ Script-Notify-Runner konnte nicht auf NAS aktualisiert werden: {err_run}")
+                return
         runner = "/var/lib/ugreen-nas-admin/ugreen_script_notify_runner.py"
         cmd = f"/usr/bin/python3 {shlex.quote(runner)} --script-name {shlex.quote(fn)} -- {cmd}"
         

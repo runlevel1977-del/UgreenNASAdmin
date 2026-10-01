@@ -3009,20 +3009,24 @@ class MixinTabsSetup:
             err = ""
             jobs: list[dict] = []
             try:
+                volumes = self._backup_collect_volumes()
+                legacy = posixpath.join(self._backup_pick_target_volume(volumes), "backup", "ugreen_admin", "scheduled_backups.json")
                 jp = BACKUP_STATE
-                raw = self.run_ssh_cmd(f"/bin/cat {shlex.quote(jp)}", True, update_status=False)
-                text = str(raw or "").strip()
-                lower = text.lower()
-                if not text or "no such file" in lower or ("cannot open" in lower and "{" not in text):
-                    jobs = []
+                # Read old state only when private state is absent. A broken or
+                # unreadable private file must not revive outdated schedules.
+                p, old = shlex.quote(jp), shlex.quote(legacy)
+                result = self.run_ssh_cmd_ex(
+                    f"if [ -e {p} ] || [ -L {p} ]; then /bin/cat -- {p}; "
+                    f"elif [ -e {old} ] || [ -L {old} ]; then /bin/cat -- {old}; else printf '{{\"jobs\":[]}}'; fi",
+                    True, update_status=False,
+                )
+                if not result.ok:
+                    raise RuntimeError(result.output or "Cannot read scheduled backup state")
+                doc, _trail = self._scheduled_backup_try_parse_jobs_json_blob(result.output)
+                if doc is not None and isinstance(doc.get("jobs"), list) and all(isinstance(x, dict) for x in doc["jobs"]):
+                    jobs = doc["jobs"]
                 else:
-                    doc, _trail = self._scheduled_backup_try_parse_jobs_json_blob(text)
-                    if doc is None:
-                        err = self.t("backup.sched.bad_json")
-                    elif isinstance(doc.get("jobs"), list):
-                        jobs = [x for x in doc["jobs"] if isinstance(x, dict)]
-                    else:
-                        err = self.t("backup.sched.bad_json")
+                    err = self.t("backup.sched.bad_json")
             except Exception as e:
                 err = str(e)
 
@@ -3057,7 +3061,6 @@ class MixinTabsSetup:
                 jp = BACKUP_STATE
                 jp_show = posixpath.normpath(jp)
                 runner_show = posixpath.normpath(runner_remote)
-                jp_dir = posixpath.dirname(jp)
                 jobs = getattr(self, "scheduled_backup_jobs", []) or []
                 # Imported JSON is data, not trusted root-crontab syntax. Validate
                 # the whole batch before creating directories or writing files.
@@ -3085,9 +3088,8 @@ class MixinTabsSetup:
                     cron_out = head + "\n"
                 else:
                     cron_out = "\n"
-                created = self.run_ssh_cmd_ex(f"mkdir -p -- {shlex.quote(jp_dir)}", True, update_status=False)
-                if not created.ok:
-                    raise RuntimeError(created.output or "Backup-Verzeichnis konnte nicht erstellt werden / cannot create backup directory")
+                # The atomic root writer checks all parents and creates the
+                # private leaf with 0700. A shell mkdir here would preempt it.
                 if not self.write_root_file(runner_remote, body):
                     raise RuntimeError(self.t("backup.sched.runner_write_fail"))
                 payload = json.dumps({"version": 2, "jobs": jobs}, indent=2, ensure_ascii=False)
