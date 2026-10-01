@@ -14,7 +14,8 @@ from nas_ssh import SSHManager
 class RootWriteStdinTests(unittest.TestCase):
     def capture(self, source, password="synthetic-password"):
         manager = SSHManager()
-        channel = SimpleNamespace(shutdown_write=Mock(), recv_exit_status=lambda: 0)
+        channel = SimpleNamespace(shutdown_write=Mock(), settimeout=Mock(), recv_exit_status=lambda: 0,
+                                  recv_ready=lambda: False, recv_stderr_ready=lambda: False, exit_status_ready=lambda: True)
         incoming = io.StringIO()
         incoming.channel = channel
         outgoing = io.BytesIO()
