@@ -27,9 +27,9 @@ SHA-256-Wert. Ein fehlgeschlagener Upload wird nicht veröffentlicht.
 - Neue Dateiinodes erhalten die angeforderten Unix-Rechte; bisherige individuelle
   ACLs, xattrs und Labels werden nicht übernommen. UGOS-Vererbung ist separat zu prüfen.
 - Root-Eigentum schützt nicht vor Austausch durch Benutzer mit Schreibzugriff auf
-  Elternverzeichnisse. Insbesondere `/volume1/scripts` und die Backup-Konfiguration
-  brauchen weiterhin einen geschützten Ablage- und Migrationsplan. Das Verfahren
-  ist keine Absicherung beliebiger feindlich veränderbarer Verzeichnispfade.
+  Elternverzeichnisse. Mitgelieferte Runner und Konfigurationen verwenden jetzt
+  eine [geprüfte private Ablage samt Migrationshinweisen](PRIVATE_ROOT_RUNTIME_DE.md).
+  Andere frei gewählte Ziele sind weiterhin keine abgesicherten Verzeichnispfade.
 - Der bereits vorhandene Base64-Fallback transportiert Daten im Remote-Befehl.
   Sichtbarkeit in Prozessargumenten bzw. Befehlsprotokollen bleibt ein separates
   Geheimnisspeicherungsthema.
