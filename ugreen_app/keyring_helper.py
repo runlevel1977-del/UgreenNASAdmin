@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""SSH-Passwort im OS-Tresor (Windows Credential Manager / macOS Keychain / Secret Service)."""
+"""SSH secrets in the OS vault (Windows Credential Manager / macOS Keychain / Secret Service)."""
 from __future__ import annotations
 
 _SERVICE = "UgreenNASAdmin"
@@ -16,6 +16,10 @@ def keyring_available() -> bool:
 
 def _account(host: str, user: str) -> str:
     return f"{(user or '').strip()}@{(host or '').strip()}"
+
+
+def _passphrase_account(host: str, user: str) -> str:
+    return f"ssh-key-passphrase:{(user or '').strip()}@{(host or '').strip()}"
 
 
 def get_ssh_password(host: str, user: str) -> str | None:
@@ -50,6 +54,51 @@ def delete_ssh_password(host: str, user: str) -> bool:
 
         try:
             keyring.delete_password(_SERVICE, _account(host, user))
+        except keyring.errors.PasswordDeleteError:
+            pass
+        return True
+    except Exception:
+        return False
+
+
+def get_ssh_key_passphrase(host: str, user: str) -> str | None:
+    if not keyring_available():
+        return None
+    try:
+        import keyring
+
+        return keyring.get_password(_SERVICE, _passphrase_account(host, user))
+    except Exception:
+        return None
+
+
+def set_ssh_key_passphrase(host: str, user: str, passphrase: str) -> bool:
+    if not keyring_available():
+        return False
+    try:
+        import keyring
+
+        account = _passphrase_account(host, user)
+        if passphrase:
+            keyring.set_password(_SERVICE, account, passphrase)
+        else:
+            try:
+                keyring.delete_password(_SERVICE, account)
+            except keyring.errors.PasswordDeleteError:
+                pass
+        return True
+    except Exception:
+        return False
+
+
+def delete_ssh_key_passphrase(host: str, user: str) -> bool:
+    if not keyring_available():
+        return False
+    try:
+        import keyring
+
+        try:
+            keyring.delete_password(_SERVICE, _passphrase_account(host, user))
         except keyring.errors.PasswordDeleteError:
             pass
         return True

@@ -5,14 +5,17 @@ import time
 import hashlib
 import shutil
 
-# --- KONFIGURATION ---
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# packaging/ → Projektroot
+PACK_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(PACK_DIR)
 SPEC_NAME = "UgreenNASAdmin.spec"
 EXE_NAME = "UgreenNASAdmin"
-# ---------------------
+ASSETS = os.path.join(ROOT, "assets")
 
-if BASE_DIR not in sys.path:
-    sys.path.insert(0, BASE_DIR)
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+if PACK_DIR not in sys.path:
+    sys.path.insert(0, PACK_DIR)
 
 from tools.build_python import resolve_build_python  # noqa: E402
 
@@ -72,18 +75,18 @@ def build():
         import create_icon
 
         create_icon.main()
-        print("Icons per create_icon.py aktualisiert.")
+        print("Icons per packaging/create_icon.py aktualisiert.")
     except Exception as e:
-        print(f"Hinweis: create_icon.py konnte nicht laufen ({e}) — vorhandene nas_icon.* werden genutzt.")
+        print(f"Hinweis: create_icon.py konnte nicht laufen ({e}) — vorhandene assets/nas_icon.* werden genutzt.")
 
-    icon_path = os.path.join(BASE_DIR, "nas_icon.ico")
-    spec_path = os.path.join(BASE_DIR, SPEC_NAME)
+    icon_path = os.path.join(ASSETS, "nas_icon.ico")
+    spec_path = os.path.join(PACK_DIR, SPEC_NAME)
 
     if not os.path.isfile(spec_path):
-        print(f"KRITISCH: {SPEC_NAME} fehlt in {BASE_DIR}")
+        print(f"KRITISCH: {SPEC_NAME} fehlt in {PACK_DIR}")
         sys.exit(1)
     if not os.path.isfile(icon_path):
-        print(f"KRITISCH: nas_icon.ico fehlt — bitte create_icon.py ausfuehren.")
+        print(f"KRITISCH: nas_icon.ico fehlt — bitte packaging/create_icon.py ausfuehren.")
         print(f"Erwartet: {icon_path}")
         sys.exit(1)
 
@@ -92,9 +95,9 @@ def build():
     print(f"Icon: {icon_path}")
     print(f"       Groesse {size} Bytes, geaendert {mtime}")
 
-    dist_dir = os.path.join(BASE_DIR, "dist", EXE_NAME)
+    dist_dir = os.path.join(ROOT, "dist", EXE_NAME)
     dist_exe = os.path.join(dist_dir, f"{EXE_NAME}.exe")
-    legacy_exe = os.path.join(BASE_DIR, "dist", f"{EXE_NAME}.exe")
+    legacy_exe = os.path.join(ROOT, "dist", f"{EXE_NAME}.exe")
     if os.path.isfile(legacy_exe):
         _remove_dist_exe_maybe_locked(legacy_exe, EXE_NAME)
     if os.path.isdir(dist_dir):
@@ -110,8 +113,8 @@ def build():
         spec_path,
         "--clean",
         "--noconfirm",
-        f"--distpath={os.path.join(BASE_DIR, 'dist')}",
-        f"--workpath={os.path.join(BASE_DIR, 'build')}",
+        f"--distpath={os.path.join(ROOT, 'dist')}",
+        f"--workpath={os.path.join(ROOT, 'build')}",
     ]
 
     print(f"Spec:  {spec_path}")
@@ -124,7 +127,7 @@ def build():
     print("Starte PyInstaller...")
     cmd = [py_exe, "-m", "PyInstaller", *params]
     try:
-        r = subprocess.run(cmd, cwd=BASE_DIR)
+        r = subprocess.run(cmd, cwd=ROOT)
     except Exception as e:
         print(f"\nFEHLER: PyInstaller konnte nicht gestartet werden: {e}")
         sys.exit(1)
@@ -151,7 +154,7 @@ def build():
         "- Defender-Fehlalarme werden durch den Build reduziert (UPX ist deaktiviert).\n"
         "- SmartScreen-Warnungen lassen sich ohne Code-Signatur nicht vollstaendig vermeiden.\n"
         "- Fuer lokale Starts hilft meist ein Defender-Exclude fuer den dist-Ordner (Admin):\n"
-        f"  Add-MpPreference -ExclusionPath \"{os.path.join(BASE_DIR, 'dist')}\""
+        f"  Add-MpPreference -ExclusionPath \"{os.path.join(ROOT, 'dist')}\""
     )
 
 

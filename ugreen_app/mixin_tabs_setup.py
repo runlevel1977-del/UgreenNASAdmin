@@ -3068,10 +3068,12 @@ class MixinTabsSetup:
                 cron_lines_new: list[str] = []
                 for j in jobs:
                     jid = str(j.get("id") or "").strip()
-                    if not jid:
+                    if not jid or not nas_utils.is_safe_job_id(jid):
                         continue
                     vc = list(j.get("cron") or [])
-                    if len(vc) < 5:
+                    if not nas_utils.validate_cron_fields(vc):
+                        continue
+                    if not nas_utils.is_safe_abs_volume_path(str(j.get("target_volume") or "/volume1")):
                         continue
                     label_safe = "".join(ch for ch in str(j.get("label") or "")[:200] if ch not in "\n\r\t")
                     core = f"/usr/bin/python3 {shlex.quote(runner_remote)} {shlex.quote(jid)} {shlex.quote(jp)}"

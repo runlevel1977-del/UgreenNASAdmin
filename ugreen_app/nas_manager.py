@@ -50,7 +50,7 @@ from ugreen_app.mixin_runlevel_apps import MixinRunlevelApps
 from ugreen_app.mixin_pro_drawer import MixinProDrawer
 from ugreen_app.i18n import cron_mappings_for_lang, translate
 
-__version__ = "23.8.49"
+__version__ = "23.8.55"
 
 class NASManager(
     MixinSafetyLock,
@@ -127,6 +127,12 @@ class NASManager(
             )
         except Exception:
             pass
+        try:
+            from ugreen_app import ssh_host_keys
+
+            ssh_host_keys.set_host_key_confirm_callback(self._confirm_ssh_host_key_sync)
+        except Exception:
+            pass
 
         self._init_danger_lock_state()
         self.setup_ui()
@@ -140,3 +146,40 @@ class NASManager(
 
     def t(self, key, **kwargs):
         return translate(self.ui_lang, key, **kwargs)
+
+    def _confirm_ssh_host_key_sync(self, host: str, port: int, fingerprint: str) -> bool:
+        """Block until the user accepts/rejects an unknown SSH host key (thread-safe)."""
+        import threading
+        from tkinter import messagebox
+
+        result: dict[str, bool] = {"ok": False}
+        done = threading.Event()
+
+        def ask() -> None:
+            try:
+                result["ok"] = bool(
+                    messagebox.askyesno(
+                        self.t("ssh.host_key_title"),
+                        self.t(
+                            "ssh.host_key_confirm",
+                            host=host,
+                            port=port,
+                            fp=fingerprint,
+                        ),
+                        parent=getattr(self, "root", None),
+                    )
+                )
+            except Exception:
+                result["ok"] = False
+            finally:
+                done.set()
+
+        try:
+            if threading.current_thread() is threading.main_thread():
+                ask()
+            else:
+                self.root.after(0, ask)
+                done.wait(timeout=300)
+        except Exception:
+            return False
+        return bool(result.get("ok"))

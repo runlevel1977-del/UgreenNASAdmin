@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""SSH host-key store (TOFU): trust first key, reject later changes (MITM protection)."""
+"""SSH host-key store (TOFU): confirm first key, reject later changes (MITM protection)."""
 from __future__ import annotations
 
 import base64
@@ -9,10 +9,12 @@ import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 _lock = threading.RLock()
 _store_path: Path | None = None
+# Returns True if the user accepts the unknown host key fingerprint.
+_confirm_cb: Callable[[str, int, str], bool] | None = None
 
 
 class HostKeyChangedError(Exception):
@@ -48,6 +50,18 @@ class HostKeyChangedError(Exception):
             port,
             fingerprint_sha256(expected) if expected is not None else "?",
             fingerprint_sha256(got) if got is not None else "?",
+        )
+
+
+class HostKeyRejectedError(Exception):
+    """Raised when the user declines an unknown host key (or no confirm callback)."""
+
+    def __init__(self, host: str, port: int, fingerprint: str) -> None:
+        self.host = host
+        self.port = int(port)
+        self.fingerprint = fingerprint
+        super().__init__(
+            f"SSH host key not trusted for {self.host}:{self.port} ({self.fingerprint})."
         )
 
 
@@ -91,6 +105,13 @@ def set_store_path(path: str | Path) -> None:
     global _store_path
     with _lock:
         _store_path = Path(path)
+
+
+def set_host_key_confirm_callback(cb: Callable[[str, int, str], bool] | None) -> None:
+    """Register UI callback: (host, port, fingerprint) -> accepted."""
+    global _confirm_cb
+    with _lock:
+        _confirm_cb = cb
 
 
 def get_store_path() -> Path:
@@ -179,7 +200,7 @@ def forget_host(host: str, port: int) -> bool:
 
 
 class TofuHostKeyPolicy:
-    """Accept unknown keys once and store them; reject changes."""
+    """Ask before trusting unknown keys; reject changes to known keys."""
 
     def __init__(self, host: str, port: int) -> None:
         self.host = (host or "").strip()
@@ -189,6 +210,16 @@ class TofuHostKeyPolicy:
         recorded = get_entry(self.host, self.port)
         got_fp = fingerprint_sha256(key)
         if recorded is None:
+            with _lock:
+                cb = _confirm_cb
+            accepted = False
+            if cb is not None:
+                try:
+                    accepted = bool(cb(self.host, self.port, got_fp))
+                except Exception:
+                    accepted = False
+            if not accepted:
+                raise HostKeyRejectedError(self.host, self.port, got_fp)
             trust_key(self.host, self.port, key)
             _add_to_client_host_keys(client, self.host, self.port, key)
             return
@@ -209,7 +240,7 @@ def _add_to_client_host_keys(client: Any, host: str, port: int, key: Any) -> Non
 def prepare_ssh_client(client: Any, hostname: str, port: int = 22) -> None:
     """
     Load trusted key into the client (so paramiko detects mismatches) and
-    install TOFU policy for first contact.
+    install TOFU policy for first contact (with confirm callback when set).
     """
     host = (hostname or "").strip()
     p = int(port or 22)
@@ -222,17 +253,17 @@ def prepare_ssh_client(client: Any, hostname: str, port: int = 22) -> None:
             if p == 22 and name != host:
                 client.get_host_keys().add(host, entry.key_type, pkey)
         except Exception:
-            # Corrupt entry → treat as unknown (TOFU again after forget would be cleaner,
-            # but auto-forget would weaken MITM protection; leave for user reset).
             pass
     client.set_missing_host_key_policy(TofuHostKeyPolicy(host, p))
 
 
 def is_host_key_error(exc: BaseException) -> bool:
-    if isinstance(exc, HostKeyChangedError):
+    if isinstance(exc, (HostKeyChangedError, HostKeyRejectedError)):
         return True
     name = type(exc).__name__
-    if name == "BadHostKeyException":
+    if name in ("BadHostKeyException", "HostKeyRejectedError", "HostKeyChangedError"):
         return True
     msg = str(exc).lower()
-    return "host key" in msg and ("changed" in msg or "does not match" in msg)
+    return "host key" in msg and (
+        "changed" in msg or "does not match" in msg or "not trusted" in msg
+    )

@@ -1,6 +1,6 @@
 """
-Erzeugt nas_icon.ico und nas_icon_app.png (nur Standardbibliothek).
-Ausführen: python create_icon.py
+Erzeugt assets/nas_icon.ico und assets/nas_icon_app.png (nur Standardbibliothek).
+Ausführen: python packaging/create_icon.py
 """
 from __future__ import annotations
 
@@ -157,16 +157,23 @@ def _write_ico_png(path: str, png_bytes: bytes) -> None:
 
 
 def main() -> None:
-    base = os.path.dirname(os.path.abspath(__file__))
+    pack = os.path.dirname(os.path.abspath(__file__))
+    root = os.path.dirname(pack)
+    assets = os.path.join(root, "assets")
+    os.makedirs(assets, exist_ok=True)
     rgba256 = render_nas_rgba(256)
     png256 = _png_bytes_rgba(256, 256, rgba256)
-    ico_path = os.path.join(base, "nas_icon.ico")
-    png_path = os.path.join(base, "nas_icon_app.png")
+    ico_path = os.path.join(assets, "nas_icon.ico")
+    png_path = os.path.join(assets, "nas_icon_app.png")
     _write_ico_png(ico_path, png256)
     png64 = _resize_nearest(rgba256, 256, 256, 64, 64)
     _write_png_rgba(png_path, 64, 64, png64)
+    # Zusätzlich flache PNG-Kopie für README/GitHub (optional)
+    png_full = os.path.join(assets, "nas_icon.png")
+    _write_png_rgba(png_full, 256, 256, rgba256)
     print(f"OK: {ico_path}")
     print(f"OK: {png_path}")
+    print(f"OK: {png_full}")
 
 
 if __name__ == "__main__":

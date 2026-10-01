@@ -1,14 +1,80 @@
 # Changelog — Ugreen NAS Admin
 
-## 23.8.49 — 2026-10-01
+## 23.8.55 — 2026-10-01
 
 ### Deutsch
 
-- **UGOS-API / TLS-TOFU:** HTTPS prüft die Gegenstelle per Zertifikat-Pin (wie SSH-Host-Key). Beim ersten Kontakt wird das NAS-Zertifikat gespeichert (`ugos_tls_certs.json`); später muss es übereinstimmen — **ohne** eigenes CA-Zertifikat und **ohne** `CERT_NONE`. Option „SSL prüfen (CA)“ weiter für System-CA. Button **TLS-Zertifikat vergessen** nach NAS-Neuinstallation.
+- **Repo-Root aufgeräumt:** Icons → **`assets/`**, Builder/Spec/`RUN_BUILDER.bat` → **`packaging/`**. Im Root bleiben nur README/Lizenz/Changelog/requirements und die drei Einstiegs-Module.
 
 ### English (short)
 
-- **UGOS API / TLS TOFU:** HTTPS pins the peer certificate (like SSH host keys). First contact stores the NAS cert (`ugos_tls_certs.json`); later connections must match — **no** custom CA and **no** `CERT_NONE`. “Verify SSL (CA)” remains for system CA trust. **Forget TLS certificate** after NAS reinstall.
+- **Cleaner repo root:** Icons → **`assets/`**, builder/spec/`RUN_BUILDER.bat` → **`packaging/`**. Root keeps only README/license/changelog/requirements and the three entry modules.
+
+## 23.8.54 — 2026-10-01
+
+### Deutsch
+
+- **Repo-Struktur:** Handbücher/PDFs unter **`docs/`**; öffentliches Sync-Layout aufgeräumt (`docs/`, `tests/`).
+- **CI:** Workflow-Datei unter `.github/workflows/ci.yml` vorbereitet (Push braucht GitHub-Token mit `workflow`-Scope).
+
+### English (short)
+
+- **Repo layout:** Handbooks/PDFs under **`docs/`**; cleaner public sync (`docs/`, `tests/`).
+- **CI:** Workflow prepared at `.github/workflows/ci.yml` (push needs a GitHub token with `workflow` scope).
+
+## 23.8.53 — 2026-10-01
+
+### Deutsch
+
+- **Nachprüfung Shell:** Skript löschen / Host-Test / Docker-Test und Docker-Logs nutzen sichere Basenames bzw. Quoting (Restlücken nach 23.8.52).
+- **UI/Handbuch:** Docker-Wizard-Texte auf `chmod 755` angeglichen (nicht nur DE/EN).
+
+### English (short)
+
+- **Shell follow-up:** Script delete/host-test/docker-test and docker logs use safe basenames/quoting (gaps after 23.8.52).
+- **UI/handbook:** Docker wizard copy aligned to `chmod 755` (not only DE/EN).
+
+## 23.8.52 — 2026-10-01
+
+### Deutsch
+
+- **Shell-Sicherheit:** Skriptnamen und Cron-Felder werden vor Root-/Shell-Befehlen validiert bzw. gequotet (kein Einbau unsicherer Dateinamen).
+- **Geplante Backups:** `tar`-Fehler → kein „Erfolg“, fehlerhafte Archive werden verworfen; ältere Backups werden **nur nach erfolgreichem Archiv** gelöscht. Job-Pfade/Cron-Werte vor Schreiben nach `/etc/cron.d` geprüft.
+- **Upload:** `chown` nur noch auf dem Zielordner selbst (kein `chown -R` mehr über bestehende Bäume).
+- **Docker:** kein rekursives `chmod 777` mehr — Mount-Punkte/`mkdir` mit `755`.
+
+### English (short)
+
+- **Shell safety:** Script names and cron fields validated/quoted before root/shell use.
+- **Scheduled backups:** Failed `tar` is not treated as success; old archives pruned only after a verified archive. Cron/job values validated before writing `/etc/cron.d`.
+- **Upload:** `chown` on the leaf directory only (no recursive `chown -R`).
+- **Docker:** no recursive `chmod 777` — mount/`mkdir` uses `755`.
+
+## 23.8.51 — 2026-10-01
+
+### Deutsch
+
+- **Sicherheit:** Gefährliche Funktionen starten wieder **gesperrt**. „Volle Rechte“ muss bewusst im Header freigeschaltet werden (`danger_functions_unlocked = False`).
+
+### English (short)
+
+- **Safety:** Dangerous features start **locked** again. Users must consciously enable “Full access” in the header (`danger_functions_unlocked = False`).
+
+## 23.8.50 — 2026-10-01
+
+### Deutsch
+
+- **SSH:** Beim **ersten** Kontakt Dialog mit Fingerprint — Key wird nur nach Bestätigung gespeichert (kein stilles TOFU mehr).
+- **Secrets:** SSH-Passwort **und** Key-Passphrase nur noch im System-Tresor; Klartext in der JSON wird nicht mehr geschrieben (`keyring` erforderlich zum Speichern von Secrets).
+- **Auto-Update:** Neben SHA-256 wird eine **Ed25519-Signatur** (`.sig`-Asset) geprüft — schützt auch bei kompromittiertem GitHub-Account (privater Key lokal, nicht im Repo).
+- **Public Build:** u. a. `tools/split_ugreen_manager.py`, `secret_scan.py`, `sign_release_asset.py` werden mitgespiegelt.
+
+### English (short)
+
+- **SSH:** First contact shows a fingerprint dialog — key stored only after confirmation (no silent TOFU).
+- **Secrets:** SSH password **and** key passphrase only in the OS vault; no plaintext JSON (`keyring` required to save secrets).
+- **Auto-update:** Ed25519 signature (`.sig` asset) required in addition to SHA-256 — mitigates compromised GitHub account (private key local only).
+- **Public build:** includes `split_ugreen_manager.py`, `secret_scan.py`, `sign_release_asset.py`, and related tools.
 
 ## Unreleased
 
@@ -23,6 +89,16 @@
 - **Transfer Hub 0.6.28:** Multi-select source folders like Wake & Sync (check boxes → “Add checked”). One transfer per folder; destination stays single. Whole volume cannot be combined with other folders.
 - **Transfer Hub / Wake & Sync:** Folder picker now includes **Home** (`/home`, e.g. `papa/Photos`) without requiring an SMB share. Still hides only system folders (`@…`). Transfer Hub **0.6.28**, Wake & Sync **0.1.32**.
 - **Pro toolkit:** Pro release (build + GitHub) auto-increments the patch version (checkbox in the toolkit app, on by default).
+
+## 23.8.49 — 2026-10-01
+
+### Deutsch
+
+- **UGOS-API / TLS-TOFU:** HTTPS prüft die Gegenstelle per Zertifikat-Pin (wie SSH-Host-Key). Beim ersten Kontakt wird das NAS-Zertifikat gespeichert (`ugos_tls_certs.json`); später muss es übereinstimmen — **ohne** eigenes CA-Zertifikat und **ohne** `CERT_NONE`. Option „SSL prüfen (CA)“ weiter für System-CA. Button **TLS-Zertifikat vergessen** nach NAS-Neuinstallation.
+
+### English (short)
+
+- **UGOS API / TLS TOFU:** HTTPS pins the peer certificate (like SSH host keys). First contact stores the NAS cert (`ugos_tls_certs.json`); later connections must match — **no** custom CA and **no** `CERT_NONE`. “Verify SSL (CA)” remains for system CA trust. **Forget TLS certificate** after NAS reinstall.
 
 ## 23.8.48 — 2026-10-01
 

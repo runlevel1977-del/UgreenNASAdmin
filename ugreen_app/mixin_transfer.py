@@ -328,7 +328,8 @@ class MixinTransfer:
         if not rp.startswith("/") or rp == "/":
             raise ValueError(f"Ungültiger Remote-Pfad: {remote_path!r}")
         user = self.entry_user.get()
-        inner = f"mkdir -p {shlex.quote(rp)} && chown -R {shlex.quote(user)}:{shlex.quote(user)} {shlex.quote(rp)}"
+        # Only chown the leaf directory (not -R) to avoid rewriting ownership of existing trees.
+        inner = f"mkdir -p {shlex.quote(rp)} && chown {shlex.quote(user)}:{shlex.quote(user)} {shlex.quote(rp)}"
         self._ssh_sudo_bash(ssh, inner)
 
     def _ssh_sudo_exec_standalone(self, inner_bash_script):
@@ -354,7 +355,7 @@ class MixinTransfer:
         if not rp.startswith("/") or rp == "/":
             raise ValueError(f"Ungültiger Remote-Pfad: {remote_path!r}")
         user = self.entry_user.get()
-        inner = f"mkdir -p {shlex.quote(rp)} && chown -R {shlex.quote(user)}:{shlex.quote(user)} {shlex.quote(rp)}"
+        inner = f"mkdir -p {shlex.quote(rp)} && chown {shlex.quote(user)}:{shlex.quote(user)} {shlex.quote(rp)}"
         self._ssh_sudo_exec_standalone(inner)
 
     def _ssh_unzip_bundle_on_nas(self, remote_zip, dest_dir):

@@ -40,7 +40,7 @@ class BackupPreflightTests(unittest.TestCase):
         return SimpleNamespace(returncode=0, stdout=self.uuids[argv[-1]] + "\n")
 
     def job(self, **extra):
-        return {"id": "test", "kind": "docker_scripts", "target_volume": "/media/usb", **extra}
+        return {"id": "test", "kind": "docker_scripts", "target_volume": "/volume1", "backup_dest_base": "/media/usb", **extra}
 
     def test_mountinfo_decodes_spaces_and_preserves_subvolume_root(self):
         result = runner._parse_mountinfo("8 1 8:1 /subvol /media/USB\\040Disk rw shared:1 - btrfs /dev/test rw\n")

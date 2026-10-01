@@ -7,6 +7,8 @@ echo ==========================================
 echo Ugreen NAS Admin - Windows Build Starter
 echo ==========================================
 
+cd /d "%~dp0.."
+
 set "PYTHON_EXE="
 where py >nul 2>nul
 if %errorlevel%==0 (
@@ -31,8 +33,8 @@ if "%PYTHON_EXE%"=="" (
     exit /b 1
 )
 
-echo Starte mit: %PYTHON_EXE%
-%PYTHON_EXE% builder.py
+echo Starte mit: %PYTHON_EXE% packaging\builder.py
+%PYTHON_EXE% packaging\builder.py
 if %errorlevel% neq 0 (
     echo.
     echo [FEHLER] Build fehlgeschlagen.

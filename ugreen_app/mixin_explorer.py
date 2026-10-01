@@ -1457,7 +1457,10 @@ class MixinExplorer:
                 self.log(self.t("docker.wizard.log_mkdir", n=len(volume_matches)))
                 for host_path in volume_matches:
                     if host_path.startswith("/"):
-                        self.run_ssh_cmd(f"mkdir -p {shlex.quote(host_path)} && chmod 777 {shlex.quote(host_path)}", True)
+                        self.run_ssh_cmd(
+                            f"mkdir -p {shlex.quote(host_path)} && chmod 755 {shlex.quote(host_path)}",
+                            True,
+                        )
                         self.log(f"✅ {host_path}")
 
             self.log("⏳ Sende Befehl an NAS...")
@@ -1550,23 +1553,31 @@ class MixinExplorer:
             return
         sel = self.script_listbox.curselection()
         if sel:
-            fn = self.script_listbox.get(sel[0]).strip()
+            fn_raw = self.script_listbox.get(sel[0]).strip()
             if hasattr(self, "_script_notify_clean_list_name"):
-                fn = self._script_notify_clean_list_name(fn)
+                fn_raw = self._script_notify_clean_list_name(fn_raw)
+            fn = nas_utils.safe_script_basename(fn_raw)
+            if not fn:
+                messagebox.showerror(self.t("msg.save_error"), self.t("scripts.unsafe_filename", name=fn_raw))
+                return
             if messagebox.askyesno(self.t("msg.delete"), self.t("msg.delete_confirm_file", fn=fn)):
-                self.run_ssh_cmd(f"rm /volume1/scripts/{fn}", True)
+                self.run_ssh_cmd(f"rm -f -- {shlex.quote('/volume1/scripts/' + fn)}", True)
                 self.refresh_script_list()
                 self.clear_fields()
 
     def test_script_now(self):
         if not self._danger_gate():
             return
-        fn = self.entry_filename.get().strip()
-        if fn and fn != "STABLE_TASKS":
+        fn_raw = self.entry_filename.get().strip()
+        if fn_raw and fn_raw != "STABLE_TASKS":
+            fn = nas_utils.safe_script_basename(fn_raw)
+            if not fn:
+                messagebox.showerror(self.t("msg.save_error"), self.t("scripts.unsafe_filename", name=fn_raw))
+                return
             self.log(f"🚀 Testlauf (Host) {fn}...")
             marker = "__UG_SCRIPT_EXIT__:"
-            qfn = shlex.quote(fn)
-            cmd = f"/bin/bash /volume1/scripts/{qfn}; rc=$?; echo {marker}$rc"
+            qfn = shlex.quote("/volume1/scripts/" + fn)
+            cmd = f"/bin/bash {qfn}; rc=$?; echo {marker}$rc"
             out = self.run_ssh_cmd(cmd, True)
             self.log(out)
             ok = False
@@ -1584,19 +1595,29 @@ class MixinExplorer:
     def test_script_docker(self):
         if not self._danger_gate():
             return
-        fn = self.entry_filename.get().strip()
-        if fn and fn != "STABLE_TASKS": 
+        fn_raw = self.entry_filename.get().strip()
+        if fn_raw and fn_raw != "STABLE_TASKS":
+            fn = nas_utils.safe_script_basename(fn_raw)
+            if not fn:
+                messagebox.showerror(self.t("msg.save_error"), self.t("scripts.unsafe_filename", name=fn_raw))
+                return
             self.log(f"🐳 Starte {fn} manuell in Docker...")
-            container_name = f"manual_{fn.replace('.', '_')}"
-            
-            self.run_ssh_cmd(f"docker rm -f {container_name} 2>/dev/null", True)
-            
-            cmd = f"docker run -d --name {container_name} -v /volume1:/volume1 -v /volume2:/volume2 ubuntu:latest /bin/bash -c 'apt-get update -qq && apt-get install -yqq curl sudo wget && /bin/bash /volume1/scripts/{fn}'"
-            out = self.run_ssh_cmd(cmd, True)
-            
+            container_name = f"manual_{re.sub(r'[^A-Za-z0-9_]+', '_', fn)}"
+            inner_bash = (
+                "apt-get update -qq && apt-get install -yqq curl sudo wget && "
+                f"/bin/bash {shlex.quote('/volume1/scripts/' + fn)}"
+            )
+            cmd = (
+                f"docker rm -f {shlex.quote(container_name)} 2>/dev/null; "
+                f"docker run -d --name {shlex.quote(container_name)} "
+                f"-v /volume1:/volume1 -v /volume2:/volume2 ubuntu:latest "
+                f"/bin/bash -c {shlex.quote(inner_bash)}"
+            )
+            out = self.run_ssh_cmd(f"/bin/bash -lc {shlex.quote(cmd)}", True)
+
             self.log(f"✅ Container gestartet! ID: {out.strip()[:12]}")
             self.log("Wechsle in den 'Docker Manager' Tab für den Status und die Logs.")
-            
+
             self.root.after(1000, self.refresh_docker_list)
 
     def open_powershell(self):

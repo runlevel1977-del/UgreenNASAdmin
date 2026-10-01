@@ -1,4 +1,4 @@
-# Ugreen NAS Admin
+﻿# Ugreen NAS Admin
 
 Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: **Dashboard** with live metrics (incl. **UGOS API** storage tile), **scripts** and cron planner, **Explorer**, **NAS ↔ NAS** SMB copy, **network devices**, **Docker**, **Runlevel Apps**, **system health** / Telegram guard, **Login Track** (client-IP access log: SSH, SMB, UGOS app/web, live/history, sort, export, optional IP block), **NAS management** (power/WoL, **UGOS power scheduler**, HDD spin-down, scheduled shutdown, USB eject, SMART, RAID/trim/scrub, SSH drop-in, services + **`.slog` logs**, **network read-only**, NGINX, earlyOOM, Samba, LED/beeper), **storage**, **ACL**, **snapshots**, dedicated **Backup** tab (**Docker+scripts**, **user data**, **full data exports**; destinations **NAS / PC folder / USB on the NAS / second NAS SMB**; **cron scheduling on the NAS** without leaving a PC running), **Settings**, plus optional Telegram/Email notifications. The UI is available in many languages; switch in **Settings** (and often the status bar).
 
@@ -14,7 +14,7 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 
 **Not something we can “fix” in the repo:** GitHub’s green **Code → Download ZIP** is **always** a **snapshot of the default branch** (`main`). There is **no** repository setting to point that button to **Releases** or to ship the EXE there — that is how **github.com** works.
 
-**What that ZIP is / isn’t:** it is **source code** for developers. It is **not** the same as **Release** assets, and it **does not** contain a **release-built EXE** (build that yourself with `python builder.py` or download from **Releases**). The app version in `ugreen_app/nas_manager.py` (`__version__`) in that zip matches whatever is **pushed to `main`**; if in doubt, open that file in the unzipped tree. For end users, **always** link to **Releases / Assets** (or SourceForge), not the green button.
+**What that ZIP is / isn’t:** it is **source code** for developers. It is **not** the same as **Release** assets, and it **does not** contain a **release-built EXE** (build that yourself with `python packaging/builder.py` or download from **Releases**). The app version in `ugreen_app/nas_manager.py` (`__version__`) in that zip matches whatever is **pushed to `main`**; if in doubt, open that file in the unzipped tree. For end users, **always** link to **Releases / Assets** (or SourceForge), not the green button.
 
 **Deutsch (kurz):** Wer die **fertige EXE/Release-ZIPs** will: **Releases → Assets** (oder SourceForge) — **nicht** der grüne **Code → Download ZIP**. Dieser liefert **nur Quellcode** des Standard-Branches; eine **Umlenkung** dieses Buttons gibt es bei GitHub **nicht** (kein Repo-Fix). Die **Zahl** in `nas_manager.py` im ZIP-Snapshot entspricht dem letzten **Push** auf `main` (siehe Datei im entpackten Ordner, falls unsicher).
 
@@ -22,7 +22,7 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 
 **Portable (One-Dir):** Settings and connection JSON files live beside `UgreenNASAdmin.exe` inside the `UgreenNASAdmin/` folder. After upgrading from an older one-file EXE, the app migrates existing config from the parent folder or `%LOCALAPPDATA%\UgreenNASAdmin\` on first start. **Window geometry** (size/position, taskbar-aware) is stored in `app_settings.json` → `window` (v23.8.42+).
 
-**Auto-update:** When a newer release is on GitHub, the app offers to download `UgreenNASAdmin_setup_*.exe`, verifies its **SHA-256** against the GitHub asset digest, and only then runs it (ℹ Info → **Check for updates**). No manual download needed.
+**Auto-update:** When a newer release is on GitHub, the app downloads `UgreenNASAdmin_setup_*.exe`, verifies an **Ed25519 signature** (`.sig` asset, key embedded in the app) and the **SHA-256** digest, then runs the installer (ℹ Info → **Check for updates**).
 
 ### Unreleased / upcoming
 
@@ -109,7 +109,26 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 - **Settings SSH workflow:** create SSH key pair and install public key to UGREEN or second NAS/QNAP directly from the app. **TOFU host keys** (`ssh_known_hosts.json`) — first connect trusts the key; later changes are rejected (Settings → **Forget SSH host key**).
 - **Health improvements:** Scheduler inventory and expanded UGOS/service visibility.
 - **Updated screenshots:** `images/` now reflects the newest app state (latest captures provided by the maintainer).
-- **Version** **23.6.0** — see full details in [`CHANGELOG.md`](CHANGELOG.md).
+- **Version** **23.8.55** — see full details in [`CHANGELOG.md`](CHANGELOG.md).
+
+## Repository layout
+
+```
+├── README.md, LICENSE, CHANGELOG.md, requirements.txt
+├── ugreen_nas_admin.py, nas_ssh.py, nas_utils.py   # run from source
+├── docs/            # Handbooks (DE/EN MD+PDF) + page index
+├── assets/          # App icons
+├── packaging/       # builder.py, PyInstaller spec, create_icon, RUN_BUILDER.bat
+├── ugreen_app/      # Application package
+├── tools/           # Sync / PDF / release helpers
+├── installer/       # Inno Setup sources
+├── images/          # Screenshots for README
+├── tests/           # Unit tests
+└── .github/         # Funding (+ optional CI)
+```
+
+**Build:** `python packaging/builder.py` (or double-click `packaging/RUN_BUILDER.bat`)  
+Handbooks: [`docs/HANDBUCH.md`](docs/HANDBUCH.md) · [`docs/HANDBOOK_EN.md`](docs/HANDBOOK_EN.md)
 
 ### What shipped in v23.5.1
 
@@ -204,7 +223,7 @@ All files are under **`images/`**. **Do not** show real passwords or private IPs
 
 ### About this repository
 
-This repository is the **public source tree** for Ugreen NAS Admin. Clone or download it to **run from source** or **build** the EXE (`python builder.py`). Packaged installers and ZIPs are under **[Releases](https://github.com/runlevel1977-del/UgreenNASAdmin/releases)**.
+This repository is the **public source tree** for Ugreen NAS Admin. Clone or download it to **run from source** or **build** the EXE (`python packaging/builder.py`). Packaged installers and ZIPs are under **[Releases](https://github.com/runlevel1977-del/UgreenNASAdmin/releases)**.
 
 ---
 
@@ -535,7 +554,7 @@ Darunter in der Sidebar: **Hilfswerkzeuge** (z. B. alles neu laden) sowie (je 
 
 - Ohne **SSH-Verbindung** zeigen die Kacheln den Hinweis, dass SSH nötig ist.  
 - Beim Tab-Wechsel laufen keine dauerhaften Hintergrund-Abfragen für dieses Dashboard weiter (weniger Last).  
-- Geeignet, um **vollen Speicher**, hohe Last, **spezielle Lüfter-/RPM-Konfigurationen** oder **Docker-Probleme** schnell zu erkennen — ausführlich **`HANDBUCH.md`** Abschnitte **24.2**, **42.6**, **62**.
+- Geeignet, um **vollen Speicher**, hohe Last, **spezielle Lüfter-/RPM-Konfigurationen** oder **Docker-Probleme** schnell zu erkennen — ausführlich **`docs/HANDBUCH.md`** Abschnitte **24.2**, **42.6**, **62**.
 
 ### 1) Scripts
 
@@ -764,8 +783,8 @@ By default, risky actions are **off** until you enable **Full access** and confi
 | `ugreen_nas_admin.py` | Entry point |
 | `ugreen_app/` | App logic (mixins, i18n, …) |
 | `nas_ssh.py`, `nas_utils.py` | SSH helpers |
-| `UgreenNASAdmin.spec` | PyInstaller spec (needed for a correct EXE rebuild) |
-| `builder.py`, `create_icon.py`, `RUN_BUILDER.bat` | Build tooling |
+| `packaging/UgreenNASAdmin.spec` | PyInstaller spec (needed for a correct EXE rebuild) |
+| `packaging/builder.py`, `create_icon.py`, `RUN_BUILDER.bat` | Build tooling |
 | `tools/build_python.py` | Picks a stable Python for PyInstaller (prefers 3.12; `UGREEN_BUILD_PYTHON`) |
 | `CHANGELOG.md` | Release notes |
 | `requirements.txt` | Python dependencies (`Pillow`, `pyinstaller`, `keyring`, …) |
@@ -775,16 +794,16 @@ By default, risky actions are **off** until you enable **Full access** and confi
 ```text
 python -m pip install -r requirements.txt
 python -m pip install "paramiko>=3.0"
-python builder.py
+python packaging/builder.py
 ```
 
 Output: `dist/UgreenNASAdmin/UgreenNASAdmin.exe` (folder next to the EXE is the portable bundle).
 
-**Python version:** Use **Python 3.12** for EXE builds. `builder.py` calls `tools/build_python.py`, which prefers `py -3.12` on Windows. Override with:
+**Python version:** Use **Python 3.12** for EXE builds. `packaging/builder.py` calls `tools/build_python.py`, which prefers `py -3.12` on Windows. Override with:
 
 ```text
 set UGREEN_BUILD_PYTHON=C:\Path\to\Python312\python.exe
-python builder.py
+python packaging/builder.py
 ```
 
 Python 3.13+ often breaks frozen EXEs (`python3xx.dll`). From source (`python ugreen_nas_admin.py`) newer Pythons are fine for day-to-day testing.
@@ -799,8 +818,8 @@ Python 3.13+ often breaks frozen EXEs (`python3xx.dll`). From source (`python ug
 
 **Save connection** stores the SSH password in **Windows Credential Manager** via `keyring`. The JSON file keeps an empty password field. Existing plaintext passwords are migrated on startup.
 
-1. `python -m pip install keyring` (same Python as for `python ugreen_nas_admin.py` / `python builder.py`) — also listed in `requirements.txt`.
-2. Rebuild the EXE if needed: `python builder.py`.
+1. `python -m pip install keyring` (same Python as for `python ugreen_nas_admin.py` / `python packaging/builder.py`) — also listed in `requirements.txt`.
+2. Rebuild the EXE if needed: `python packaging/builder.py`.
 3. In the app: set **IP**, user, **password** → **Save connection**.
 
 **Without `keyring`:** the app falls back to plaintext in `nas_admin_connection.json` and shows a warning.
@@ -827,7 +846,7 @@ Siehe `CHANGELOG.md` (22.2.0).
 
 ## Entwickler: Dateien, Build, Abgleich
 
-Wie Tabelle im englischen Block. **Build:** `pip install -r requirements.txt` → `python builder.py` → `dist/UgreenNASAdmin/UgreenNASAdmin.exe`.
+Wie Tabelle im englischen Block. **Build:** `pip install -r requirements.txt` → `python packaging/builder.py` → `dist/UgreenNASAdmin/UgreenNASAdmin.exe`.
 
 **Python:** Für die EXE **3.12** verwenden (`tools/build_python.py` / `py -3.12`; optional `UGREEN_BUILD_PYTHON`).
 

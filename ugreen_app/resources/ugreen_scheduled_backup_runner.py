@@ -168,6 +168,8 @@ def _build_all_data_excludes(vols: Sequence[str]) -> list[str]:
 def _pick_sources(job: dict[str, Any], vols: list[str]) -> tuple[list[str], str, list[str]]:
     kind = str(job.get("kind") or "").strip()
     target_vol = str(job.get("target_volume") or "/volume1").rstrip("/") or "/volume1"
+    if not re.fullmatch(r"/volume\d+", target_vol):
+        raise ValueError(f"invalid target_volume {target_vol!r}")
     excludes: list[str] = []
 
     guard = job.get("backup_guard")
@@ -182,10 +184,16 @@ def _pick_sources(job: dict[str, Any], vols: list[str]) -> tuple[list[str], str,
     if kind == "docker_scripts":
         sd = str(job.get("scripts_dir") or "/volume1/scripts").rstrip("/")
         dd = str(job.get("docker_dir") or "/volume1/docker").rstrip("/")
+        for source in (sd, dd):
+            _absolute_path(source)
+            if not re.match(r"^/volume[0-9]+/", source):
+                raise ValueError("invalid scripts_dir/docker_dir")
         return (saved_sources if saved_sources is not None else [sd, dd], "docker_scripts", [])
 
     if kind == "user_data":
         user_sel = str(job.get("user_sel") or "*").strip() or "*"
+        if user_sel != "*" and not re.fullmatch(r"[A-Za-z0-9._-]{1,64}", user_sel):
+            raise ValueError(f"invalid user_sel {user_sel!r}")
         hv = _uniq_sort(vols)
         homes_bases = ["/home"] + [f"{v}/homes" for v in hv]
         if user_sel == "*":
@@ -209,7 +217,12 @@ def _pick_sources(job: dict[str, Any], vols: list[str]) -> tuple[list[str], str,
         src_vols = list(dict.fromkeys(src_vols))
         excludes_list = job.get("exclude_globs")
         if isinstance(excludes_list, list) and excludes_list:
-            excludes = [str(x) for x in excludes_list if str(x).strip()]
+            excludes = []
+            for x in excludes_list:
+                xs = str(x).strip()
+                if not xs or len(xs) > 512 or "\n" in xs or "\0" in xs:
+                    continue
+                excludes.append(xs)
         else:
             excludes = _build_all_data_excludes(src_vols)
         tag = "all_data_all_volumes" if scope != "single" else "all_data_single_volume"
