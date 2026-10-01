@@ -8,6 +8,8 @@ import re
 import shlex
 import sys
 import threading
+import uuid
+from pathlib import Path
 import tkinter as tk
 from tkinter import messagebox, scrolledtext, simpledialog, ttk
 
@@ -69,8 +71,7 @@ _UGOS_SERV_LIST_CMD = (
 
 _NAS_ADMIN_CRON_SHUTDOWN = "/etc/cron.d/nas_admin_timed_shutdown"
 _SSHD_DROPIN = "/etc/ssh/sshd_config.d/60-ugreen-nas-admin.conf"
-_SSHD_ROLLBACK_FLAG = "/tmp/ugadmin_sshd_ok"
-_AT_JOB_ID_FILE = "/tmp/ugadmin_at_job_id"
+_SSH_GUARD = "/var/lib/ugreen-nas-admin/ssh_profile_guard.py"
 
 _SSH_PROFILE_BODIES = {
     "high": """# Ugreen NAS Admin — SSH hardening (high)
@@ -732,14 +733,6 @@ class MixinNasAdmin:
     def _nas_admin_run(self, cmd: str, *, update_status: bool = True) -> str:
         return (self.run_ssh_cmd(cmd, True, update_status=update_status) or "").strip()
 
-    def _nas_admin_remote_write_b64(self, path: str, content: str, chmod: str | None = None) -> str:
-        """Schreibt eine Datei auf dem NAS per base64 (vermeidet Quote-Probleme)."""
-        b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
-        qp = shlex.quote(path)
-        qb = shlex.quote(b64)
-        ch = f"chmod {chmod} {qp} && " if chmod else ""
-        return f"echo {qb} | base64 -d > {qp} && {ch}true"
-
     # --- Power ---
     def nas_admin_power_read(self) -> None:
         def work():
@@ -1072,9 +1065,8 @@ class MixinNasAdmin:
 
         def work():
             p = _NAS_ADMIN_CRON_SHUTDOWN
-            qp = shlex.quote(p)
             if not en:
-                cmd = f"rm -f {qp} 2>&1; echo 'deaktiviert'"
+                cron_txt = "# Ugreen NAS Admin: scheduled shutdown disabled\n"
             else:
                 cron_txt = (
                     "SHELL=/bin/sh\n"
@@ -1082,8 +1074,7 @@ class MixinNasAdmin:
                     "# Ugreen NAS Admin — tägliches Herunterfahren\n"
                     f"{m} {h} * * * root /sbin/shutdown -h now\n"
                 )
-                cmd = self._nas_admin_remote_write_b64(p, cron_txt, chmod="644") + f" && cat {qp}"
-            out = self._nas_admin_run(cmd, update_status=True)
+            out = "Shutdown schedule saved." if self.write_root_file(p, cron_txt) else "Shutdown schedule not saved."
             self.root.after(0, lambda: self._nas_admin_log(out))
 
         self._nas_admin_worker(work)
@@ -1334,6 +1325,16 @@ class MixinNasAdmin:
         self._nas_admin_worker(work)
 
     # --- SSH hardening ---
+    def _nas_admin_install_ssh_guard(self):
+        candidates = [Path(__file__).resolve().parent / "resources" / "ssh_profile_guard.py"]
+        if hasattr(sys, "_MEIPASS"):
+            candidates.append(Path(sys._MEIPASS) / "ugreen_app" / "resources" / "ssh_profile_guard.py")
+        resource = next((p for p in candidates if p.is_file()), None)
+        if resource is None:
+            raise FileNotFoundError("Bundled SSH recovery helper is missing")
+        if not self.write_root_file(_SSH_GUARD, resource.read_text(encoding="utf-8")):
+            raise RuntimeError("SSH recovery helper could not be installed")
+
     def nas_admin_ssh_apply_profile(self) -> None:
         if not self._danger_gate():
             return
@@ -1344,45 +1345,17 @@ class MixinNasAdmin:
             return
 
         def work():
-            body = _SSH_PROFILE_BODIES[prof]
-            body_b64 = base64.b64encode(body.encode("utf-8")).decode("ascii")
-            rb = (
-                "#!/bin/bash\n"
-                f"if [ -f {shlex.quote(_SSHD_ROLLBACK_FLAG)} ]; then exit 0; fi\n"
-                "if [ -f /etc/ssh/sshd_config.d/60-ugreen-nas-admin.conf.bak.ugadmin ]; then "
-                "cp -a /etc/ssh/sshd_config.d/60-ugreen-nas-admin.conf.bak.ugadmin /etc/ssh/sshd_config.d/60-ugreen-nas-admin.conf; "
-                "elif [ -f /etc/ssh/sshd_config.d/60-ugreen-nas-admin.conf ]; then "
-                "rm -f /etc/ssh/sshd_config.d/60-ugreen-nas-admin.conf; fi\n"
-                "sshd -t 2>/dev/null; systemctl reload ssh.service 2>&1 || systemctl restart ssh.service 2>&1\n"
-                "echo auto-rollback-done $(date -Iseconds) >> /tmp/ugadmin_sshd_rollback.log\n"
-            )
-            rb_b64 = base64.b64encode(rb.encode("utf-8")).decode("ascii")
-            qb = shlex.quote(body_b64)
-            qr = shlex.quote(rb_b64)
-            qf = shlex.quote(_SSHD_ROLLBACK_FLAG)
-            qd = shlex.quote(_SSHD_DROPIN)
-            qat = shlex.quote(_AT_JOB_ID_FILE)
-            cmd = (
-                "set -e; "
-                f"rm -f {qf} 2>/dev/null; "
-                "if [ ! -d /etc/ssh/sshd_config.d ]; then echo 'sshd_config.d fehlt'; exit 1; fi; "
-                f"[ -f {qd} ] && cp -a {qd} /etc/ssh/sshd_config.d/60-ugreen-nas-admin.conf.bak.ugadmin || true; "
-                f"echo {qb} | base64 -d > {qd}; "
-                "sshd -t 2>&1; "
-                "systemctl reload ssh.service 2>&1 || systemctl restart ssh.service 2>&1; "
-                f"echo {qr} | base64 -d > /tmp/ugadmin_sshd_rollback.sh; chmod 700 /tmp/ugadmin_sshd_rollback.sh; "
-                "printf '%s\\n' 'bash /tmp/ugadmin_sshd_rollback.sh' > /tmp/ugadmin_at_payload; "
-                "set +e; "
-                "if command -v at >/dev/null 2>&1; then "
-                "  OUT=$(at -f /tmp/ugadmin_at_payload now + 4 minutes 2>&1); echo \"$OUT\"; "
-                "  JID=$(echo \"$OUT\" | grep -oE 'job [0-9]+' | head -1 | awk '{print $2}'); "
-                f"  printf '%s' \"${{JID:-}}\" > {qat}; "
-                "else echo 'Hinweis: at nicht installiert — nur manuelles Rollback.'; : > "
-                f"{qat}; fi; "
-                "set -e; "
-                "echo 'SSH neu geladen — nach erfolgreichem Test: „SSH ok bestätigen“, sonst Rollback.'"
-            )
-            out = self._nas_admin_run(cmd, update_status=True)
+            try:
+                self._nas_admin_install_ssh_guard()
+                token = uuid.uuid4().hex
+                body = base64.b64encode(_SSH_PROFILE_BODIES[prof].encode()).decode("ascii")
+                cmd = f"/usr/bin/python3 {shlex.quote(_SSH_GUARD)} apply {token} {shlex.quote(body)}"
+                result = self.run_ssh_cmd_ex(cmd, True)
+                if result.ok and "PENDING " + token in result.output:
+                    self._nas_admin_ssh_pending = token
+                out = result.output
+            except Exception as exc:
+                out = str(exc)
             self.root.after(0, lambda: self._nas_admin_log(out))
 
         self._nas_admin_worker(work)
@@ -1390,17 +1363,19 @@ class MixinNasAdmin:
     def nas_admin_ssh_confirm_ok(self) -> None:
         if not self._danger_gate():
             return
+        token = getattr(self, "_nas_admin_ssh_pending", "")
+        if not re.fullmatch(r"[0-9a-f]{32}", token):
+            self._nas_admin_log("No pending SSH profile in this session; automatic rollback remains active.")
+            return
 
         def work():
-            qf = shlex.quote(_SSHD_ROLLBACK_FLAG)
-            qj = shlex.quote(_AT_JOB_ID_FILE)
-            cmd = (
-                f"touch {qf}; "
-                f"if [ -s {qj} ]; then atrm $(cat {qj}) 2>/dev/null || true; rm -f {qj}; fi; "
-                "echo 'SSH-Änderung bestätigt — Auto-Rollback (at) abgebrochen.'"
-            )
-            out = self._nas_admin_run(cmd, update_status=True)
-            self.root.after(0, lambda: self._nas_admin_log(out))
+            # A surviving connection does not prove that the new profile accepts
+            # logins. Force a fresh SSH handshake before cancelling the watchdog.
+            self._ssh_mgr.close()
+            result = self.run_ssh_cmd_ex(f"/usr/bin/python3 {shlex.quote(_SSH_GUARD)} confirm {token}", True)
+            if result.ok:
+                self._nas_admin_ssh_pending = ""
+            self.root.after(0, lambda: self._nas_admin_log(result.output))
 
         self._nas_admin_worker(work)
 
@@ -1411,16 +1386,10 @@ class MixinNasAdmin:
             return
 
         def work():
-            cmd = (
-                "if [ -f /etc/ssh/sshd_config.d/60-ugreen-nas-admin.conf.bak.ugadmin ]; then "
-                "cp -a /etc/ssh/sshd_config.d/60-ugreen-nas-admin.conf.bak.ugadmin /etc/ssh/sshd_config.d/60-ugreen-nas-admin.conf; "
-                "elif [ -f /etc/ssh/sshd_config.d/60-ugreen-nas-admin.conf ]; then "
-                "rm -f /etc/ssh/sshd_config.d/60-ugreen-nas-admin.conf; fi; "
-                "sshd -t 2>&1; systemctl reload ssh.service 2>&1 || systemctl restart ssh.service 2>&1; "
-                "echo 'Rollback ausgeführt.'"
-            )
-            out = self._nas_admin_run(cmd, update_status=True)
-            self.root.after(0, lambda: self._nas_admin_log(out))
+            result = self.run_ssh_cmd_ex(f"/usr/bin/python3 {shlex.quote(_SSH_GUARD)} rollback current", True)
+            if result.ok:
+                self._nas_admin_ssh_pending = ""
+            self.root.after(0, lambda: self._nas_admin_log(result.output))
 
         self._nas_admin_worker(work)
 
