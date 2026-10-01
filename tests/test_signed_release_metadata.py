@@ -4,8 +4,11 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from ugreen_app import release_signing as signing, update_check
+from ugreen_app import mixin_update_check as ui_module
 
 
 class ReleaseMetadataTests(unittest.TestCase):
@@ -71,3 +74,44 @@ class ReleaseMetadataTests(unittest.TestCase):
                 {"name": "wrong.release.json", "browser_download_url": "wrong"},
                 {"name": name+".release.json", "browser_download_url": "expected"}]})
         self.assertEqual(release["asset_manifest_download_url"], "expected")
+
+    def run_update(self, *, metadata_url="manifest", tag="v23.8.58", expect_launch=False):
+        contents = self.file.read_bytes()
+        legacy_signature = signing.signature_b64(signing.sign_file(self.file, self.private)).encode()
+        def download(url, path, **kwargs):
+            if not url:
+                return False, "missing"
+            path.write_bytes({"installer": contents, "signature": legacy_signature, "manifest": self.raw}[url])
+            return True, str(path)
+        verify_file, verify_manifest = signing.verify_file_signature, signing.verify_release_manifest
+        ui = ui_module.MixinUpdateCheck()
+        ui._app_version = "23.8.57"
+        ui._update_download_dir = lambda: Path(self.tmp.name)/"downloads"
+        ui.root = SimpleNamespace(after=lambda delay, callback: callback())
+        ui.t = lambda key, **kwargs: key
+        ui.set_status = Mock()
+        ui._on_app_close = Mock()
+        release = {"asset_name": self.file.name, "asset_size": len(contents),
+                   "asset_download_url": "installer", "asset_sig_download_url": "signature",
+                   "asset_manifest_download_url": metadata_url, "tag_name": tag}
+        with patch.object(update_check, "download_release_asset", side_effect=download), \
+             patch.object(signing, "verify_file_signature", side_effect=lambda path, sig: verify_file(path, sig, public_key_b64=self.public)), \
+             patch.object(signing, "verify_release_manifest", side_effect=lambda *args, **kwargs: verify_manifest(*args, **kwargs, public_key_b64=self.public)), \
+             patch.object(ui_module.threading, "Thread", side_effect=lambda target, **kw: SimpleNamespace(start=target)), \
+             patch.object(ui_module.messagebox, "showerror") as error, \
+             patch.object(ui_module.os, "startfile", create=True) as start, \
+             patch.object(ui_module.subprocess, "Popen") as popen:
+            ui._run_update_download(release)
+        self.assertEqual(start.called or popen.called, expect_launch)
+        self.assertEqual(ui._on_app_close.called, expect_launch)
+        self.assertEqual(error.called, not expect_launch)
+        self.assertFalse(ui._update_busy)
+
+    def test_ui_never_starts_legacy_only_update(self):
+        self.run_update(metadata_url="")
+
+    def test_ui_never_starts_mislabeled_replay(self):
+        self.run_update(tag="v23.8.999")
+
+    def test_ui_starts_only_after_both_real_signature_checks(self):
+        self.run_update(expect_launch=True)

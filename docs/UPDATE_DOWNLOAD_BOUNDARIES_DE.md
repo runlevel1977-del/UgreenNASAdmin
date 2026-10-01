@@ -40,5 +40,8 @@ manuell gestarteter fremder Installer oder manipulierte lokale App-Dateien
 werden dadurch nicht abgesichert. Ein früher noch nicht installierter,
 legitim signierter Zwischenstand oberhalb der lokalen Version bleibt gültig;
 Ablaufzeiten und ein unabhängiger Aktualitätsdienst sind nicht implementiert.
-Neun zusätzliche Offline-Tests prüfen Manipulation, Replay, falsche Schlüssel,
-Dateizuordnung, strikte Versionsformate und kaputte Metadaten.
+Zwölf zusätzliche Offline-Tests prüfen Manipulation, Replay, falsche Schlüssel,
+Dateizuordnung, strikte Versionsformate und kaputte Metadaten. Drei davon
+durchlaufen den UI-Downloadpfad bis zum simulierten Installerstart: fehlende
+Metadaten und eine gefälschte Release-Version starten nichts; erst beide
+gültigen Signaturprüfungen geben den Start frei.
