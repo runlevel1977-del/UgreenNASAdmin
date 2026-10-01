@@ -402,7 +402,7 @@ def build_pdf(
         story,
         canvasmaker=canvas_factory(version, hdr_r, foot),
     )
-    index_path = ROOT / "handbook_page_index.json"
+    index_path = ROOT / "docs" / "handbook_page_index.json"
     merged: dict = {}
     if index_path.is_file():
         try:

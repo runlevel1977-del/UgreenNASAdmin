@@ -16,6 +16,7 @@ import time
 
 from ugreen_app.ssh_host_keys import (
     HostKeyChangedError,
+    HostKeyRejectedError,
     is_host_key_error,
     prepare_ssh_client,
     set_store_path as set_host_keys_store_path,

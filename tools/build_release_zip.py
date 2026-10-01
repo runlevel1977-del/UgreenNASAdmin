@@ -41,6 +41,9 @@ ROOT_FILES = (
     "CHANGELOG.md",
     "nas_icon.ico",
     "nas_icon_app.png",
+)
+
+DOC_FILES = (
     "HANDBUCH.md",
     "HANDBUCH_STRUKTURIERT.md",
     "HANDBOOK_EN.md",
@@ -111,6 +114,13 @@ def main() -> int:
             src = ROOT / name
             if src.is_file():
                 shutil.copy2(src, src_root / name)
+
+        docs_dst = src_root / "docs"
+        docs_dst.mkdir(parents=True, exist_ok=True)
+        for name in DOC_FILES:
+            src = ROOT / "docs" / name
+            if src.is_file():
+                shutil.copy2(src, docs_dst / name)
 
         # Build helper used by builder.py (Python 3.12 resolver)
         tools_dst = src_root / "tools"

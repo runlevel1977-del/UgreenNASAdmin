@@ -230,6 +230,8 @@ Beide sind vor/nach Änderungen sehr wertvoll.
 - `SSH-Key-Pfad`
 - `Passphrase`
 - **UGOS API:** Port, HTTPS, **SSL prüfen (CA)** (Dashboard-Button „UGOS API“). Standard: CA-Prüfung **aus** → **Zertifikat-Pin (TOFU)** speichert das NAS-Zertifikat beim ersten Kontakt und prüft es danach (ohne eigenes CA). Bei Zertifikatwechsel: **TLS-Zertifikat vergessen**.
+- **SSH-Host-Key:** Beim **ersten** Kontakt Fingerprint-Dialog; danach Pin. **SSH-Host-Key vergessen** / **TLS-Zertifikat vergessen**.
+- **Verbindung speichern:** Passwort und Key-Passphrase nur im System-Tresor (`keyring`); keine Klartext-Secrets in der JSON.
 - **SSH-Befehl:** **Standard (s)** und **Lang (s)** — siehe **§79**
 
 ### 23.3.1 SSH-Befehl-Timeouts (Kurzüberblick)
@@ -1429,7 +1431,7 @@ Ziel: Einen Dienst installieren, der im UGOS App Center nicht angeboten wird —
 
 1. Im Docker-Assistenten auf **Variablen scannen** klicken.
 2. Erkannte Platzhalter, Volume-Host-Pfade und Ports im Formular prüfen.
-3. Häkchen **Host-Ordner auf NAS anlegen (chmod 777)** setzen, wenn die App leere Docker-Ordner anlegen soll.
+3. Häkchen **Host-Ordner auf NAS anlegen (chmod 755)** setzen, wenn die App leere Docker-Ordner anlegen soll.
 4. **Weiter** — die Werte werden in die YAML eingetragen.
 
 **Schritt 5 — Deployen**

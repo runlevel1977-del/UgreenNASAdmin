@@ -204,14 +204,46 @@ class MixinUpdateCheck:
 
             ok, msg = update_check.download_release_asset(download_url, dest, log=log_pct)
             expected_digest = str(release.get("asset_digest") or "").strip()
+            sig_url = str(release.get("asset_sig_download_url") or "").strip()
             verify_ok = False
             verify_detail = ""
             if ok:
                 self.root.after(0, lambda: self.set_status(self.t("update.verifying")))
-                if not expected_digest:
-                    verify_ok, verify_detail = False, "missing_digest"
+                # 1) Ed25519 release signature (trust root independent of GitHub account)
+                if not sig_url:
+                    verify_ok, verify_detail = False, "missing_signature"
                 else:
-                    verify_ok, verify_detail = update_check.verify_file_sha256(dest, expected_digest)
+                    sig_dest = dest.with_suffix(dest.suffix + ".sig")
+                    sig_ok, sig_msg = update_check.download_release_asset(sig_url, sig_dest)
+                    if not sig_ok:
+                        verify_ok, verify_detail = False, f"sig_download:{sig_msg}"
+                    else:
+                        try:
+                            from ugreen_app.release_signing import (
+                                parse_signature_b64,
+                                verify_file_signature,
+                            )
+
+                            raw_sig = sig_dest.read_bytes()
+                            parsed = parse_signature_b64(raw_sig)
+                            if parsed is None and len(raw_sig) == 64:
+                                parsed = raw_sig
+                            if parsed is None:
+                                verify_ok, verify_detail = False, "bad_signature_file"
+                            else:
+                                verify_ok, verify_detail = verify_file_signature(dest, parsed)
+                        except Exception as exc:
+                            verify_ok, verify_detail = False, str(exc)[:120]
+                        finally:
+                            try:
+                                sig_dest.unlink()
+                            except OSError:
+                                pass
+                # 2) Optional GitHub asset digest (extra check, not a trust root alone)
+                if verify_ok and expected_digest:
+                    hash_ok, hash_detail = update_check.verify_file_sha256(dest, expected_digest)
+                    if not hash_ok:
+                        verify_ok, verify_detail = False, f"digest_mismatch:{hash_detail}"
                 if not verify_ok and dest.is_file():
                     try:
                         dest.unlink()
@@ -229,10 +261,14 @@ class MixinUpdateCheck:
                     self.set_status(self.t("update.err_download", err=msg)[:120])
                     return
                 if not verify_ok:
-                    if verify_detail == "missing_digest":
+                    if verify_detail == "missing_signature":
+                        err_txt = self.t("update.err_no_signature")
+                    elif verify_detail == "invalid_signature" or str(verify_detail).startswith("bad_"):
+                        err_txt = self.t("update.err_signature")
+                    elif verify_detail == "missing_digest":
                         err_txt = self.t("update.err_no_digest")
                     else:
-                        err_txt = self.t("update.err_hash", detail=str(verify_detail)[:24])
+                        err_txt = self.t("update.err_hash", detail=str(verify_detail)[:40])
                     messagebox.showerror(self.t("update.title"), err_txt, parent=self.root)
                     self.set_status(err_txt[:120])
                     return

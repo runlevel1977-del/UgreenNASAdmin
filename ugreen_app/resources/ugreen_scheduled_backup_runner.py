@@ -103,15 +103,25 @@ def _build_all_data_excludes(vols: Sequence[str]) -> list[str]:
 def _pick_sources(job: dict[str, Any], vols: list[str]) -> tuple[list[str], str, list[str]]:
     kind = str(job.get("kind") or "").strip()
     target_vol = str(job.get("target_volume") or "/volume1").rstrip("/") or "/volume1"
+    if not re.fullmatch(r"/volume\d+", target_vol):
+        raise ValueError(f"invalid target_volume {target_vol!r}")
     excludes: list[str] = []
+
+    def _ok_path(p: str) -> bool:
+        rp = str(p).strip().rstrip("/")
+        return bool(rp.startswith("/") and ".." not in rp.split("/") and re.match(r"^/volume\d+", rp))
 
     if kind == "docker_scripts":
         sd = str(job.get("scripts_dir") or "/volume1/scripts").rstrip("/")
         dd = str(job.get("docker_dir") or "/volume1/docker").rstrip("/")
+        if not _ok_path(sd) or not _ok_path(dd):
+            raise ValueError("invalid scripts_dir/docker_dir")
         return ([sd, dd], "docker_scripts", [])
 
     if kind == "user_data":
         user_sel = str(job.get("user_sel") or "*").strip() or "*"
+        if user_sel != "*" and not re.fullmatch(r"[A-Za-z0-9._-]{1,64}", user_sel):
+            raise ValueError(f"invalid user_sel {user_sel!r}")
         hv = _uniq_sort(vols)
         homes_bases = ["/home"] + [f"{v}/homes" for v in hv]
         if user_sel == "*":
@@ -134,7 +144,12 @@ def _pick_sources(job: dict[str, Any], vols: list[str]) -> tuple[list[str], str,
         src_vols = list(dict.fromkeys(src_vols))
         excludes_list = job.get("exclude_globs")
         if isinstance(excludes_list, list) and excludes_list:
-            excludes = [str(x) for x in excludes_list if str(x).strip()]
+            excludes = []
+            for x in excludes_list:
+                xs = str(x).strip()
+                if not xs or len(xs) > 512 or "\n" in xs or "\0" in xs:
+                    continue
+                excludes.append(xs)
         else:
             excludes = _build_all_data_excludes(src_vols)
         tag = "all_data_all_volumes" if scope != "single" else "all_data_single_volume"
@@ -182,11 +197,35 @@ def _run_tar(
     cmd.extend(src_ok_filtered)
     try:
         proc = subprocess.run(cmd, capture_output=False, timeout=86400, check=False)
-        if proc.returncode not in (0, 1):
-            print(f"tar exit {proc.returncode}", flush=True)
     except Exception as e:
         print(f"tar failed: {e}", flush=True)
-        return
+        try:
+            if os.path.isfile(dest_file):
+                os.unlink(dest_file)
+        except OSError:
+            pass
+        sys.exit(5)
+    # GNU tar: 0 = ok, 1 = files changed during read (often benign). Anything else = fail.
+    if proc.returncode not in (0, 1):
+        print(f"tar exit {proc.returncode}", flush=True)
+        try:
+            if os.path.isfile(dest_file):
+                os.unlink(dest_file)
+        except OSError:
+            pass
+        sys.exit(5)
+    try:
+        size = os.path.getsize(dest_file)
+    except OSError:
+        size = 0
+    if size <= 0:
+        print("tar archive empty or missing", flush=True)
+        try:
+            if os.path.isfile(dest_file):
+                os.unlink(dest_file)
+        except OSError:
+            pass
+        sys.exit(5)
     print(f"__UG_BACKUP_FILE__:{dest_file}", flush=True)
     try:
         du = subprocess.run(["du", "-h", dest_file], capture_output=True, text=True, timeout=120, check=False)
@@ -196,6 +235,7 @@ def _run_tar(
             print(f"__UG_BACKUP_SIZE__:{sz}", flush=True)
     except Exception:
         pass
+    # Only prune older archives after a verified successful archive.
     _prune_archives_same_tag(dest_dir, tag)
 
 

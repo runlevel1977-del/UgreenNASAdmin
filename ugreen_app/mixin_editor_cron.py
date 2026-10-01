@@ -49,6 +49,11 @@ class MixinEditorCron:
             fn = self.script_listbox.get(sel[0]).strip()
             if hasattr(self, "_script_notify_clean_list_name"):
                 fn = self._script_notify_clean_list_name(fn)
+            safe = nas_utils.safe_script_basename(fn)
+            if not safe:
+                messagebox.showerror(self.t("msg.save_error"), self.t("scripts.unsafe_filename", name=fn))
+                return
+            fn = safe
             if hasattr(self, "_script_notify_update_scripts_overview_ui"):
                 try:
                     self._script_notify_update_scripts_overview_ui()
@@ -57,7 +62,7 @@ class MixinEditorCron:
             self.entry_filename.delete(0, tk.END)
             self.entry_filename.insert(0, fn)
             
-            res = self.run_ssh_cmd(f"cat /volume1/scripts/{fn}")
+            res = self.run_ssh_cmd(f"cat {shlex.quote('/volume1/scripts/' + fn)}")
             self.text_editor.delete("1.0", tk.END)
             self.text_editor.insert("1.0", res)
             self.sync_scheduler(fn)
@@ -119,17 +124,21 @@ class MixinEditorCron:
     def save_script(self, as_root):
         if not self._danger_gate():
             return
-        fn = self.entry_filename.get().strip()
-        if not fn:
+        fn_raw = self.entry_filename.get().strip()
+        if not fn_raw:
             messagebox.showwarning(self.t("msg.save_error"), self.t("msg.editor_save_no_fn"))
             return
         content = self.text_editor.get("1.0", tk.END).strip()
         
-        if fn == "STABLE_TASKS": 
+        if fn_raw == "STABLE_TASKS": 
             if not self.write_root_file(self.stable_cron_path, content):
                 return
             self.log("✅ Zeitplan (Roh) gespeichert.")
         else:
+            fn = nas_utils.safe_script_basename(fn_raw)
+            if not fn:
+                messagebox.showerror(self.t("msg.save_error"), self.t("scripts.unsafe_filename", name=fn_raw))
+                return
             path = f"/volume1/scripts/{fn}"
             if as_root:
                 if not self.write_root_file(path, content):
@@ -176,11 +185,18 @@ class MixinEditorCron:
     def add_to_stable_cron(self):
         if not self._danger_gate():
             return
-        fn = self.entry_filename.get().strip()
-        if not fn or fn == "STABLE_TASKS": return
+        fn_raw = self.entry_filename.get().strip()
+        fn = nas_utils.safe_script_basename(fn_raw)
+        if not fn or fn == "STABLE_TASKS":
+            if fn_raw and fn_raw != "STABLE_TASKS":
+                messagebox.showerror(self.t("msg.save_error"), self.t("scripts.unsafe_filename", name=fn_raw))
+            return
         
         v = [self.get_cron_val(k, self.cron_fields[k].get()) for k in ["Minute", "Stunde", "Tag", "Monat", "Wochentag"]]
-        script_path = posixpath.join("/volume1/scripts", posixpath.basename(fn))
+        if not nas_utils.validate_cron_fields(v):
+            messagebox.showerror(self.t("msg.save_error"), self.t("scripts.unsafe_cron"))
+            return
+        script_path = posixpath.join("/volume1/scripts", fn)
         if fn.lower().endswith(".py"):
             cmd = f"/usr/bin/python3 {shlex.quote(script_path)}"
         else:
@@ -190,13 +206,13 @@ class MixinEditorCron:
             if not ok_run:
                 self.log(f"⚠️ Script-Notify-Runner konnte nicht auf NAS aktualisiert werden: {err_run}")
         runner = "/volume1/scripts/ugreen_script_notify_runner.py"
-        cmd = f"/usr/bin/python3 {shlex.quote(runner)} --script-name {shlex.quote(posixpath.basename(fn))} -- {cmd}"
+        cmd = f"/usr/bin/python3 {shlex.quote(runner)} --script-name {shlex.quote(fn)} -- {cmd}"
 
         if self.var_first_week.get():
             cmd = f"[ $(date +\\%d) -le 7 ] && {cmd}"
 
         new_line = f"{' '.join(v)} root {cmd}"
-        curr = self._sanitize_stable_cron_text(self.run_ssh_cmd(f"cat {self.stable_cron_path}", True))
+        curr = self._sanitize_stable_cron_text(self.run_ssh_cmd(f"cat {shlex.quote(self.stable_cron_path)}", True))
         lines = [l.strip() for l in curr.splitlines() if l.strip() and fn not in l]
         lines.append(f"# Job (Host): {fn}\n{new_line}")
         
@@ -208,27 +224,42 @@ class MixinEditorCron:
     def add_to_docker_cron(self):
         if not self._danger_gate():
             return
-        fn = self.entry_filename.get().strip()
-        if not fn or fn == "STABLE_TASKS": return
+        fn_raw = self.entry_filename.get().strip()
+        fn = nas_utils.safe_script_basename(fn_raw)
+        if not fn or fn == "STABLE_TASKS":
+            if fn_raw and fn_raw != "STABLE_TASKS":
+                messagebox.showerror(self.t("msg.save_error"), self.t("scripts.unsafe_filename", name=fn_raw))
+            return
         
         v = [self.get_cron_val(k, self.cron_fields[k].get()) for k in ["Minute", "Stunde", "Tag", "Monat", "Wochentag"]]
+        if not nas_utils.validate_cron_fields(v):
+            messagebox.showerror(self.t("msg.save_error"), self.t("scripts.unsafe_cron"))
+            return
         
-        container_name = f"job_{fn.replace('.', '_')}"
-        
-        docker_cmd = f"docker rm -f {container_name} 2>/dev/null; docker run --name {container_name} -v /volume1:/volume1 -v /volume2:/volume2 ubuntu:latest /bin/bash -c 'apt-get update -qq && apt-get install -yqq curl sudo wget && /bin/bash /volume1/scripts/{fn}'"
-        cmd = f'/bin/bash -lc "{docker_cmd}"'
+        container_name = f"job_{re.sub(r'[^A-Za-z0-9_]+', '_', fn)}"
+        inner_bash = (
+            "apt-get update -qq && apt-get install -yqq curl sudo wget && "
+            f"/bin/bash {shlex.quote('/volume1/scripts/' + fn)}"
+        )
+        docker_cmd = (
+            f"docker rm -f {shlex.quote(container_name)} 2>/dev/null; "
+            f"docker run --name {shlex.quote(container_name)} "
+            f"-v /volume1:/volume1 -v /volume2:/volume2 ubuntu:latest "
+            f"/bin/bash -c {shlex.quote(inner_bash)}"
+        )
+        cmd = f"/bin/bash -lc {shlex.quote(docker_cmd)}"
         if hasattr(self, "ensure_script_notify_runner_on_nas"):
             ok_run, err_run = self.ensure_script_notify_runner_on_nas()
             if not ok_run:
                 self.log(f"⚠️ Script-Notify-Runner konnte nicht auf NAS aktualisiert werden: {err_run}")
         runner = "/volume1/scripts/ugreen_script_notify_runner.py"
-        cmd = f"/usr/bin/python3 {shlex.quote(runner)} --script-name {shlex.quote(posixpath.basename(fn))} -- {cmd}"
+        cmd = f"/usr/bin/python3 {shlex.quote(runner)} --script-name {shlex.quote(fn)} -- {cmd}"
         
         if self.var_first_week.get(): 
             cmd = f"[ $(date +\\%d) -le 7 ] && {cmd}"
             
         new_line = f"{' '.join(v)} root {cmd}"
-        curr = self._sanitize_stable_cron_text(self.run_ssh_cmd(f"cat {self.stable_cron_path}", True))
+        curr = self._sanitize_stable_cron_text(self.run_ssh_cmd(f"cat {shlex.quote(self.stable_cron_path)}", True))
         lines = [l.strip() for l in curr.splitlines() if l.strip() and fn not in l]
         lines.append(f"# Job (Docker): {fn}\n{new_line}")
         

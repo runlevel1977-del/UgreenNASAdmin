@@ -22,7 +22,7 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 
 **Portable (One-Dir):** Settings and connection JSON files live beside `UgreenNASAdmin.exe` inside the `UgreenNASAdmin/` folder. After upgrading from an older one-file EXE, the app migrates existing config from the parent folder or `%LOCALAPPDATA%\UgreenNASAdmin\` on first start. **Window geometry** (size/position, taskbar-aware) is stored in `app_settings.json` → `window` (v23.8.42+).
 
-**Auto-update:** When a newer release is on GitHub, the app offers to download `UgreenNASAdmin_setup_*.exe`, verifies its **SHA-256** against the GitHub asset digest, and only then runs it (ℹ Info → **Check for updates**). No manual download needed.
+**Auto-update:** When a newer release is on GitHub, the app downloads `UgreenNASAdmin_setup_*.exe`, verifies an **Ed25519 signature** (`.sig` asset, key embedded in the app) and the **SHA-256** digest, then runs the installer (ℹ Info → **Check for updates**).
 
 ### Unreleased / upcoming
 
@@ -109,7 +109,24 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 - **Settings SSH workflow:** create SSH key pair and install public key to UGREEN or second NAS/QNAP directly from the app. **TOFU host keys** (`ssh_known_hosts.json`) — first connect trusts the key; later changes are rejected (Settings → **Forget SSH host key**).
 - **Health improvements:** Scheduler inventory and expanded UGOS/service visibility.
 - **Updated screenshots:** `images/` now reflects the newest app state (latest captures provided by the maintainer).
-- **Version** **23.6.0** — see full details in [`CHANGELOG.md`](CHANGELOG.md).
+- **Version** **23.8.54** — see full details in [`CHANGELOG.md`](CHANGELOG.md).
+
+## Repository layout
+
+```
+├── README.md, LICENSE, CHANGELOG.md, requirements.txt
+├── ugreen_nas_admin.py, nas_ssh.py, nas_utils.py   # entry + shared helpers
+├── builder.py, create_icon.py, UgreenNASAdmin.spec, RUN_BUILDER.bat
+├── docs/            # Handbooks (DE/EN MD+PDF) + page index
+├── ugreen_app/      # Application package
+├── tools/           # Build / sync / PDF helpers
+├── installer/       # Inno Setup sources
+├── images/          # Screenshots for README
+├── tests/           # Unit tests
+└── .github/         # Funding + CI
+```
+
+Handbooks: [`docs/HANDBUCH.md`](docs/HANDBUCH.md) · [`docs/HANDBOOK_EN.md`](docs/HANDBOOK_EN.md)
 
 ### What shipped in v23.5.1
 
@@ -535,7 +552,7 @@ Darunter in der Sidebar: **Hilfswerkzeuge** (z. B. alles neu laden) sowie (je 
 
 - Ohne **SSH-Verbindung** zeigen die Kacheln den Hinweis, dass SSH nötig ist.  
 - Beim Tab-Wechsel laufen keine dauerhaften Hintergrund-Abfragen für dieses Dashboard weiter (weniger Last).  
-- Geeignet, um **vollen Speicher**, hohe Last, **spezielle Lüfter-/RPM-Konfigurationen** oder **Docker-Probleme** schnell zu erkennen — ausführlich **`HANDBUCH.md`** Abschnitte **24.2**, **42.6**, **62**.
+- Geeignet, um **vollen Speicher**, hohe Last, **spezielle Lüfter-/RPM-Konfigurationen** oder **Docker-Probleme** schnell zu erkennen — ausführlich **`docs/HANDBUCH.md`** Abschnitte **24.2**, **42.6**, **62**.
 
 ### 1) Scripts
 

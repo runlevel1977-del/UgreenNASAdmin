@@ -230,6 +230,8 @@ Both are very valuable before/after changes.
 - `SSH key path`
 - `passphrase`
 - **UGOS API:** port, HTTPS, **Verify SSL (CA)** (dashboard button **UGOS API**). Default: CA verification **off** → **certificate pin (TOFU)** stores the NAS cert on first contact and checks it afterwards (no custom CA). If the cert changes: **Forget TLS certificate**.
+- **SSH host key:** fingerprint dialog on **first** contact; then pin. **Forget SSH host key** / **Forget TLS certificate**.
+- **Save connection:** password and key passphrase only in the OS vault (`keyring`); no plaintext secrets in JSON.
 - **SSH command:** **Default (s)** and **Long (s)** — see **§79**
 
 ### 23.3.1 SSH command timeouts (overview)
@@ -1429,7 +1431,7 @@ Goal: Install a service not offered in the UGOS App Center — using a ready-mad
 
 1. In the Docker wizard click **Scan variables**.
 2. Review detected placeholders, volume host paths, and ports in the form.
-3. Enable **Create host folders on NAS (chmod 777)** if the app should create empty Docker folders.
+3. Enable **Create host folders on NAS (chmod 755)** if the app should create empty Docker folders.
 4. Click **Next** — values are applied to the YAML.
 
 **Step 5 — Deploy**

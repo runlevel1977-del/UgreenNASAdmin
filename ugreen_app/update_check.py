@@ -120,13 +120,23 @@ def _release_from_api_payload(data: dict) -> dict | None:
     if not download_url:
         return None
     digest = parse_github_asset_digest(str(asset.get("digest") or ""))
+    asset_name = str(asset.get("name") or "")
+    sig_url = ""
+    sig_name = f"{asset_name}.sig" if asset_name else ""
+    if sig_name:
+        for other in assets:
+            if str(other.get("name") or "") == sig_name:
+                sig_url = str(other.get("browser_download_url") or "").strip()
+                break
     return {
         "tag_name": tag,
         "html_url": (data.get("html_url") or "").strip() or WEB_RELEASES_LATEST,
-        "asset_name": str(asset.get("name") or ""),
+        "asset_name": asset_name,
         "asset_download_url": download_url,
         "asset_size": int(asset.get("size") or 0),
         "asset_digest": digest or "",
+        "asset_sig_name": sig_name,
+        "asset_sig_download_url": sig_url,
     }
 
 

@@ -292,6 +292,18 @@ class MixinScriptsDockerMonitor:
             key_pass = self.entry_ssh_key_pass.get()
         except Exception:
             pass
+        if not key_pass:
+            try:
+                host = self.entry_ip.get().strip() if hasattr(self, "entry_ip") else ""
+                user = self.entry_user.get().strip() if hasattr(self, "entry_user") else ""
+                if host and user:
+                    from ugreen_app import keyring_helper
+
+                    kr = keyring_helper.get_ssh_key_passphrase(host, user)
+                    if kr:
+                        key_pass = kr
+            except Exception:
+                pass
         return {
             "ssh_port": self._get_ssh_port(),
             "ssh_use_key": use_key,
@@ -667,10 +679,14 @@ class MixinScriptsDockerMonitor:
     def docker_fix_perms(self):
         if not self._danger_gate():
             return
-        res = self.run_ssh_cmd("docker inspect --format '{{ range .Mounts }}{{ .Source }} {{ end }}' $(docker ps -a -q)", True)
+        # Only fix the mount-point directory itself (755), never recursive 777.
+        res = self.run_ssh_cmd(
+            "docker inspect --format '{{ range .Mounts }}{{ .Source }} {{ end }}' $(docker ps -a -q)",
+            True,
+        )
         for p in set(res.split()):
-            if "/volume" in p: 
-                self.run_ssh_cmd(f"chmod -R 777 {p}", True)
+            if "/volume" in p and p.startswith("/"):
+                self.run_ssh_cmd(f"chmod 755 {shlex.quote(p)}", True)
         messagebox.showinfo(self.t("msg.docker_admin"), self.t("msg.docker_chmod_ok"))
 
     def docker_compose_path_raw(self):
@@ -843,7 +859,7 @@ class MixinScriptsDockerMonitor:
             name = self.docker_tree.item(sel[0], "text").strip()
 
             def worker():
-                res = self.run_ssh_cmd(f"docker logs --tail 100 {name}", True, update_status=False)
+                res = self.run_ssh_cmd(f"docker logs --tail 100 {shlex.quote(name)}", True, update_status=False)
 
                 def apply():
                     self.docker_log_view.delete("1.0", tk.END)

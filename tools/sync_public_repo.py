@@ -3,6 +3,16 @@
 """
 Spiegelt nur öffentlich nötige Dateien in einen Git-Worktree und pusht nach ``public/main``.
 
+Ziel-Layout (übersichtlich):
+  README / LICENSE / CHANGELOG / requirements / Einstieg + Build-Dateien
+  docs/          — Handbücher + PDFs
+  ugreen_app/    — App-Code
+  tools/         — öffentliche Build-/Release-Helfer
+  installer/     — Inno Setup (ohne output/)
+  images/        — Screenshots
+  tests/         — Unit-Tests
+  .github/       — Funding + CI
+
 Nicht mitnehmen: Cursor-Regeln, interne Release-Notizen, Forum-Entwürfe, Dev-Helfer.
 """
 
@@ -23,12 +33,6 @@ TOP_FILES = frozenset(
         "LICENSE",
         "README.md",
         "CHANGELOG.md",
-        "HANDBUCH.md",
-        "HANDBOOK_EN.md",
-        "HANDBUCH_STRUKTURIERT.md",
-        "HANDBUCH.pdf",
-        "HANDBOOK_EN.pdf",
-        "handbook_page_index.json",
         "builder.py",
         "create_icon.py",
         "UgreenNASAdmin.spec",
@@ -43,6 +47,17 @@ TOP_FILES = frozenset(
     }
 )
 
+DOC_FILES = frozenset(
+    {
+        "HANDBUCH.md",
+        "HANDBOOK_EN.md",
+        "HANDBUCH_STRUKTURIERT.md",
+        "HANDBUCH.pdf",
+        "HANDBOOK_EN.pdf",
+        "handbook_page_index.json",
+    }
+)
+
 TOOL_FILES = frozenset(
     {
         "build_python.py",
@@ -51,6 +66,10 @@ TOOL_FILES = frozenset(
         "handbuch_pdf_from_md.py",
         "build_release_zip.py",
         "sync_public_repo.py",
+        "split_ugreen_manager.py",
+        "secret_scan.py",
+        "smoke_public_exe_launch.py",
+        "sign_release_asset.py",
     }
 )
 
@@ -69,6 +88,13 @@ REMOVE_REL_PATHS = frozenset(
         "tools/_check_nas_locale.py",
         "tools/_list_nas_admin_keys.py",
         "tools/translate_handbook_en.py",
+        # Legacy root docs (vor docs/-Umzug)
+        "HANDBUCH.md",
+        "HANDBOOK_EN.md",
+        "HANDBUCH_STRUKTURIERT.md",
+        "HANDBUCH.pdf",
+        "HANDBOOK_EN.pdf",
+        "handbook_page_index.json",
     }
 )
 
@@ -82,8 +108,29 @@ SENSITIVE_UGREEN_FILES = frozenset(
         "qnap_smb_prefs.json",
         "transfer_log.txt",
         "last_github_update_check.txt",
+        "ssh_host_keys.json",
         "ssh_known_hosts.json",
         "ugos_tls_certs.json",
+    }
+)
+
+# Tests that are safe/useful publicly (no private paths or secrets).
+PUBLIC_TEST_FILES = frozenset(
+    {
+        "test_shell_safety.py",
+        "test_ssh_host_keys.py",
+        "test_ssh_host_keys_confirm.py",
+        "test_ugos_ssl.py",
+        "test_ugos_tls_certs.py",
+        "test_keyring_helper.py",
+        "test_update_check.py",
+        "test_fan_curve.py",
+        "test_ugos_power_schedule.py",
+        "test_ugos_api_dashboard.py",
+        "test_nas_utils_ugos_serv.py",
+        "test_docker_deploy_wizard.py",
+        "test_window_geometry.py",
+        "test_runlevel_apps_scan.py",
     }
 )
 
@@ -139,16 +186,34 @@ def _sync_content() -> None:
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
 
+    docs_dst = WORKTREE / "docs"
+    if docs_dst.exists():
+        shutil.rmtree(docs_dst)
+    docs_dst.mkdir(parents=True, exist_ok=True)
+    for name in DOC_FILES:
+        src = ROOT / "docs" / name
+        if src.is_file():
+            shutil.copy2(src, docs_dst / name)
+
     for folder in ("ugreen_app", "images", "installer"):
         src = ROOT / folder
         if src.is_dir():
             _copy_tree(src, WORKTREE / folder)
 
-    funding = ROOT / ".github" / "FUNDING.yml"
-    if funding.is_file():
-        out = WORKTREE / ".github" / "FUNDING.yml"
-        out.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(funding, out)
+    gh_src = ROOT / ".github"
+    gh_dst = WORKTREE / ".github"
+    if gh_dst.exists():
+        shutil.rmtree(gh_dst)
+    if gh_src.is_dir():
+        for path in gh_src.rglob("*"):
+            if not path.is_file():
+                continue
+            if any(part in SKIP_DIR_NAMES for part in path.parts):
+                continue
+            rel = path.relative_to(gh_src)
+            out = gh_dst / rel
+            out.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, out)
 
     tools_src = ROOT / "tools"
     tools_dst = WORKTREE / "tools"
@@ -159,6 +224,17 @@ def _sync_content() -> None:
         src = tools_src / name
         if src.is_file():
             shutil.copy2(src, tools_dst / name)
+
+    tests_src = ROOT / "tests"
+    tests_dst = WORKTREE / "tests"
+    if tests_dst.exists():
+        shutil.rmtree(tests_dst)
+    tests_dst.mkdir(parents=True, exist_ok=True)
+    if tests_src.is_dir():
+        for name in sorted(PUBLIC_TEST_FILES):
+            src = tests_src / name
+            if src.is_file():
+                shutil.copy2(src, tests_dst / name)
 
 
 def _prune_foreign() -> list[str]:
@@ -178,6 +254,12 @@ def _prune_foreign() -> list[str]:
         if path.is_file() and path.name in SENSITIVE_UGREEN_FILES:
             path.unlink()
             removed.append(path.relative_to(WORKTREE).as_posix())
+    tests_dir = WORKTREE / "tests"
+    if tests_dir.is_dir():
+        for path in tests_dir.glob("test_*.py"):
+            if path.name not in PUBLIC_TEST_FILES:
+                path.unlink()
+                removed.append(path.relative_to(WORKTREE).as_posix())
     return removed
 
 

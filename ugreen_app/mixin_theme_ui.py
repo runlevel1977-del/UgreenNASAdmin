@@ -498,7 +498,11 @@ class MixinThemeUI:
         return c.inner
 
     def _setup_app_icons(self):
-        base = getattr(sys, "_MEIPASS", None) or os.path.dirname(os.path.abspath(__file__))
+        # Frozen: PyInstaller datas; Dev: Projektroot (neben ugreen_app/)
+        if getattr(sys, "_MEIPASS", None):
+            base = sys._MEIPASS
+        else:
+            base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         ico = os.path.join(base, "nas_icon.ico")
         png = os.path.join(base, "nas_icon_app.png")
         self._photo_app_icon = None
@@ -829,6 +833,10 @@ class MixinThemeUI:
             if b and b not in seen:
                 seen.add(b)
                 out.append(b)
+            docs = os.path.normpath(os.path.join(b, "docs"))
+            if os.path.isdir(docs) and docs not in seen:
+                seen.add(docs)
+                out.append(docs)
         return out
 
     def _open_local_doc(self, filename: str) -> None:
