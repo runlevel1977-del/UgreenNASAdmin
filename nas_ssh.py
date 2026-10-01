@@ -457,9 +457,31 @@ class SSHManager:
         return self._exec_root_write_code(password, py_code)
 
     def _exec_root_write_code(self, password: str, py_code: str) -> tuple[bool, str]:
-        cmd = f"sudo -S /usr/bin/python3 -c {shlex.quote(py_code)}"
+        # Neither helper source nor configuration values belong in argv (ps,
+        # /proc/*/cmdline and ordinary sudo command logs can expose them).
+        # sudo may consume the password line, or leave it on stdin when a
+        # timestamp/NOPASSWD rule is active. A fresh marker handles both cases.
+        marker = "UGREEN_STDIN_" + uuid.uuid4().hex
+        bootstrap = (
+            "import base64,hashlib,sys\n"
+            f"marker = {marker.encode('ascii')!r} + b'\\n'\n"
+            "stream = sys.stdin.buffer\n"
+            "while True:\n"
+            "    line = stream.readline()\n"
+            "    if not line:\n"
+            "        raise SystemExit('Missing root-write input')\n"
+            "    if line == marker:\n"
+            "        break\n"
+            "source = base64.b64decode(stream.read(), validate=True)\n"
+            f"if hashlib.sha256(source).hexdigest() != {hashlib.sha256(py_code.encode('utf-8')).hexdigest()!r}:\n"
+            "    raise SystemExit('Incomplete root-write input')\n"
+            "exec(compile(source, '<ugreen-root-write>', 'exec'))\n"
+        )
+        cmd = f"sudo -S -p '' /usr/bin/python3 -c {shlex.quote(bootstrap)}"
         stdin, stdout, stderr = self._client.exec_command(cmd)
         stdin.write((password or "") + "\n")
+        stdin.write(marker + "\n")
+        stdin.write(base64.b64encode(py_code.encode("utf-8")).decode("ascii"))
         stdin.flush()
         try:
             stdin.channel.shutdown_write()
