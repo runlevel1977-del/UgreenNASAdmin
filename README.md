@@ -80,7 +80,7 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 - **Handbook from the header:** **📖 Manual / Handbuch** in the top bar (between **Info** and **Screenshot**) opens the **handbook chapter for the active tab** — e.g. Docker → chapter 12, Backup → chapter 19. Jumps to the right **PDF page** when possible (`handbook_page_index.json`); otherwise shows a **Markdown excerpt** in a dialog.
 - **Migration assistant** (Backup & NAS↔NAS): rsync scripts for volume moves, NAS→NAS, Synology/QNAP templates; dry-run, save under `/volume1/scripts/`.
 - **Docker — not in App Center:** 15 compose recipes (MeTube, Jellyfin, Immich, Paperless, Vaultwarden, Nextcloud, AdGuard, *arr stack, qBittorrent, Uptime Kuma, Home Assistant, Syncthing, Portainer) with UGREEN paths.
-- **UGOS API** (Dashboard): live snapshot via official web API (CPU/RAM, pools, disks); optional HTTPS port in Settings. Certificate verification is **off by default** (self-signed UGOS); enable **Verify SSL** when you have a trusted CA.
+- **UGOS API** (Dashboard): live snapshot via official web API (CPU/RAM, pools, disks); optional HTTPS port in Settings. Default HTTPS uses **certificate TOFU** (pin on first contact); enable **Verify SSL (CA)** only with a PC-trusted CA cert. **Forget TLS certificate** after NAS cert change.
 - **SSH:** configurable command timeouts (Settings → Connection); migration pre-flight and background rsync; storage Top-20 scan in background.
 - **Deutsch (kurz):** **Handbuch-Button** in der Kopfzeile (passendes Kapitel pro Tab); Migrations-Assistent; 15 Docker-Rezepte; UGOS-API; SSH-Timeouts — Details in [`CHANGELOG.md`](CHANGELOG.md).
 

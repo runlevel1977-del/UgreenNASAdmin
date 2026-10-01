@@ -914,6 +914,50 @@ class MixinConfigTelegram:
             parent=getattr(self, "root", None),
         )
 
+    def _forget_ugos_tls_cert_clicked(self) -> None:
+        """Remove TOFU-trusted UGOS HTTPS certificate for current IP/API port."""
+        from ugreen_app import ugos_tls_certs
+
+        host = ""
+        try:
+            host = self.entry_ip.get().strip()
+        except Exception:
+            host = ""
+        if not host:
+            messagebox.showinfo(
+                self.t("settings.forget_tls_cert_title"),
+                self.t("settings.forget_tls_cert_need_host"),
+                parent=getattr(self, "root", None),
+            )
+            return
+        opts = self._ugos_api_settings() if hasattr(self, "_ugos_api_settings") else {"port": 9443}
+        port = int(opts.get("port") or 9443)
+        entry = ugos_tls_certs.get_entry(host, port)
+        if entry is None:
+            messagebox.showinfo(
+                self.t("settings.forget_tls_cert_title"),
+                self.t("settings.forget_tls_cert_none", host=host, port=port),
+                parent=getattr(self, "root", None),
+            )
+            return
+        if not messagebox.askyesno(
+            self.t("settings.forget_tls_cert_title"),
+            self.t(
+                "settings.forget_tls_cert_confirm",
+                host=host,
+                port=port,
+                fp=entry.fingerprint,
+            ),
+            parent=getattr(self, "root", None),
+        ):
+            return
+        ugos_tls_certs.forget_host(host, port)
+        messagebox.showinfo(
+            self.t("settings.forget_tls_cert_title"),
+            self.t("settings.forget_tls_cert_done", host=host, port=port),
+            parent=getattr(self, "root", None),
+        )
+
     def _settings_install_pubkey_dialog(self) -> None:
         """Ziel wählen: UGREEN-Verbindung oder zweites NAS (z. B. QNAP) per SSH-Passwort."""
         root = getattr(self, "root", None)

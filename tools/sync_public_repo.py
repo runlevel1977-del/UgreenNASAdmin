@@ -83,6 +83,7 @@ SENSITIVE_UGREEN_FILES = frozenset(
         "transfer_log.txt",
         "last_github_update_check.txt",
         "ssh_known_hosts.json",
+        "ugos_tls_certs.json",
     }
 )
 

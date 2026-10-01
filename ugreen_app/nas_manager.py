@@ -50,7 +50,7 @@ from ugreen_app.mixin_runlevel_apps import MixinRunlevelApps
 from ugreen_app.mixin_pro_drawer import MixinProDrawer
 from ugreen_app.i18n import cron_mappings_for_lang, translate
 
-__version__ = "23.8.48"
+__version__ = "23.8.49"
 
 class NASManager(
     MixinSafetyLock,
@@ -116,6 +116,14 @@ class NASManager(
         try:
             nas_ssh.set_host_keys_store_path(
                 os.path.join(self._app_data_dir(), "ssh_known_hosts.json")
+            )
+        except Exception:
+            pass
+        try:
+            from ugreen_app import ugos_tls_certs
+
+            ugos_tls_certs.set_store_path(
+                os.path.join(self._app_data_dir(), "ugos_tls_certs.json")
             )
         except Exception:
             pass

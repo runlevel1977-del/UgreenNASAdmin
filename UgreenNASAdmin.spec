@@ -83,6 +83,7 @@ a = Analysis(
         "ugreen_app.update_check",
         "ugreen_app.ssh_host_keys",
         "ugreen_app.mixin_ugos_api",
+        "ugreen_app.ugos_tls_certs",
         "ugreen_app.ugos_api_client",
         "ugreen_app.mixin_migration_assistant",
         "ugreen_app.mixin_handbook_tab",

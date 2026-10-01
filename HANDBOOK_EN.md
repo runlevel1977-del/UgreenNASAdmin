@@ -229,7 +229,7 @@ Both are very valuable before/after changes.
 - `Use SSH key`
 - `SSH key path`
 - `passphrase`
-- **UGOS API:** port, HTTPS, **Verify SSL (CA)** (dashboard button **UGOS API**). Default: verification **off** (self-signed UGOS cert). A hint appears under the checkboxes when HTTPS runs without verification.
+- **UGOS API:** port, HTTPS, **Verify SSL (CA)** (dashboard button **UGOS API**). Default: CA verification **off** → **certificate pin (TOFU)** stores the NAS cert on first contact and checks it afterwards (no custom CA). If the cert changes: **Forget TLS certificate**.
 - **SSH command:** **Default (s)** and **Long (s)** — see **§79**
 
 ### 23.3.1 SSH command timeouts (overview)
@@ -250,6 +250,7 @@ Click **Save** after changes. Full guide: **§79**.
 - **Create SSH key pair:** creates a new key pair on your PC (`ugreen_nas_admin` + `ugreen_nas_admin.pub`), copies the public key to clipboard, and can directly apply the private key path to the form.
 - **Install public key on NAS:** does a one-time password-based SSH login to the selected target and appends the public key to `~/.ssh/authorized_keys`.
 - **Forget SSH host key:** removes the stored host key (TOFU) for the current IP/port. Needed after a NAS reinstall when connections are rejected due to a changed host key.
+- **Forget TLS certificate:** removes the stored UGOS HTTPS pin for IP/API port. Needed after the NAS certificate changes.
 - **Profile +/x:** create/delete profile.
 
 ### 23.4.0 SSH host key (TOFU)

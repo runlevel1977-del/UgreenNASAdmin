@@ -3376,6 +3376,13 @@ class MixinTabsSetup:
             self._forget_ssh_host_key_clicked,
             self.color_btn_secondary,
             width=22,
+        ).pack(side=tk.LEFT, padx=(0, 8))
+        self.create_modern_btn(
+            conn_row2,
+            self.t("settings.forget_tls_cert_btn"),
+            self._forget_ugos_tls_cert_clicked,
+            self.color_btn_secondary,
+            width=22,
         ).pack(side=tk.LEFT)
         conn_row3 = tk.Frame(conn_btns, bg=self.color_surface)
         conn_row3.pack(anchor="w", fill=tk.X, pady=(6, 0))

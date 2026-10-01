@@ -1,5 +1,15 @@
 # Changelog — Ugreen NAS Admin
 
+## 23.8.49 — 2026-10-01
+
+### Deutsch
+
+- **UGOS-API / TLS-TOFU:** HTTPS prüft die Gegenstelle per Zertifikat-Pin (wie SSH-Host-Key). Beim ersten Kontakt wird das NAS-Zertifikat gespeichert (`ugos_tls_certs.json`); später muss es übereinstimmen — **ohne** eigenes CA-Zertifikat und **ohne** `CERT_NONE`. Option „SSL prüfen (CA)“ weiter für System-CA. Button **TLS-Zertifikat vergessen** nach NAS-Neuinstallation.
+
+### English (short)
+
+- **UGOS API / TLS TOFU:** HTTPS pins the peer certificate (like SSH host keys). First contact stores the NAS cert (`ugos_tls_certs.json`); later connections must match — **no** custom CA and **no** `CERT_NONE`. “Verify SSL (CA)” remains for system CA trust. **Forget TLS certificate** after NAS reinstall.
+
 ## Unreleased
 
 ### Deutsch

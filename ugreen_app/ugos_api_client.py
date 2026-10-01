@@ -16,41 +16,71 @@ class UgosApiError(Exception):
     pass
 
 
-def _ssl_context(*, verify: bool) -> ssl.SSLContext | None:
+def _ssl_context(
+    *,
+    host: str,
+    port: int,
+    verify_ca: bool,
+) -> ssl.SSLContext | None:
     """
     Build SSL context for UGOS HTTPS.
 
-    ``verify=False`` is common for home NAS with self-signed certificates.
-    Prefer ``verify=True`` when a trusted CA (or pinned cert) is available.
+    ``verify_ca=True``: system CA trust store (public/trusted NAS cert).
+    ``verify_ca=False``: TOFU pin of the leaf certificate (self-signed UGOS;
+    no custom CA on the PC required — peer identity is still checked).
     """
-    if not verify:
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-        return ctx
-    return ssl.create_default_context()
+    if verify_ca:
+        return ssl.create_default_context()
+    from ugreen_app.ugos_tls_certs import ssl_context_tofu
+
+    return ssl_context_tofu(host, port)
 
 
-def _format_ssl_error(exc: BaseException, *, verify_ssl: bool) -> str:
+def _format_ssl_error(
+    exc: BaseException,
+    *,
+    host: str = "",
+    port: int = 0,
+    verify_ca: bool = False,
+) -> str:
     """Human-readable SSL/TLS failure for the UI."""
+    from ugreen_app.ugos_tls_certs import TlsCertChangedError, explain_ssl_failure
+
+    if isinstance(exc, TlsCertChangedError):
+        return str(exc)
+    if host and port and not verify_ca:
+        changed = explain_ssl_failure(host, port, exc)
+        if changed is not None:
+            return str(changed)
     name = type(exc).__name__
     reason = getattr(exc, "reason", None) or getattr(exc, "args", None)
     detail = str(reason if reason is not None else exc)
-    if verify_ssl and (
+    if verify_ca and (
         isinstance(exc, ssl.SSLError)
         or "CERTIFICATE" in detail.upper()
         or "certificate" in detail.lower()
         or name in ("SSLCertVerificationError", "CertificateError")
     ):
         return (
-            "TLS-Zertifikat ungültig oder nicht vertrauenswürdig. "
-            "UGOS nutzt oft ein selbstsigniertes Zertifikat — "
-            "unter Settings → Verbindung „SSL prüfen“ deaktivieren, "
-            "oder ein vertrauenswürdiges Zertifikat auf dem NAS installieren. "
+            "TLS-Zertifikat ungültig oder nicht vertrauenswürdig (CA-Prüfung). "
+            "Entweder ein von diesem PC vertrauenswürdiges Zertifikat auf dem NAS "
+            "installieren, oder „SSL prüfen (CA)“ aus — dann gilt TOFU-Pinning "
+            "des selbstsignierten Zertifikats. "
+            f"({detail[:200]})"
+        )
+    if (
+        isinstance(exc, ssl.SSLError)
+        or "CERTIFICATE" in detail.upper()
+        or "certificate" in detail.lower()
+        or name in ("SSLCertVerificationError", "CertificateError")
+    ):
+        return (
+            "TLS-Zertifikat stimmt nicht mit dem gespeicherten Pin überein "
+            "(oder Handshake fehlgeschlagen). Nach NAS-Neuinstallation: "
+            "Settings → TLS-Zertifikat vergessen. "
             f"({detail[:200]})"
         )
     return f"TLS/Verbindungsfehler: {detail[:300]}"
-
 
 def _load_public_key(raw: str):
     try:
@@ -109,9 +139,23 @@ class UgosApiClient:
     def _ctx(self) -> ssl.SSLContext | None:
         if self.scheme != "https":
             return None
-        return _ssl_context(verify=self.verify_ssl)
+        return _ssl_context(
+            host=self.host,
+            port=self.port,
+            verify_ca=self.verify_ssl,
+        )
+
+    def _ssl_err(self, exc: BaseException) -> str:
+        return _format_ssl_error(
+            exc,
+            host=self.host,
+            port=self.port,
+            verify_ca=self.verify_ssl,
+        )
 
     def _request(self, method: str, path: str, payload: dict | None = None) -> dict[str, Any]:
+        from ugreen_app.ugos_tls_certs import TlsCertChangedError
+
         if not self.token and not self.login():
             raise UgosApiError("UGOS-API-Login fehlgeschlagen.")
         url = f"{self.base_url}{path}"
@@ -126,18 +170,18 @@ class UgosApiClient:
             with urllib.request.urlopen(req, timeout=20, context=self._ctx()) as resp:
                 body = resp.read().decode("utf-8", errors="replace")
                 out = json.loads(body) if body.strip() else {}
+        except TlsCertChangedError as e:
+            raise UgosApiError(str(e)) from e
         except urllib.error.HTTPError as e:
             raw = e.read().decode("utf-8", errors="replace") if e.fp else str(e)
             raise UgosApiError(f"HTTP {e.code}: {raw[:400]}") from e
         except urllib.error.URLError as e:
             reason = e.reason
             if isinstance(reason, BaseException):
-                raise UgosApiError(
-                    _format_ssl_error(reason, verify_ssl=self.verify_ssl)
-                ) from e
+                raise UgosApiError(self._ssl_err(reason)) from e
             raise UgosApiError(f"Verbindung fehlgeschlagen: {reason}") from e
         except ssl.SSLError as e:
-            raise UgosApiError(_format_ssl_error(e, verify_ssl=self.verify_ssl)) from e
+            raise UgosApiError(self._ssl_err(e)) from e
         except json.JSONDecodeError as e:
             raise UgosApiError("Ungültige JSON-Antwort von der NAS.") from e
 
@@ -150,6 +194,8 @@ class UgosApiClient:
         return out if isinstance(out, dict) else {}
 
     def login(self) -> bool:
+        from ugreen_app.ugos_tls_certs import TlsCertChangedError
+
         if not self.host or not self.username or not self.password:
             raise UgosApiError("Host, Benutzer und Passwort werden für die UGOS-API benötigt.")
         try:
@@ -173,15 +219,15 @@ class UgosApiClient:
                 ).decode("ascii")
         except UgosApiError:
             raise
+        except TlsCertChangedError as e:
+            raise UgosApiError(str(e)) from e
         except urllib.error.URLError as e:
             reason = e.reason
             if isinstance(reason, BaseException):
-                raise UgosApiError(
-                    _format_ssl_error(reason, verify_ssl=self.verify_ssl)
-                ) from e
+                raise UgosApiError(self._ssl_err(reason)) from e
             raise UgosApiError(f"RSA-/Check-Schritt fehlgeschlagen: {reason}") from e
         except ssl.SSLError as e:
-            raise UgosApiError(_format_ssl_error(e, verify_ssl=self.verify_ssl)) from e
+            raise UgosApiError(self._ssl_err(e)) from e
         except Exception as e:
             raise UgosApiError(f"RSA-/Check-Schritt fehlgeschlagen: {e}") from e
 
@@ -202,18 +248,17 @@ class UgosApiClient:
         try:
             with urllib.request.urlopen(req2, timeout=15, context=self._ctx()) as resp:
                 data = json.loads(resp.read().decode("utf-8", errors="replace"))
+        except TlsCertChangedError as e:
+            raise UgosApiError(str(e)) from e
         except urllib.error.URLError as e:
             reason = e.reason
             if isinstance(reason, BaseException):
-                raise UgosApiError(
-                    _format_ssl_error(reason, verify_ssl=self.verify_ssl)
-                ) from e
+                raise UgosApiError(self._ssl_err(reason)) from e
             raise UgosApiError(f"Login fehlgeschlagen: {reason}") from e
         except ssl.SSLError as e:
-            raise UgosApiError(_format_ssl_error(e, verify_ssl=self.verify_ssl)) from e
+            raise UgosApiError(self._ssl_err(e)) from e
         except Exception as e:
             raise UgosApiError(f"Login fehlgeschlagen: {e}") from e
-
         if data.get("code") != 200:
             msg = data.get("msg") or data.get("debug") or data.get("code")
             raise UgosApiError(f"UGOS-Login abgelehnt: {msg}")

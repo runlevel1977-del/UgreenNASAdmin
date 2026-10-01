@@ -55,7 +55,7 @@ class MixinUgosApi:
         }
 
     def _ugos_api_ssl_hint_refresh(self) -> None:
-        """Show warning when HTTPS is on but certificate verification is off."""
+        """Show TLS mode hint (TOFU pin vs CA verify)."""
         lbl = getattr(self, "lbl_ugos_api_ssl_hint", None)
         if lbl is None:
             return
@@ -69,7 +69,10 @@ class MixinUgosApi:
         except Exception:
             return
         if https and not verify:
-            lbl.config(text=self.t("settings.ugos_api_ssl_insecure_hint"))
+            lbl.config(
+                text=self.t("settings.ugos_api_ssl_tofu_hint"),
+                fg=self.color_text_muted,
+            )
         elif https and verify:
             lbl.config(text=self.t("settings.ugos_api_ssl_secure_hint"), fg=self.color_text_muted)
         else:
@@ -103,7 +106,9 @@ class MixinUgosApi:
         win.transient(self.root)
         hint = self.t("ugos_api.hint")
         if opts.get("use_https") and not opts.get("verify_ssl"):
-            hint = hint + "\n" + self.t("settings.ugos_api_ssl_insecure_hint")
+            hint = hint + "\n" + self.t("settings.ugos_api_ssl_tofu_hint")
+        elif opts.get("use_https") and opts.get("verify_ssl"):
+            hint = hint + "\n" + self.t("settings.ugos_api_ssl_secure_hint")
         tk.Label(
             win,
             text=hint,

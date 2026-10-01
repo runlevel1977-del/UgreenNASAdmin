@@ -229,7 +229,7 @@ Beide sind vor/nach Änderungen sehr wertvoll.
 - `SSH-Key nutzen`
 - `SSH-Key-Pfad`
 - `Passphrase`
-- **UGOS API:** Port, HTTPS, **SSL prüfen (CA)** (Dashboard-Button „UGOS API“). Standard: Prüfung **aus** (selbstsigniertes UGOS-Zertifikat). Hinweis erscheint unter den Checkboxen, wenn HTTPS ohne Prüfung läuft.
+- **UGOS API:** Port, HTTPS, **SSL prüfen (CA)** (Dashboard-Button „UGOS API“). Standard: CA-Prüfung **aus** → **Zertifikat-Pin (TOFU)** speichert das NAS-Zertifikat beim ersten Kontakt und prüft es danach (ohne eigenes CA). Bei Zertifikatwechsel: **TLS-Zertifikat vergessen**.
 - **SSH-Befehl:** **Standard (s)** und **Lang (s)** — siehe **§79**
 
 ### 23.3.1 SSH-Befehl-Timeouts (Kurzüberblick)
@@ -250,6 +250,7 @@ Nach Änderung **Speichern** klicken. Ausführliche Anleitung: **§79**.
 - **SSH-Key-Paar erstellen:** erstellt auf deinem PC ein neues Schluesselpaar (`ugreen_nas_admin` + `ugreen_nas_admin.pub`), kopiert den Public Key in die Zwischenablage und kann den privaten Key-Pfad direkt ins Formular uebernehmen.
 - **Oeffentlichen Key auf NAS installieren:** verbindet sich einmalig per Passwort-SSH mit dem gewaehlten Ziel und traegt den Public Key in `~/.ssh/authorized_keys` ein.
 - **SSH-Host-Key vergessen:** entfernt den gespeicherten Host-Key (TOFU) für die aktuelle IP/Port. Nötig nach NAS-Neuinstallation, wenn die Verbindung wegen geändertem Host-Key abgelehnt wird.
+- **TLS-Zertifikat vergessen:** entfernt den gespeicherten UGOS-HTTPS-Pin für IP/API-Port. Nötig nach Zertifikatwechsel auf dem NAS.
 - **Profil +/x:** Profil anlegen/loeschen.
 
 ### 23.4.0 SSH-Host-Key (TOFU)
