@@ -17,12 +17,39 @@ class UgosApiError(Exception):
 
 
 def _ssl_context(*, verify: bool) -> ssl.SSLContext | None:
+    """
+    Build SSL context for UGOS HTTPS.
+
+    ``verify=False`` is common for home NAS with self-signed certificates.
+    Prefer ``verify=True`` when a trusted CA (or pinned cert) is available.
+    """
     if not verify:
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
         return ctx
     return ssl.create_default_context()
+
+
+def _format_ssl_error(exc: BaseException, *, verify_ssl: bool) -> str:
+    """Human-readable SSL/TLS failure for the UI."""
+    name = type(exc).__name__
+    reason = getattr(exc, "reason", None) or getattr(exc, "args", None)
+    detail = str(reason if reason is not None else exc)
+    if verify_ssl and (
+        isinstance(exc, ssl.SSLError)
+        or "CERTIFICATE" in detail.upper()
+        or "certificate" in detail.lower()
+        or name in ("SSLCertVerificationError", "CertificateError")
+    ):
+        return (
+            "TLS-Zertifikat ungültig oder nicht vertrauenswürdig. "
+            "UGOS nutzt oft ein selbstsigniertes Zertifikat — "
+            "unter Settings → Verbindung „SSL prüfen“ deaktivieren, "
+            "oder ein vertrauenswürdiges Zertifikat auf dem NAS installieren. "
+            f"({detail[:200]})"
+        )
+    return f"TLS/Verbindungsfehler: {detail[:300]}"
 
 
 def _load_public_key(raw: str):
@@ -103,7 +130,14 @@ class UgosApiClient:
             raw = e.read().decode("utf-8", errors="replace") if e.fp else str(e)
             raise UgosApiError(f"HTTP {e.code}: {raw[:400]}") from e
         except urllib.error.URLError as e:
-            raise UgosApiError(f"Verbindung fehlgeschlagen: {e.reason}") from e
+            reason = e.reason
+            if isinstance(reason, BaseException):
+                raise UgosApiError(
+                    _format_ssl_error(reason, verify_ssl=self.verify_ssl)
+                ) from e
+            raise UgosApiError(f"Verbindung fehlgeschlagen: {reason}") from e
+        except ssl.SSLError as e:
+            raise UgosApiError(_format_ssl_error(e, verify_ssl=self.verify_ssl)) from e
         except json.JSONDecodeError as e:
             raise UgosApiError("Ungültige JSON-Antwort von der NAS.") from e
 
@@ -139,6 +173,15 @@ class UgosApiClient:
                 ).decode("ascii")
         except UgosApiError:
             raise
+        except urllib.error.URLError as e:
+            reason = e.reason
+            if isinstance(reason, BaseException):
+                raise UgosApiError(
+                    _format_ssl_error(reason, verify_ssl=self.verify_ssl)
+                ) from e
+            raise UgosApiError(f"RSA-/Check-Schritt fehlgeschlagen: {reason}") from e
+        except ssl.SSLError as e:
+            raise UgosApiError(_format_ssl_error(e, verify_ssl=self.verify_ssl)) from e
         except Exception as e:
             raise UgosApiError(f"RSA-/Check-Schritt fehlgeschlagen: {e}") from e
 
@@ -159,6 +202,15 @@ class UgosApiClient:
         try:
             with urllib.request.urlopen(req2, timeout=15, context=self._ctx()) as resp:
                 data = json.loads(resp.read().decode("utf-8", errors="replace"))
+        except urllib.error.URLError as e:
+            reason = e.reason
+            if isinstance(reason, BaseException):
+                raise UgosApiError(
+                    _format_ssl_error(reason, verify_ssl=self.verify_ssl)
+                ) from e
+            raise UgosApiError(f"Login fehlgeschlagen: {reason}") from e
+        except ssl.SSLError as e:
+            raise UgosApiError(_format_ssl_error(e, verify_ssl=self.verify_ssl)) from e
         except Exception as e:
             raise UgosApiError(f"Login fehlgeschlagen: {e}") from e
 

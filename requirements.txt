@@ -2,16 +2,20 @@
 # Deutsch — Öffentliche Lauf- und Build-Abhängigkeiten
 # Pillow: UI (abgerundete Buttons, ggf. Icons)
 # PyInstaller: EXE bauen (siehe builder.py / UgreenNASAdmin.spec)
+# keyring: SSH-Passwort im OS-Tresor
+# paramiko: SSH
+# cryptography: UGOS-API-Login (RSA) + Paramiko
 # =============================================================================
 # English — Public run and build dependencies
 # Pillow: UI (rounded buttons, icons as needed)
 # PyInstaller: build EXE (see builder.py / UgreenNASAdmin.spec)
+# keyring: SSH password in OS vault
+# paramiko: SSH
+# cryptography: UGOS API login (RSA) + Paramiko
 # =============================================================================
 
 Pillow>=9.0
 pyinstaller>=6.0
-
-# Optional: Passwort im OS-Tresor (🔐 PW Tresor) — pip install keyring
-# Optional: UGOS-API-Login (RSA) — pip install cryptography
-# Optional: store password in OS vault — pip install keyring
-# Optional: UGOS API login (RSA) — pip install cryptography
+keyring>=24.0
+paramiko>=3.0
+cryptography>=41.0

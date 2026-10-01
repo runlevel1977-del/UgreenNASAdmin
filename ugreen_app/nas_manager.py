@@ -50,7 +50,7 @@ from ugreen_app.mixin_runlevel_apps import MixinRunlevelApps
 from ugreen_app.mixin_pro_drawer import MixinProDrawer
 from ugreen_app.i18n import cron_mappings_for_lang, translate
 
-__version__ = "23.8.43"
+__version__ = "23.8.48"
 
 class NASManager(
     MixinSafetyLock,
@@ -112,6 +112,13 @@ class NASManager(
         self._telegram_cooldown = {}
         self._ssh_mgr = nas_ssh.SSHManager()
         self._nas_dir_fetch_seq = 0
+
+        try:
+            nas_ssh.set_host_keys_store_path(
+                os.path.join(self._app_data_dir(), "ssh_known_hosts.json")
+            )
+        except Exception:
+            pass
 
         self._init_danger_lock_state()
         self.setup_ui()

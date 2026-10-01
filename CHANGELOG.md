@@ -14,6 +14,58 @@
 - **Transfer Hub / Wake & Sync:** Folder picker now includes **Home** (`/home`, e.g. `papa/Photos`) without requiring an SMB share. Still hides only system folders (`@…`). Transfer Hub **0.6.28**, Wake & Sync **0.1.32**.
 - **Pro toolkit:** Pro release (build + GitHub) auto-increments the patch version (checkbox in the toolkit app, on by default).
 
+## 23.8.48 — 2026-10-01
+
+### Deutsch
+
+- **Öffentlicher Build:** `tools/build_python.py` wird mitgespiegelt (Public-Sync + Release-ZIP). README erklärt Python **3.12** / `UGREEN_BUILD_PYTHON`. `requirements.txt` enthält jetzt auch `paramiko` und `cryptography`. `RUN_BUILDER.bat` bevorzugt `py -3.12`.
+
+### English (short)
+
+- **Public build:** `tools/build_python.py` is included in the public sync and release ZIP. README documents Python **3.12** / `UGREEN_BUILD_PYTHON`. `requirements.txt` now lists `paramiko` and `cryptography`. `RUN_BUILDER.bat` prefers `py -3.12`.
+
+## 23.8.47 — 2026-10-01
+
+### Deutsch
+
+- **UGOS-API / TLS:** Klarer Hinweis, wenn HTTPS **ohne** Zertifikatsprüfung läuft (Standard wegen selbstsigniertem UGOS). Bessere Fehlermeldung, wenn „SSL prüfen“ an ist und das Zertifikat nicht passt. Default bleibt unverändert (Prüfung aus), damit bestehende Installationen nicht brechen.
+
+### English (short)
+
+- **UGOS API / TLS:** Clear warning when HTTPS runs **without** certificate verification (default for self-signed UGOS). Clearer errors when “Verify SSL” is on and the cert fails. Default unchanged (verify off) so existing installs keep working.
+
+## 23.8.46 — 2026-10-01
+
+### Deutsch
+
+- **Passwort-Sicherheit:** „Verbindung speichern“ legt das SSH-Passwort standardmäßig im **System-Tresor** ab (Windows Anmeldeinformationsverwaltung). In `nas_admin_connection.json` bleibt das Passwort-Feld leer. Vorhandene Klartext-Passwörter werden beim Start automatisch migriert. Fallback: Klartext nur wenn `keyring` fehlt.
+
+### English (short)
+
+- **Password security:** “Save connection” stores the SSH password in the **OS credential vault** by default. `nas_admin_connection.json` keeps an empty password field. Existing plaintext passwords migrate on startup. Fallback to JSON only if `keyring` is missing.
+
+## 23.8.45 — 2026-10-01
+
+### Deutsch
+
+- **SSH-Sicherheit:** Host-Keys werden per **TOFU** gespeichert (`ssh_known_hosts.json`). Beim ersten Verbinden wird der Schlüssel übernommen; ändert er sich später (z. B. MITM oder Neuinstallation), wird die Verbindung **abgelehnt**. In Settings: **SSH-Host-Key vergessen**.
+
+### English (short)
+
+- **SSH security:** Host keys use **TOFU** (`ssh_known_hosts.json`). First connect trusts the key; a later change rejects the connection. Settings: **Forget SSH host key**.
+
+## 23.8.44 — 2026-10-01
+
+### Deutsch
+
+- **Auto-Update (Sicherheit):** Setup-EXE wird nach dem Download per **SHA-256** gegen den GitHub-Asset-Digest geprüft. Bei fehlender Prüfsumme oder Abweichung wird die Datei verworfen und der Installer **nicht** gestartet.
+- **Info-Dialog:** Button **Nach Updates suchen** steht jetzt in einer eigenen Zeile (war zuvor in der engen Button-Leiste leicht übersehen / abgeschnitten).
+
+### English (short)
+
+- **Auto-update (security):** After download, the setup EXE is verified with **SHA-256** against the GitHub asset digest. Missing or mismatched digests discard the file and the installer is **not** launched.
+- **Info dialog:** **Check for updates** is now on its own row (previously easy to miss / clip in the crowded button bar).
+
 ## 23.8.43 — 2026-09-12
 
 ### Deutsch

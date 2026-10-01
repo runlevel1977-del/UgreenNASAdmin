@@ -233,7 +233,7 @@ class MixinNasWatchDeploy:
                 ok1, e1 = self._ssh_mgr.write_remote_file_sudo(
                     self.entry_ip.get().strip(),
                     self.entry_user.get(),
-                    self.entry_pwd.get(),
+                    self._get_effective_ssh_password(),
                     script_b,
                     self.REMOTE_SCRIPT,
                     chmod_mode="755",
@@ -245,7 +245,7 @@ class MixinNasWatchDeploy:
                 ok2, e2 = self._ssh_mgr.write_remote_file_sudo(
                     self.entry_ip.get().strip(),
                     self.entry_user.get(),
-                    self.entry_pwd.get(),
+                    self._get_effective_ssh_password(),
                     cfg_b,
                     self.REMOTE_CONFIG,
                     chmod_mode="600",
@@ -439,7 +439,7 @@ class MixinNasWatchDeploy:
                 ok1, e1 = self._ssh_mgr.write_remote_file_sudo(
                     self.entry_ip.get().strip(),
                     self.entry_user.get(),
-                    self.entry_pwd.get(),
+                    self._get_effective_ssh_password(),
                     script_b,
                     self.REMOTE_DAILY_SCRIPT,
                     chmod_mode="755",
@@ -451,7 +451,7 @@ class MixinNasWatchDeploy:
                 ok2, e2 = self._ssh_mgr.write_remote_file_sudo(
                     self.entry_ip.get().strip(),
                     self.entry_user.get(),
-                    self.entry_pwd.get(),
+                    self._get_effective_ssh_password(),
                     cfg_b,
                     self.REMOTE_DAILY_CONFIG,
                     chmod_mode="600",

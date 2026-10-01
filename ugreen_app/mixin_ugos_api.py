@@ -54,20 +54,35 @@ class MixinUgosApi:
             "verify_ssl": bool(ua.get("verify_ssl", False)),
         }
 
+    def _ugos_api_ssl_hint_refresh(self) -> None:
+        """Show warning when HTTPS is on but certificate verification is off."""
+        lbl = getattr(self, "lbl_ugos_api_ssl_hint", None)
+        if lbl is None:
+            return
+        try:
+            https = bool(self.var_settings_ugos_api_https.get()) if hasattr(self, "var_settings_ugos_api_https") else True
+            verify = (
+                bool(self.var_settings_ugos_api_verify_ssl.get())
+                if hasattr(self, "var_settings_ugos_api_verify_ssl")
+                else False
+            )
+        except Exception:
+            return
+        if https and not verify:
+            lbl.config(text=self.t("settings.ugos_api_ssl_insecure_hint"))
+        elif https and verify:
+            lbl.config(text=self.t("settings.ugos_api_ssl_secure_hint"), fg=self.color_text_muted)
+        else:
+            lbl.config(text="")
+
     def _ugos_api_credentials(self) -> tuple[str, str, str]:
         host = self.entry_ip.get().strip() if hasattr(self, "entry_ip") else ""
         user = self.entry_user.get().strip() if hasattr(self, "entry_user") else ""
         pw = ""
-        if hasattr(self, "entry_pwd"):
+        if hasattr(self, "_get_effective_ssh_password"):
+            pw = self._get_effective_ssh_password()
+        elif hasattr(self, "entry_pwd"):
             pw = self.entry_pwd.get()
-        if not (pw or "").strip():
-            try:
-                from ugreen_app import keyring_helper
-
-                if host and user:
-                    pw = keyring_helper.get_ssh_password(host, user) or ""
-            except Exception:
-                pass
         return host, user, pw
 
     def open_ugos_api_snapshot(self) -> None:
@@ -86,9 +101,12 @@ class MixinUgosApi:
         win.minsize(520, 360)
         win.configure(bg=self.color_surface_alt)
         win.transient(self.root)
+        hint = self.t("ugos_api.hint")
+        if opts.get("use_https") and not opts.get("verify_ssl"):
+            hint = hint + "\n" + self.t("settings.ugos_api_ssl_insecure_hint")
         tk.Label(
             win,
-            text=self.t("ugos_api.hint"),
+            text=hint,
             bg=self.color_surface_alt,
             fg=self.color_text_muted,
             font=("Segoe UI", 9),

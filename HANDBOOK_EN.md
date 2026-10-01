@@ -55,7 +55,7 @@ Toggles risk mode. Critical buttons in multiple tabs depend on this.
 Changes the color scheme of the interface.
 
 - `ℹ Info`
-Opens the info dialog with document buttons (`README`, `Manual`, `CHANGELOG`), **Check for updates**, and contact area. After a few seconds the app may offer a **setup update** when a newer GitHub release exists (downloads to the screenshot folder from Settings, otherwise beside the EXE / LocalAppData).
+Opens the info dialog with document buttons (`README`, `Manual`, `CHANGELOG`, YouTube) and below them **Check for updates**, plus contact area. After a few seconds the app may offer a **setup update** when a newer GitHub release exists (downloads to the screenshot folder from Settings, otherwise beside the EXE / LocalAppData). Before launching the installer, the app verifies the **SHA-256** digest against the GitHub asset; on mismatch the file is discarded.
 
 - `📸 Screenshot`
 Takes a screenshot of the app. Destination folder comes out`Settings -> Pfade -> Screenshot-Pfad`.
@@ -229,7 +229,7 @@ Both are very valuable before/after changes.
 - `Use SSH key`
 - `SSH key path`
 - `passphrase`
-- **UGOS API:** port, HTTPS, verify SSL (dashboard button **UGOS API**)
+- **UGOS API:** port, HTTPS, **Verify SSL (CA)** (dashboard button **UGOS API**). Default: verification **off** (self-signed UGOS cert). A hint appears under the checkboxes when HTTPS runs without verification.
 - **SSH command:** **Default (s)** and **Long (s)** — see **§79**
 
 ### 23.3.1 SSH command timeouts (overview)
@@ -245,11 +245,16 @@ Click **Save** after changes. Full guide: **§79**.
 
 ### 23.4 Connection buttons (including new SSH features)
 
-- **Save connection:** saves all connection fields permanently in config.
-- **PW Safe:** stores the current SSH password in the system keyring (safer than plain text in the form).
+- **Save connection:** saves all connection fields permanently in config. The **SSH password** goes into the **OS credential vault** (not the JSON file).
+- **PW Safe:** stores only the current SSH password in the system keyring (without the other connection fields).
 - **Create SSH key pair:** creates a new key pair on your PC (`ugreen_nas_admin` + `ugreen_nas_admin.pub`), copies the public key to clipboard, and can directly apply the private key path to the form.
 - **Install public key on NAS:** does a one-time password-based SSH login to the selected target and appends the public key to `~/.ssh/authorized_keys`.
+- **Forget SSH host key:** removes the stored host key (TOFU) for the current IP/port. Needed after a NAS reinstall when connections are rejected due to a changed host key.
 - **Profile +/x:** create/delete profile.
+
+### 23.4.0 SSH host key (TOFU)
+
+On first successful SSH contact the app stores the host key in `ssh_known_hosts.json` (with other app data). If the key changes later, the connection is **rejected** (MITM protection). After a legitimate key change: **Forget SSH host key**, then reconnect.
 
 ### 23.4.1 Why this SSH key workflow matters
 

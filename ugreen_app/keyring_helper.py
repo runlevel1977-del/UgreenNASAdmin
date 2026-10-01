@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Optional: SSH-Passwort im OS-Tresor (Windows Credential Manager / macOS Keychain / Secret Service)."""
+"""SSH-Passwort im OS-Tresor (Windows Credential Manager / macOS Keychain / Secret Service)."""
 from __future__ import annotations
 
 _SERVICE = "UgreenNASAdmin"
@@ -36,6 +36,22 @@ def set_ssh_password(host: str, user: str, password: str) -> bool:
         import keyring
 
         keyring.set_password(_SERVICE, _account(host, user), password or "")
+        return True
+    except Exception:
+        return False
+
+
+def delete_ssh_password(host: str, user: str) -> bool:
+    """Remove stored SSH password; True if deleted or nothing was stored."""
+    if not keyring_available():
+        return False
+    try:
+        import keyring
+
+        try:
+            keyring.delete_password(_SERVICE, _account(host, user))
+        except keyring.errors.PasswordDeleteError:
+            pass
         return True
     except Exception:
         return False

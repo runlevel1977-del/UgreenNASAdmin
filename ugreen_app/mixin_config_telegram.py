@@ -443,7 +443,7 @@ class MixinConfigTelegram:
         data = self._connection_read_full_json()
         data["ui_lang"] = getattr(self, "ui_lang", "de")
         if hasattr(self, "_connection_profiles") and self._connection_profiles:
-            data["profiles"] = self._connection_profiles
+            data["profiles"] = self._profiles_sanitized_for_disk()
             data["active_profile"] = int(getattr(self, "_connection_active_index", 0) or 0)
             for k in ("ip", "port", "user", "password", "ssh_use_key", "ssh_key_path", "ssh_key_passphrase"):
                 data.pop(k, None)
@@ -452,6 +452,77 @@ class MixinConfigTelegram:
                 json.dump(data, f, indent=2)
         except Exception:
             pass
+
+    def _get_effective_ssh_password(self) -> str:
+        """Password from the UI field, or from the OS keyring when the field is empty."""
+        pwd = ""
+        try:
+            if hasattr(self, "entry_pwd"):
+                pwd = self.entry_pwd.get() or ""
+        except Exception:
+            pwd = ""
+        if pwd:
+            return pwd
+        host = ""
+        user = ""
+        try:
+            host = self.entry_ip.get().strip() if hasattr(self, "entry_ip") else ""
+            user = self.entry_user.get().strip() if hasattr(self, "entry_user") else ""
+        except Exception:
+            return ""
+        if not host or not user:
+            return ""
+        return keyring_helper.get_ssh_password(host, user) or ""
+
+    def _migrate_plaintext_passwords_to_keyring(self) -> bool:
+        """Move profile passwords from JSON into the OS vault. Returns True if profiles changed."""
+        if not keyring_helper.keyring_available():
+            return False
+        changed = False
+        for prof in getattr(self, "_connection_profiles", []) or []:
+            if not isinstance(prof, dict):
+                continue
+            pw = str(prof.get("password") or "")
+            host = str(prof.get("ip") or "").strip()
+            user = str(prof.get("user") or "").strip()
+            if not pw or not host or not user:
+                continue
+            if keyring_helper.set_ssh_password(host, user, pw):
+                prof["password"] = ""
+                changed = True
+        return changed
+
+    def _rewrite_connection_profiles_file(self) -> None:
+        """Write current in-memory profiles (without touching UI status dialogs)."""
+        p = self._connection_config_path()
+        payload = {
+            "profiles": self._profiles_sanitized_for_disk(),
+            "active_profile": int(getattr(self, "_connection_active_index", 0) or 0),
+            "ui_lang": getattr(self, "ui_lang", "de"),
+        }
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2)
+
+    def _profiles_sanitized_for_disk(self) -> list:
+        """Copy profiles for JSON; prefer OS keyring and never write passwords when vault works."""
+        out: list = []
+        use_vault = keyring_helper.keyring_available()
+        for prof in getattr(self, "_connection_profiles", []) or []:
+            if not isinstance(prof, dict):
+                continue
+            d = dict(prof)
+            host = str(d.get("ip") or "").strip()
+            user = str(d.get("user") or "").strip()
+            pw = str(d.get("password") or "")
+            if use_vault and host and user:
+                if pw:
+                    keyring_helper.set_ssh_password(host, user, pw)
+                    d["password"] = ""
+                    prof["password"] = ""
+                else:
+                    d["password"] = ""
+            out.append(d)
+        return out
 
     def _load_connection_config(self):
         self._profile_loading = False
@@ -481,6 +552,11 @@ class MixinConfigTelegram:
             profs, ai = self._connection_profiles_from_disk_dict(data)
             self._connection_profiles = profs
             self._connection_active_index = ai
+            if self._migrate_plaintext_passwords_to_keyring():
+                try:
+                    self._rewrite_connection_profiles_file()
+                except Exception:
+                    pass
             if hasattr(self, "entry_ip"):
                 self._connection_apply_profile_to_ui(profs[ai])
             self._connection_refresh_profile_combo()
@@ -684,7 +760,7 @@ class MixinConfigTelegram:
                 parent=getattr(self, "root", None),
             )
             return
-        pw = self.entry_pwd.get() if hasattr(self, "entry_pwd") else ""
+        pw = self._get_effective_ssh_password()
         if not (pw or "").strip():
             messagebox.showwarning(
                 self.t("msg.connection"),
@@ -791,6 +867,53 @@ class MixinConfigTelegram:
             parent=getattr(self, "root", None),
         )
 
+    def _forget_ssh_host_key_clicked(self) -> None:
+        """Remove TOFU-trusted SSH host key for the current IP/port."""
+        from ugreen_app import ssh_host_keys
+
+        host = ""
+        try:
+            host = self.entry_ip.get().strip()
+        except Exception:
+            host = ""
+        if not host:
+            messagebox.showinfo(
+                self.t("settings.forget_host_key_title"),
+                self.t("settings.forget_host_key_need_host"),
+                parent=getattr(self, "root", None),
+            )
+            return
+        port = self._get_ssh_port() if hasattr(self, "_get_ssh_port") else 22
+        entry = ssh_host_keys.get_entry(host, port)
+        if entry is None:
+            messagebox.showinfo(
+                self.t("settings.forget_host_key_title"),
+                self.t("settings.forget_host_key_none", host=host, port=port),
+                parent=getattr(self, "root", None),
+            )
+            return
+        if not messagebox.askyesno(
+            self.t("settings.forget_host_key_title"),
+            self.t(
+                "settings.forget_host_key_confirm",
+                host=host,
+                port=port,
+                fp=entry.fingerprint,
+            ),
+            parent=getattr(self, "root", None),
+        ):
+            return
+        ssh_host_keys.forget_host(host, port)
+        try:
+            self._ssh_mgr.close()
+        except Exception:
+            pass
+        messagebox.showinfo(
+            self.t("settings.forget_host_key_title"),
+            self.t("settings.forget_host_key_done", host=host, port=port),
+            parent=getattr(self, "root", None),
+        )
+
     def _settings_install_pubkey_dialog(self) -> None:
         """Ziel wählen: UGREEN-Verbindung oder zweites NAS (z. B. QNAP) per SSH-Passwort."""
         root = getattr(self, "root", None)
@@ -842,15 +965,33 @@ class MixinConfigTelegram:
             if not hasattr(self, "_connection_profiles") or not self._connection_profiles:
                 self._connection_profiles = [self._connection_default_profile()]
                 self._connection_active_index = 0
-            self._connection_profiles[self._connection_active_index] = self._connection_profile_dict_from_ui()
+            prof = self._connection_profile_dict_from_ui()
+            host = str(prof.get("ip") or "").strip()
+            user = str(prof.get("user") or "").strip()
+            pwd = str(prof.get("password") or "")
+            used_keyring = False
+            if host and user:
+                if pwd:
+                    if keyring_helper.keyring_available() and keyring_helper.set_ssh_password(host, user, pwd):
+                        prof["password"] = ""
+                        used_keyring = True
+                    # else: keep plaintext in JSON as last-resort fallback
+                elif keyring_helper.keyring_available():
+                    # Empty password field → remove vault entry so save matches the UI
+                    keyring_helper.delete_ssh_password(host, user)
+            self._connection_profiles[self._connection_active_index] = prof
             payload = {
-                "profiles": self._connection_profiles,
+                "profiles": self._profiles_sanitized_for_disk(),
                 "active_profile": int(self._connection_active_index),
                 "ui_lang": getattr(self, "ui_lang", "de"),
             }
             with open(p, "w", encoding="utf-8") as f:
                 json.dump(payload, f, indent=2)
-            self.set_status(self.t("msg.connection_saved", name=os.path.basename(p)))
+            if used_keyring:
+                status = self.t("msg.connection_saved_keyring", name=os.path.basename(p))
+            else:
+                status = self.t("msg.connection_saved", name=os.path.basename(p))
+            self.set_status(status)
             try:
                 self._probe_ssh_connection_async()
             except Exception:
@@ -860,7 +1001,15 @@ class MixinConfigTelegram:
                 self._update_settings_status_badges()
             except Exception:
                 pass
-            messagebox.showinfo(self.t("msg.connection"), self.t("msg.saved_to", path=p))
+            if used_keyring:
+                messagebox.showinfo(self.t("msg.connection"), self.t("msg.saved_keyring", path=p))
+            elif pwd and host and user and not keyring_helper.keyring_available():
+                messagebox.showwarning(
+                    self.t("msg.connection"),
+                    self.t("msg.saved_plaintext_fallback", path=p),
+                )
+            else:
+                messagebox.showinfo(self.t("msg.connection"), self.t("msg.saved_to", path=p))
         except Exception as e:
             messagebox.showerror(self.t("msg.connection"), str(e))
 
@@ -1634,7 +1783,7 @@ if __name__ == "__main__":
         cfg = cfg or self._load_app_settings()
         host = self.entry_ip.get().strip() if hasattr(self, "entry_ip") else ""
         user = self.entry_user.get().strip() if hasattr(self, "entry_user") else ""
-        pwd = self.entry_pwd.get() if hasattr(self, "entry_pwd") else ""
+        pwd = self._get_effective_ssh_password()
         if not host or not user:
             return False, "connection missing"
         try:
@@ -2121,6 +2270,10 @@ if __name__ == "__main__":
             self.var_settings_ugos_api_https.set(bool(ua.get("use_https", True)))
         if hasattr(self, "var_settings_ugos_api_verify_ssl"):
             self.var_settings_ugos_api_verify_ssl.set(bool(ua.get("verify_ssl", False)))
+        try:
+            self._ugos_api_ssl_hint_refresh()
+        except Exception:
+            pass
         sh = dict(cfg.get("ssh") or {})
         if hasattr(self, "entry_settings_ssh_cmd_timeout"):
             self.entry_settings_ssh_cmd_timeout.delete(0, tk.END)

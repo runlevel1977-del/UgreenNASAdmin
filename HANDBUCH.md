@@ -55,7 +55,7 @@ Wichtig zur Einordnung: In der aktuellen UI liegen die umfangreichen Verbindungs
   Wechselt das Farbschema der Oberfläche.
 
 - `ℹ Info`  
-  Öffnet den Info-Dialog mit Dokumentenbuttons (`README`, `Handbuch`, `CHANGELOG`), **Nach Updates suchen** und Kontaktbereich. Bei neuer GitHub-Version fragt die App nach einigen Sekunden automatisch, ob das **Setup-Update** jetzt heruntergeladen werden soll (Download in den Screenshot-Zielordner aus Settings, sonst neben der EXE / LocalAppData).
+  Öffnet den Info-Dialog mit Dokumentenbuttons (`README`, `Handbuch`, `CHANGELOG`, YouTube) und darunter dem Button **Nach Updates suchen**, plus Kontaktbereich. Bei neuer GitHub-Version fragt die App nach einigen Sekunden automatisch, ob das **Setup-Update** jetzt heruntergeladen werden soll (Download in den Screenshot-Zielordner aus Settings, sonst neben der EXE / LocalAppData). Vor dem Start des Installers prüft die App die **SHA-256**-Prüfsumme gegen den GitHub-Asset-Digest; bei Fehler wird die Datei verworfen.
 
 - `📸 Screenshot`  
   Erstellt einen Screenshot der App. Zielordner kommt aus `Settings -> Pfade -> Screenshot-Pfad`.
@@ -229,7 +229,7 @@ Beide sind vor/nach Änderungen sehr wertvoll.
 - `SSH-Key nutzen`
 - `SSH-Key-Pfad`
 - `Passphrase`
-- **UGOS API:** Port, HTTPS, SSL prüfen (Dashboard-Button „UGOS API“)
+- **UGOS API:** Port, HTTPS, **SSL prüfen (CA)** (Dashboard-Button „UGOS API“). Standard: Prüfung **aus** (selbstsigniertes UGOS-Zertifikat). Hinweis erscheint unter den Checkboxen, wenn HTTPS ohne Prüfung läuft.
 - **SSH-Befehl:** **Standard (s)** und **Lang (s)** — siehe **§79**
 
 ### 23.3.1 SSH-Befehl-Timeouts (Kurzüberblick)
@@ -245,11 +245,16 @@ Nach Änderung **Speichern** klicken. Ausführliche Anleitung: **§79**.
 
 ### 23.4 Verbindungsbuttons (inkl. neuer SSH-Funktionen)
 
-- **Verbindung speichern:** speichert alle Felder im Verbindungsbereich dauerhaft in der Konfiguration.
-- **PW Tresor:** speichert das aktuelle SSH-Passwort im System-Keyring (sicherer als Klartext im Formular).
+- **Verbindung speichern:** speichert alle Felder im Verbindungsbereich dauerhaft in der Konfiguration. Das **SSH-Passwort** landet im **System-Tresor** (nicht in der JSON-Datei).
+- **PW Tresor:** speichert nur das aktuelle SSH-Passwort im System-Keyring (ohne die übrigen Verbindungsfelder).
 - **SSH-Key-Paar erstellen:** erstellt auf deinem PC ein neues Schluesselpaar (`ugreen_nas_admin` + `ugreen_nas_admin.pub`), kopiert den Public Key in die Zwischenablage und kann den privaten Key-Pfad direkt ins Formular uebernehmen.
 - **Oeffentlichen Key auf NAS installieren:** verbindet sich einmalig per Passwort-SSH mit dem gewaehlten Ziel und traegt den Public Key in `~/.ssh/authorized_keys` ein.
+- **SSH-Host-Key vergessen:** entfernt den gespeicherten Host-Key (TOFU) für die aktuelle IP/Port. Nötig nach NAS-Neuinstallation, wenn die Verbindung wegen geändertem Host-Key abgelehnt wird.
 - **Profil +/x:** Profil anlegen/loeschen.
+
+### 23.4.0 SSH-Host-Key (TOFU)
+
+Beim ersten erfolgreichen SSH-Kontakt speichert die App den Host-Key in `ssh_known_hosts.json` (neben den anderen App-Daten). Ändert sich der Schlüssel später, wird die Verbindung **abgelehnt** (Schutz vor Man-in-the-Middle). Nach legitimem Schlüsselwechsel: **SSH-Host-Key vergessen**, dann erneut verbinden.
 
 ### 23.4.1 Warum der SSH-Key-Workflow wichtig ist
 

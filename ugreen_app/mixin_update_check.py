@@ -203,6 +203,20 @@ class MixinUpdateCheck:
                 self.root.after(0, lambda p=pct: self.set_status(self.t("update.downloading", pct=f"{p}%")))
 
             ok, msg = update_check.download_release_asset(download_url, dest, log=log_pct)
+            expected_digest = str(release.get("asset_digest") or "").strip()
+            verify_ok = False
+            verify_detail = ""
+            if ok:
+                self.root.after(0, lambda: self.set_status(self.t("update.verifying")))
+                if not expected_digest:
+                    verify_ok, verify_detail = False, "missing_digest"
+                else:
+                    verify_ok, verify_detail = update_check.verify_file_sha256(dest, expected_digest)
+                if not verify_ok and dest.is_file():
+                    try:
+                        dest.unlink()
+                    except OSError:
+                        pass
 
             def done() -> None:
                 self._update_busy = False
@@ -213,6 +227,14 @@ class MixinUpdateCheck:
                         parent=self.root,
                     )
                     self.set_status(self.t("update.err_download", err=msg)[:120])
+                    return
+                if not verify_ok:
+                    if verify_detail == "missing_digest":
+                        err_txt = self.t("update.err_no_digest")
+                    else:
+                        err_txt = self.t("update.err_hash", detail=str(verify_detail)[:24])
+                    messagebox.showerror(self.t("update.title"), err_txt, parent=self.root)
+                    self.set_status(err_txt[:120])
                     return
                 self.set_status(self.t("update.launching"))
                 try:
