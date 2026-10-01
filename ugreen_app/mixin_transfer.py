@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import hashlib
 import posixpath
 import shutil
 import shlex
@@ -30,6 +31,7 @@ import nas_ssh
 import nas_utils
 from ugreen_app._paramiko import _paramiko
 from ugreen_app.transfer_log import append_transfer_log
+from ugreen_app.upload_stream import upload_command
 
 class MixinTransfer:
     def _fmt_bytes(self, n):
@@ -409,30 +411,13 @@ class MixinTransfer:
         ) from last
 
     def _prepare_remote_file_for_ugreen_sftp(self, remote_file_path):
-        """UGREEN: SFTP-Schicht nutzt PHP file_put_contents — Zieldatei muss existieren + chown SSH-User."""
+        """Compatibility hook: never remove/truncate a destination before upload."""
         rp = posixpath.normpath((remote_file_path or "").strip())
         if not rp.startswith("/") or rp == "/":
             raise ValueError(f"Ungültiger Remote-Pfad: {remote_file_path!r}")
-        user = (self.entry_user.get() or "").strip()
-        if not user:
-            raise ValueError("SSH-Benutzer fehlt")
-        parent = posixpath.dirname(rp)
-        if parent and parent not in ("/", ""):
-            inner = (
-                f"mkdir -p {shlex.quote(parent)} && "
-                f"rm -f {shlex.quote(rp)} && "
-                f"touch {shlex.quote(rp)} && "
-                f"chown {shlex.quote(user)}:{shlex.quote(user)} {shlex.quote(rp)}"
-            )
-        else:
-            inner = (
-                f"rm -f {shlex.quote(rp)} && touch {shlex.quote(rp)} && "
-                f"chown {shlex.quote(user)}:{shlex.quote(user)} {shlex.quote(rp)}"
-            )
-        self._ssh_sudo_exec_standalone(inner)
 
     def _upload_local_file_via_ssh_cat(self, local_path, remote_path, callback=None):
-        """Große Datei nur per SSH-STDIN → shell cat > Ziel (ohne SFTP; UGREEN-SFTP/PHP ist unzuverlässig)."""
+        """Stream into private staging, verify size/hash, then atomically publish."""
         rp = posixpath.normpath((remote_path or "").strip())
         if not rp.startswith("/") or rp == "/":
             raise ValueError(f"Ungültiger Remote-Pfad: {remote_path!r}")
@@ -452,11 +437,14 @@ class MixinTransfer:
         )
         self._ssh_transport_keepalive(ssh)
         try:
-            inner = f"cat > {shlex.quote(rp)}"
-            cmd = "/bin/sh -c " + shlex.quote(inner)
+            fs = self._local_file_size_for_upload(local_path)
+            marker = "UGREEN_UPLOAD_" + uuid.uuid4().hex
+            cmd = upload_command(rp, self.entry_user.get(), marker, fs)
             stdin, stdout, stderr = ssh.exec_command(cmd)
             stdin.channel.settimeout(None)
-            fs = self._local_file_size_for_upload(local_path)
+            stdin.write((self._get_effective_ssh_password() or "") + "\n" + marker + "\n")
+            stdin.flush()
+            digest = hashlib.sha256()
             read_chunk = 256 * 1024
             cb_min_interval = 0.12
             cb_min_step = 2 * 1024 * 1024
@@ -471,10 +459,10 @@ class MixinTransfer:
                     offset = 0
                     while offset < len(chunk):
                         n = stdin.channel.send(chunk[offset:])
-                        if n == 0:
-                            time.sleep(0.02)
-                            continue
+                        if n <= 0:
+                            raise ConnectionError("SSH upload channel closed")
                         offset += n
+                    digest.update(chunk)
                     done += len(chunk)
                     if callback:
                         now = time.monotonic()
@@ -492,6 +480,10 @@ class MixinTransfer:
                 stdin.flush()
             except Exception:
                 pass
+            if done != fs:
+                raise OSError("Local file size changed during upload")
+            stdin.write(digest.hexdigest() + "\n")
+            stdin.flush()
             stdin.channel.shutdown_write()
             err_b = stderr.read()
             out_b = stdout.read()
@@ -561,43 +553,11 @@ class MixinTransfer:
         return remote_path
 
     def _sftp_put_via_tmp_sudo_mv(self, ssh, sftp, local_path, remote_path, callback=None):
-        bn = posixpath.basename(remote_path) or "upload.bin"
-        tmp = posixpath.join("/tmp", f".na_{uuid.uuid4().hex}_{bn}")
-        try:
-            self._sftp_put_via_stream(sftp, local_path, tmp, callback=callback, confirm=True)
-        except Exception:
-            try:
-                sftp.remove(tmp)
-            except Exception:
-                pass
-            raise
-        user = self.entry_user.get()
-        inner = f"mv -f {shlex.quote(tmp)} {shlex.quote(remote_path)} && chown {shlex.quote(user)}:{shlex.quote(user)} {shlex.quote(remote_path)}"
-        try:
-            self._ssh_sudo_exec_standalone(inner)
-        except Exception:
-            try:
-                sftp.remove(tmp)
-            except Exception:
-                pass
-            raise
-        return remote_path
+        return self._upload_local_file_via_ssh_cat(local_path, remote_path, callback=callback)
 
     def _sftp_put_try_sudo_fallback(self, ssh, sftp, local_path, remote_path, callback=None):
-        try:
-            return self._sftp_put_try(sftp, local_path, remote_path, callback=callback)
-        except (OSError, IOError, PermissionError) as e:
-            if not self._upload_is_permission_denied(e):
-                raise
-        parent = posixpath.dirname(remote_path)
-        if parent and parent not in ("/", ""):
-            self._ssh_sudo_mkdir_chown_standalone(parent)
-        try:
-            return self._sftp_put_try(sftp, local_path, remote_path, callback=callback)
-        except (OSError, IOError, PermissionError) as e2:
-            if not self._upload_is_permission_denied(e2):
-                raise
-        return self._sftp_put_via_tmp_sudo_mv(ssh, sftp, local_path, remote_path, callback=callback)
+        # Direct SFTP wb and rm/touch destroy the old file on cancellation.
+        return self._upload_local_file_via_ssh_cat(local_path, remote_path, callback=callback)
 
     def _sftp_ensure_dir(self, sftp, remote_dir_path):
         """Remote-Ordner rekursiv per SFTP anlegen — gleicher User wie put(), kein sudo (vermeidet Passwort/Sonderzeichen-Probleme)."""
