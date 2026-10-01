@@ -140,6 +140,8 @@ class ArchiveSafetyTests(unittest.TestCase):
                     fstat=lambda fd: SimpleNamespace(st_uid=0,st_mode=stat.S_IFDIR|0o700) if fd in directories else original_fstat(fd),
                     geteuid=lambda:0,O_DIRECTORY=0x40000000,
                     dup=duplicate,utime=lambda *args:None,O_NONBLOCK=0,
+                    fstatvfs=lambda fd: SimpleNamespace(f_bavail=2**50, f_frsize=4096),
+                    listxattr=lambda fd: [],
                     fchown=lambda *a: None, fchmod=lambda *a: None,
                     O_NOFOLLOW=0x20000000).items():
                 setattr(fake,name,value)

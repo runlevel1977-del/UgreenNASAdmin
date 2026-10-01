@@ -10,8 +10,53 @@ import os
 import stat
 import sys
 import tarfile
+import time
 import uuid
 import zipfile
+
+
+class Limits:
+    def __init__(self, *, max_members=100000, max_bytes=1024**4, max_file=256*1024**3,
+                 max_path=4096, max_depth=64, min_free=512*1024**2, seconds=3600):
+        self.max_members = max_members
+        self.max_bytes = max_bytes
+        self.max_file = max_file
+        self.max_path = max_path
+        self.max_depth = max_depth
+        self.min_free = min_free
+        self.deadline = time.monotonic() + seconds
+
+    def check_time(self):
+        if time.monotonic() >= self.deadline:
+            raise TimeoutError("Archive restore exceeded its time limit")
+
+
+def check_space(fd, needed, limits):
+    info = os.fstatvfs(fd)
+    if info.f_bavail * info.f_frsize < needed + limits.min_free:
+        raise OSError("Insufficient free space for archive restore and safety reserve")
+
+
+def check_metadata(fd):
+    # Replacing an inode discards ACLs, labels and xattrs. Until a reviewed
+    # metadata restore exists, do not silently replace such files/directories.
+    if os.listxattr(fd):
+        raise ValueError("Destination has ACLs/xattrs; a metadata-aware restore is required")
+
+
+def configure_process_limits():
+    """Bound parser allocations and stalled work before opening any archive."""
+    import resource
+    import signal
+    for key, limit in ((resource.RLIMIT_AS, 1024**3), (resource.RLIMIT_CPU, 3600)):
+        soft, hard = resource.getrlimit(key)
+        finite = [limit] + [n for n in (soft, hard) if n != resource.RLIM_INFINITY]
+        resource.setrlimit(key, (min(finite), hard))
+    def expired(*_):
+        raise TimeoutError("Archive restore exceeded its wall-clock limit")
+    signal.signal(signal.SIGALRM, expired)
+    signal.signal(signal.SIGXCPU, expired)
+    signal.alarm(3600)
 
 
 def member_parts(name, directory=False):
@@ -28,12 +73,17 @@ def member_parts(name, directory=False):
     return parts
 
 
-def plan_members(archive):
+def plan_members(archive, limits=None):
     """Validate the entire index before creating any destination objects."""
     plan = []
     kinds = {}
     is_zip = isinstance(archive, zipfile.ZipFile)
-    for item in archive.infolist() if is_zip else archive.getmembers():
+    limits = limits or Limits()
+    total = 0
+    for count, item in enumerate(archive.infolist() if is_zip else archive, 1):
+        limits.check_time()
+        if count > limits.max_members:
+            raise ValueError("Archive entry count exceeds limit")
         if is_zip:
             directory = item.is_dir()
             mode = item.external_attr >> 16
@@ -52,11 +102,20 @@ def plan_members(archive):
                 raise ValueError("Sparse TAR entries are not supported by data restore")
             size = item.size
             name = item.name
+            if any("xattr" in key.lower() or "acl" in key.lower() for key in item.pax_headers):
+                raise ValueError("Archive contains ACLs/xattrs requiring a metadata-aware restore")
+        if len(name) > limits.max_path:
+            raise ValueError("Archive path exceeds length limit")
         parts = member_parts(name, directory)
+        if len(parts) > limits.max_depth:
+            raise ValueError("Archive path exceeds depth limit")
         if not parts:
             continue
         if size < 0 or (directory and size):
             raise ValueError("Invalid archive member size")
+        total += size
+        if size > limits.max_file or total > limits.max_bytes:
+            raise ValueError("Expanded archive size exceeds limit")
         if parts in kinds:
             raise ValueError("Duplicate archive destination")
         kinds[parts] = directory
@@ -93,6 +152,8 @@ def open_child(root, parts, create=False, create_mode=0o700):
     current = os.dup(root)
     try:
         for component in parts:
+            if not create:
+                check_metadata(current)
             if create:
                 try:
                     os.mkdir(component, create_mode, dir_fd=current)
@@ -121,6 +182,7 @@ def check_leaf(parent, name, directory):
 
 
 def check_existing_destinations(root, plan):
+    check_metadata(root)
     for parts, directory, _, _ in plan:
         try:
             parent = open_child(root, parts[:-1])
@@ -128,13 +190,27 @@ def check_existing_destinations(root, plan):
             continue
         try:
             check_leaf(parent, parts[-1], directory)
+            # Check existing parent chains too: inherited/default ACLs matter.
+            check_metadata(parent)
+            try:
+                leaf = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+            except FileNotFoundError:
+                leaf = None
+            if leaf is not None:
+                try:
+                    check_metadata(leaf)
+                finally:
+                    os.close(leaf)
         finally:
             os.close(parent)
 
 
-def write_member(parent, name, source, size, metadata=None):
+def write_member(parent, name, source, size, metadata=None, limits=None):
     """Never truncate an existing file, even on CRC/read/write failures."""
     check_leaf(parent, name, False)
+    if limits is not None:
+        limits.check_time()
+        check_space(parent, size, limits)
     if metadata is None:
         try:
             previous = os.stat(name, dir_fd=parent, follow_symlinks=False)
@@ -155,6 +231,9 @@ def write_member(parent, name, source, size, metadata=None):
         with os.fdopen(fd, "wb") as output:
             copied = 0
             while True:
+                if limits is not None:
+                    limits.check_time()
+                    check_space(parent, min(1024 * 1024, size - copied), limits)
                 block = source.read(1024 * 1024)
                 if not block:
                     break
@@ -187,21 +266,24 @@ def write_member(parent, name, source, size, metadata=None):
             pass
 
 
-def extract_archive(source_path, destination, kind):
+def extract_archive(source_path, destination, kind, limits=None):
     if kind not in ("tar", "zip"):
         raise ValueError("Unknown archive format")
+    limits = limits or Limits()
     source_fd = os.open(source_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(source_fd, "rb") as source, contextlib.ExitStack() as stack:
         if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
             raise ValueError("Archive must be a regular file")
         archive = stack.enter_context(zipfile.ZipFile(source) if kind == "zip" else tarfile.open(fileobj=source, mode="r:*"))
-        plan = plan_members(archive)
+        plan = plan_members(archive, limits)
         create_mode = 0o755 if kind == "zip" else 0o700
         root = open_directory(destination, create_mode)
         stack.callback(os.close, root)
+        check_space(root, sum(entry[2] for entry in plan), limits)
         check_existing_destinations(root, plan)
         directories = []
         for parts, directory, size, item in plan:
+            limits.check_time()
             parent = open_child(root, parts if directory else parts[:-1], create=True, create_mode=create_mode)
             try:
                 if directory:
@@ -211,7 +293,7 @@ def extract_archive(source_path, destination, kind):
                     stream = archive.open(item) if kind == "zip" else archive.extractfile(item)
                     with stream:
                         metadata = (item.mode, item.uid, item.gid, item.mtime) if kind == "tar" else None
-                        write_member(parent, parts[-1], stream, size, metadata)
+                        write_member(parent, parts[-1], stream, size, metadata, limits)
             finally:
                 os.close(parent)
         for parts, item in sorted(directories, key=lambda entry: len(entry[0]), reverse=True):
@@ -225,5 +307,6 @@ def extract_archive(source_path, destination, kind):
 
 
 if __name__ == "__main__":
+    configure_process_limits()
     extract_archive(sys.argv[1], sys.argv[2], sys.argv[3])
     print("__UG_RESTORE_DONE__")
