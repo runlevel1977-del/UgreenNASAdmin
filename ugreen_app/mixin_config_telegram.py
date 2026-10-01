@@ -32,6 +32,7 @@ from email.mime.text import MIMEText
 import nas_ssh
 import nas_utils
 from ugreen_app.private_json import write_private_json
+from ugreen_app.secret_settings import read_settings_json, write_settings_json
 from ugreen_app._paramiko import _paramiko
 from ugreen_app import keyring_helper
 
@@ -1914,8 +1915,7 @@ if __name__ == "__main__":
         p = self._app_settings_path()
         if os.path.isfile(p):
             try:
-                with open(p, encoding="utf-8") as f:
-                    loaded = json.load(f)
+                loaded = read_settings_json(p)
                 if isinstance(loaded, dict):
                     raw = loaded
                     for sec in (
@@ -2370,8 +2370,7 @@ if __name__ == "__main__":
                 leg_p = os.path.join(self._app_data_dir(), "qnap_smb_prefs.json")
                 if os.path.isfile(leg_p):
                     try:
-                        with open(leg_p, encoding="utf-8") as f:
-                            leg = json.load(f)
+                        leg = read_settings_json(leg_p)
                         if isinstance(leg, dict) and str(leg.get("host") or "").strip():
                             smb0["host"] = str(leg.get("host") or "").strip()
                             smb0["user"] = str(leg.get("user") or "").strip()
@@ -2399,7 +2398,7 @@ if __name__ == "__main__":
         try:
             # Verbindungsdaten parallel in die bestehende Connection-Datei schreiben.
             self._save_connection_config_clicked()
-            write_private_json(path, cfg)
+            write_settings_json(path, cfg)
             try:
                 self.ensure_script_notify_runner_on_nas(cfg)
             except Exception:
@@ -2465,8 +2464,7 @@ if __name__ == "__main__":
             base = {}
         else:
             try:
-                with open(p, encoding="utf-8") as f:
-                    base = json.load(f)
+                base = read_settings_json(p)
             except Exception:
                 base = {}
         tok, cid = self._settings_telegram_creds()
@@ -2539,7 +2537,7 @@ if __name__ == "__main__":
             return
         path = os.path.abspath(self._telegram_config_path())
         try:
-            write_private_json(path, cfg)
+            write_settings_json(path, cfg)
         except Exception as e:
             messagebox.showerror(self.t("msg.telegram"), self.t("msg.telegram_save_failed", e=e))
             return

@@ -7,7 +7,7 @@ import os
 import sys
 import threading
 from pathlib import Path
-from ugreen_app.private_json import write_private_json
+from ugreen_app.secret_settings import read_settings_json, write_settings_json
 
 import tkinter as tk
 from tkinter import messagebox
@@ -36,8 +36,7 @@ class MixinNasWatchDeploy:
         if not os.path.isfile(p):
             return {}
         try:
-            with open(p, encoding="utf-8") as f:
-                return json.load(f)
+            return read_settings_json(p)
         except Exception:
             return {}
 
@@ -63,7 +62,7 @@ class MixinNasWatchDeploy:
             "docker_ignore": self.entry_nw_ignore.get().strip(),
             "docker_auto_restart": self.entry_nw_autorestart.get().strip(),
         }
-        write_private_json(p, data)
+        write_settings_json(p, data)
 
     def _nas_watch_apply_local_to_ui(self, d: dict) -> None:
         ch = (d.get("notify_channel") or "telegram").strip().lower()
@@ -338,8 +337,7 @@ class MixinNasWatchDeploy:
         if not os.path.isfile(p):
             return {}
         try:
-            with open(p, encoding="utf-8") as f:
-                return json.load(f)
+            return read_settings_json(p)
         except Exception:
             return {}
 
@@ -349,7 +347,7 @@ class MixinNasWatchDeploy:
             "daily_report_enabled": bool(self.var_daily_enabled.get()),
             "telegram_compact": bool(getattr(self, "var_daily_telegram_compact", tk.BooleanVar(value=True)).get()),
         }
-        write_private_json(p, data)
+        write_settings_json(p, data)
 
     def _daily_report_apply_local_to_ui(self, d: dict) -> None:
         self.var_daily_enabled.set(bool(d.get("daily_report_enabled", False)))

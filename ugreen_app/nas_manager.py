@@ -136,6 +136,14 @@ class NASManager(
 
         self._init_danger_lock_state()
         self.setup_ui()
+        from ugreen_app.secret_settings import migrate_settings_directory
+        failed_settings = migrate_settings_directory(self._app_data_dir())
+        if failed_settings:
+            messagebox.showwarning(
+                self.t("settings.title"),
+                self.t("settings.vault_migration_failed", files=", ".join(failed_settings)),
+                parent=self.root,
+            )
         self._load_connection_config()
         self._apply_main_window_geometry(initial=True)
         self._finalize_installer_ui_lang_hint()

@@ -18,11 +18,43 @@ Die Tests verwenden ausschließlich künstliche Konfigurationen und simulierte
 Netzwerkfehler. Bestehende Tresor-Regressionstests bleiben Bestandteil der Prüfung.
 Es werden keine Benachrichtigungen gesendet und keine echten Tresore geöffnet.
 
-Die bestehende bewusste Speicherung von Telegram-/SMTP-Zugangsdaten in lokalen
-JSON-Dateien wird dadurch nicht verschlüsselt. Die verdeckte Anzeige im UI ist
-kein Tresor. Eine vollständige Migration aller weiteren Geheimnisse einschließlich
-NAS-seitiger unbeaufsichtigter Helfer benötigt ein eigenes kompatibles
-Speicher-/Migrationskonzept; alte Dateien werden nicht automatisch gelöscht.
-Mehrere JSON-Dateien und Tresoränderungen bilden weiterhin keine gemeinsame
-Transaktion. Vorhandene Diagnose-/Exportpfade außerhalb der geprüften
-Benachrichtigungstransporte sind nicht pauschal als geheimnisfrei bestätigt.
+Telegram-Token, SMTP-Passwörter und Passwörter weiterer NAS-/SMB-Profile werden
+jetzt ebenfalls im nativen OS-Tresor gespeichert. Lokale JSON-Dateien enthalten
+nur zufällige Referenzen. Ein Klartext-Dateibackend wird nicht akzeptiert;
+unter Windows wird der native Credential Manager verwendet. Für andere
+Plattformen werden die nativen macOS-/SecretService-/KWallet-/libsecret-Backends
+akzeptiert; generische Chainer-/Fremdbackends werden konservativ abgewiesen.
+
+Die aktiven app_settings-, Telegram-, Wächter-, Tagesbericht- und alten
+qnap_smb_prefs-Dateien werden beim Laden bzw. Start übernommen. Erst nach
+Tresor-Schreiben, Rücklesen und atomarem Dateiersatz verschwindet Klartext.
+Fehler lassen die bisherige Datei bestehen. Nach einem Ladefehler bleibt
+Speichern gesperrt, bis dieselbe Datei erfolgreich neu geladen wurde; dadurch
+können UI-Ersatzwerte keine nicht verfügbaren Geheimnisse überschreiben.
+Auch Fensterposition, Docker- und Lüftereinstellungen verwenden denselben
+Speicherweg. Unveränderte Geheimnisse behalten ihre Referenz. Geänderte Werte
+bekommen neue Referenzen, damit ein fehlgeschlagener Dateiersatz den bisherigen
+Tresorwert nicht verändert. Nur beim aktuellen Fehlschlag neu angelegte
+Einträge werden bereinigt; ältere Tresoreinträge bleiben für vorhandene
+Konfigurationskopien erhalten.
+
+Migration und Sicherung: JSON allein ist kein transportables Credential-Backup
+mehr. Auf einem anderen Benutzerkonto/PC müssen Geheimnisse neu eingegeben
+oder über die Wiederherstellungsfunktion des jeweiligen OS-Tresors übernommen
+werden. Alte App-Versionen verstehen die Referenzen nicht. Historische Kopien
+in anderen Ordnern/Backups werden nicht durchsucht oder gelöscht; nach
+geprüfter Migration müssen Benutzer dortige Klartextkopien separat behandeln.
+Ein fehlender Tresor blockiert Migration/Speichern statt auf Klartext auszuweichen.
+
+NAS-seitige unbeaufsichtigte Helfer können den PC-Tresor nicht verwenden. Ihre
+notwendigen Laufzeit-Geheimnisse werden weiterhin erst zur Bereitstellung
+aufgelöst und in root-geschützten NAS-Dateien abgelegt (0600/privater Ordner).
+PR #18 schützt den Transport über stdin. Kein echter Tresor, NAS-Zugang oder
+Benachrichtigungsdienst wurde für die Tests geöffnet.
+
+Elf zusätzliche Offline-Tests prüfen Migration, Referenzwiederverwendung,
+Lesefehler, fehlende Geheimnisse, Rücklesefehler, fehlgeschlagenen Dateiersatz,
+Legacy-Dateien und den echten Docker-Einstellungsspeicherweg. Die bisherigen
+neun Datei-/Fehlermeldungstests und 22 SSH-Tresortests bleiben bestehen.
+Mehrere Dateien und Tresoränderungen bilden keine gemeinsame Transaktion;
+externe parallele App-Instanzen werden nicht global gesperrt.
