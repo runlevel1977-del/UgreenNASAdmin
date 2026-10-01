@@ -39,6 +39,8 @@ def _self_signed_pem() -> str:
 
 class TestUgosTlsCerts(unittest.TestCase):
     def setUp(self) -> None:
+        ugos_tls_certs.set_cert_confirm_callback(lambda *args: True)
+        self.addCleanup(ugos_tls_certs.set_cert_confirm_callback, None)
         self._tmpdir = tempfile.TemporaryDirectory()
         path = Path(self._tmpdir.name) / "ugos_tls_certs.json"
         ugos_tls_certs.set_store_path(path)

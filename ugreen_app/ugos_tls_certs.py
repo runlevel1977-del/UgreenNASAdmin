@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""UGOS HTTPS certificate store (TOFU): trust first cert, reject later changes."""
+"""UGOS HTTPS pins: confirm first trust, reject later certificate changes."""
 from __future__ import annotations
 
 import base64
@@ -10,10 +10,21 @@ import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 _lock = threading.RLock()
 _store_path: Path | None = None
+_confirm_cb: Callable[[str, int, str], bool] | None = None
+
+
+class TlsCertRejectedError(Exception):
+    """No independently checked first-contact approval was provided."""
+
+
+def set_cert_confirm_callback(cb: Callable[[str, int, str], bool] | None) -> None:
+    global _confirm_cb
+    with _lock:
+        _confirm_cb = cb
 
 
 class TlsCertStoreError(Exception):
@@ -50,6 +61,7 @@ class TlsCertEntry:
     pem: str
     fingerprint: str
     first_seen: str
+    confirmed: bool = False
 
 
 def fingerprint_der(der: bytes) -> str:
@@ -125,10 +137,13 @@ def get_entry(host: str, port: int) -> TlsCertEntry | None:
             fp = fingerprint_pem(pem)
             if "fingerprint" in item and item["fingerprint"] != fp:
                 raise ValueError("certificate fingerprint mismatch")
+            if type(item.get("confirmed", False)) is not bool:
+                raise ValueError("invalid certificate confirmation")
             return TlsCertEntry(
                 pem=pem,
                 fingerprint=fp,
                 first_seen=str(item.get("first_seen") or ""),
+                confirmed=item.get("confirmed", False),
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise TlsCertStoreError("Invalid saved TLS certificate; existing trust was not reset.") from exc
@@ -143,6 +158,7 @@ def trust_pem(host: str, port: int, pem: str) -> TlsCertEntry:
         pem=text,
         fingerprint=fingerprint_pem(text),
         first_seen=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        confirmed=True,
     )
     with _lock:
         raw = _load_raw()
@@ -151,6 +167,7 @@ def trust_pem(host: str, port: int, pem: str) -> TlsCertEntry:
             "pem": entry.pem,
             "fingerprint": entry.fingerprint,
             "first_seen": entry.first_seen,
+            "confirmed": True,
         }
         _save_raw(raw)
     return entry
@@ -191,15 +208,35 @@ def ssl_context_tofu(host: str, port: int, *, timeout: float = 15.0) -> ssl.SSLC
     """
     Build a verifying SSLContext and expose the expected leaf fingerprint.
 
-    First contact stores the cert; later contacts verify against the pin
+    First contact requires explicit confirmation; later contacts verify the pin
     (self-signed UGOS works without a custom CA on the PC).
     """
     h = (host or "").strip()
     p = int(port)
     with _lock:
         entry = get_entry(h, p)
-        if entry is None:
-            pem = fetch_server_cert_pem(h, p, timeout=timeout)
+        cb = _confirm_cb
+    if entry is None or not entry.confirmed:
+        if cb is None:
+            raise TlsCertRejectedError("TLS certificate needs fingerprint confirmation before login.")
+        # Old automatically accepted pins also need confirmation, never replacement.
+        pem = entry.pem if entry else fetch_server_cert_pem(h, p, timeout=timeout)
+        fp = fingerprint_pem(pem)
+        probe = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        probe.load_verify_locations(cadata=pem)
+        try:
+            accepted = bool(cb(h, p, fp))
+        except Exception:
+            accepted = False
+        if not accepted:
+            raise TlsCertRejectedError("TLS certificate fingerprint was not confirmed; login aborted.")
+        # Never hold the store lock while waiting for the UI. Recheck after consent.
+        with _lock:
+            current = get_entry(h, p)
+            if entry is not None and current is None:
+                raise TlsCertStoreError("TLS trust changed during confirmation; retry explicitly.")
+            if current is not None and current.fingerprint != fp:
+                raise TlsCertChangedError(h, p, current.fingerprint, fp)
             entry = trust_pem(h, p, pem)
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     ctx.check_hostname = False
