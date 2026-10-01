@@ -229,9 +229,16 @@ class MixinConfigTelegram:
         d["port"] = self.entry_port.get().strip() if hasattr(self, "entry_port") else d.get("port", "22")
         d["user"] = self.entry_user.get().strip() if hasattr(self, "entry_user") else d.get("user", "")
         d["password"] = self.entry_pwd.get() if hasattr(self, "entry_pwd") else d.get("password", "")
+        vault_value = getattr(self, "_connection_vault_value", None)
+        if vault_value == (d["ip"].strip(), d["user"].strip(), d["password"]):
+            # The entry needs the secret for authentication, but a value read
+            # from (or just saved to) the vault must not return to plain JSON.
+            d["password"] = ""
         d["ssh_use_key"] = bool(self.var_ssh_use_key.get()) if hasattr(self, "var_ssh_use_key") else d.get("ssh_use_key", False)
         d["ssh_key_path"] = self.entry_ssh_key_path.get().strip() if hasattr(self, "entry_ssh_key_path") else d.get("ssh_key_path", "")
         d["ssh_key_passphrase"] = self.entry_ssh_key_pass.get() if hasattr(self, "entry_ssh_key_pass") else d.get("ssh_key_passphrase", "")
+        if getattr(self, "_connection_vault_passphrase", None) == (d["ip"].strip(), d["user"].strip(), d["ssh_key_passphrase"]):
+            d["ssh_key_passphrase"] = ""
         if hasattr(self, "entry_docker_compose"):
             dc = self.entry_docker_compose.get().strip()
             if dc:
@@ -241,6 +248,8 @@ class MixinConfigTelegram:
     def _connection_apply_profile_to_ui(self, prof):
         if not hasattr(self, "entry_ip"):
             return
+        self._connection_vault_value = None
+        self._connection_vault_passphrase = None
         self.entry_ip.delete(0, tk.END)
         self.entry_ip.insert(0, str(prof.get("ip") or ""))
         self.entry_port.delete(0, tk.END)
@@ -253,6 +262,7 @@ class MixinConfigTelegram:
             kr = keyring_helper.get_ssh_password(str(prof["ip"]).strip(), str(prof["user"]).strip())
             if kr:
                 pw = kr
+                self._connection_vault_value = (str(prof["ip"]).strip(), str(prof["user"]).strip(), pw)
         self.entry_pwd.insert(0, pw)
         if hasattr(self, "var_ssh_use_key"):
             self.var_ssh_use_key.set(bool(prof.get("ssh_use_key", False)))
@@ -268,6 +278,7 @@ class MixinConfigTelegram:
                 )
                 if kr_pp:
                     pp = kr_pp
+                    self._connection_vault_passphrase = (str(prof["ip"]).strip(), str(prof["user"]).strip(), pp)
             self.entry_ssh_key_pass.insert(0, pp)
         if hasattr(self, "entry_docker_compose"):
             self.entry_docker_compose.delete(0, tk.END)
@@ -514,27 +525,28 @@ class MixinConfigTelegram:
         with open(p, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
 
-    def _profiles_sanitized_for_disk(self) -> list:
-        """Copy profiles for JSON; never write SSH password or key passphrase to disk."""
+    def _profiles_sanitized_for_disk(self, profiles=None) -> list:
+        """Copy profiles without secrets; failed vault writes abort before JSON."""
         out: list = []
         use_vault = keyring_helper.keyring_available()
-        for prof in getattr(self, "_connection_profiles", []) or []:
+        source = getattr(self, "_connection_profiles", []) if profiles is None else profiles
+        for prof in source or []:
             if not isinstance(prof, dict):
                 continue
             d = dict(prof)
             host = str(d.get("ip") or "").strip()
             user = str(d.get("user") or "").strip()
-            pw = str(d.get("password") or "")
-            pp = str(d.get("ssh_key_passphrase") or "")
-            if use_vault and host and user:
-                if pw:
-                    keyring_helper.set_ssh_password(host, user, pw)
-                    prof["password"] = ""
-                if pp:
-                    keyring_helper.set_ssh_key_passphrase(host, user, pp)
-                    prof["ssh_key_passphrase"] = ""
-            d["password"] = ""
-            d["ssh_key_passphrase"] = ""
+            for field, marker, setter in (
+                ("password", "_connection_vault_value", keyring_helper.set_ssh_password),
+                ("ssh_key_passphrase", "_connection_vault_passphrase", keyring_helper.set_ssh_key_passphrase),
+            ):
+                value = str(d.get(field) or "")
+                if value and getattr(self, marker, None) != (host, user, value):
+                    if not use_vault or not host or not user:
+                        raise RuntimeError(self.t("keyring.required_to_save"))
+                    if not setter(host, user, value):
+                        raise RuntimeError(self.t("keyring.failed"))
+                d[field] = ""
             out.append(d)
         return out
 
@@ -592,6 +604,7 @@ class MixinConfigTelegram:
             messagebox.showinfo(self.t("msg.connection"), self.t("keyring.need_host"))
             return
         if keyring_helper.set_ssh_password(host, user, pwd):
+            self._connection_vault_value = (host, user, pwd)
             messagebox.showinfo(self.t("msg.connection"), self.t("keyring.stored"))
             self.set_status(self.t("keyring.stored"))
         else:
@@ -1026,54 +1039,37 @@ class MixinConfigTelegram:
             prof = self._connection_profile_dict_from_ui()
             host = str(prof.get("ip") or "").strip()
             user = str(prof.get("user") or "").strip()
-            pwd = str(prof.get("password") or "")
-            passphrase = str(prof.get("ssh_key_passphrase") or "")
+            secrets = (
+                ("password", "entry_pwd", "_connection_vault_value", keyring_helper.delete_ssh_password),
+                ("ssh_key_passphrase", "entry_ssh_key_pass", "_connection_vault_passphrase", keyring_helper.delete_ssh_key_passphrase),
+            )
+            profiles = list(self._connection_profiles)
+            profiles[self._connection_active_index] = prof
+            profiles = self._profiles_sanitized_for_disk(profiles)
+            markers = {}
             used_keyring = False
-            if host and user and (pwd or passphrase) and not keyring_helper.keyring_available():
-                messagebox.showerror(
-                    self.t("msg.connection"),
-                    self.t("keyring.required_to_save"),
-                    parent=getattr(self, "root", None),
-                )
-                return
-            if host and user:
-                if pwd:
-                    if keyring_helper.set_ssh_password(host, user, pwd):
-                        prof["password"] = ""
-                        used_keyring = True
-                    else:
-                        messagebox.showerror(
-                            self.t("msg.connection"),
-                            self.t("keyring.failed"),
-                            parent=getattr(self, "root", None),
-                        )
-                        return
-                elif keyring_helper.keyring_available():
-                    keyring_helper.delete_ssh_password(host, user)
-                if passphrase:
-                    if keyring_helper.set_ssh_key_passphrase(host, user, passphrase):
-                        prof["ssh_key_passphrase"] = ""
-                        used_keyring = True
-                    else:
-                        messagebox.showerror(
-                            self.t("msg.connection"),
-                            self.t("keyring.failed"),
-                            parent=getattr(self, "root", None),
-                        )
-                        return
-                elif keyring_helper.keyring_available():
-                    keyring_helper.delete_ssh_key_passphrase(host, user)
-            # Never persist secrets in JSON
-            prof["password"] = ""
-            prof["ssh_key_passphrase"] = ""
-            self._connection_profiles[self._connection_active_index] = prof
+            for field, widget, marker, deleter in secrets:
+                value = getattr(self, widget).get() if hasattr(self, widget) else str(prof.get(field) or "")
+                previous = getattr(self, marker, None)
+                if value:
+                    markers[marker] = (host, user, value)
+                    used_keyring = True
+                else:
+                    # Empty disk fields refer to the vault. Only an explicit
+                    # UI clear of a loaded secret is a request to delete it.
+                    if previous and previous[:2] == (host, user) and not deleter(host, user):
+                        raise RuntimeError(self.t("keyring.failed"))
+                    markers[marker] = None
             payload = {
-                "profiles": self._profiles_sanitized_for_disk(),
+                "profiles": profiles,
                 "active_profile": int(self._connection_active_index),
                 "ui_lang": getattr(self, "ui_lang", "de"),
             }
             with open(p, "w", encoding="utf-8") as f:
                 json.dump(payload, f, indent=2)
+            self._connection_profiles = profiles
+            for marker, value in markers.items():
+                setattr(self, marker, value)
             if used_keyring:
                 status = self.t("msg.connection_saved_keyring", name=os.path.basename(p))
             else:
