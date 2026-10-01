@@ -2312,8 +2312,13 @@ class MixinTabsSetup:
                         raise FileNotFoundError(src)
                     if not hasattr(self, "_upload_local_file_via_ssh_cat"):
                         raise RuntimeError("upload helper unavailable")
-                    tmp_remote = f"/tmp/ug_restore_{int(time.time())}.tar.gz"
-                    self.run_ssh_cmd(f"/bin/mkdir -p /tmp", True, update_status=False)
+                    temporary = self.run_ssh_cmd_ex(
+                        "mktemp /tmp/ug_restore_XXXXXXXXXXXX.tar", False, update_status=False
+                    )
+                    candidate = str(temporary.output or "").strip()
+                    if not temporary.ok or not re.fullmatch(r"/tmp/ug_restore_[A-Za-z0-9]{12}\.tar", candidate):
+                        raise RuntimeError("Restore-Upload: temporäre Datei konnte nicht angelegt werden / cannot create temporary file")
+                    tmp_remote = candidate
                     self._upload_local_file_via_ssh_cat(src, tmp_remote)
                     remote_src = tmp_remote
                 else:
@@ -2325,16 +2330,20 @@ class MixinTabsSetup:
                     f"DST={shlex.quote(dst)}; "
                     'if [ ! -f "$SRC" ]; then echo "__UG_RESTORE_NOFILE__"; exit 2; fi; '
                     'mkdir -p "$DST"; '
-                    'tar -xzf "$SRC" -C "$DST" 2>/tmp/.ug_restore_err.$$ || tar -xf "$SRC" -C "$DST" 2>/tmp/.ug_restore_err.$$; '
-                    'echo "__UG_RESTORE_DONE__"; '
-                    'rm -f /tmp/.ug_restore_err.$$ 2>/dev/null || true'
+                    # tar detects the compression from the archive. A failed
+                    # extraction must not be retried over a partially changed tree.
+                    'tar -xf "$SRC" -C "$DST"; '
+                    'echo "__UG_RESTORE_DONE__"'
                 )
-                out = str(self.run_ssh_cmd("/bin/bash -lc " + shlex.quote(inner), True, update_status=False) or "")
-                if "__UG_RESTORE_DONE__" not in out:
+                result = self.run_ssh_cmd_ex(
+                    "/bin/bash -lc " + shlex.quote(inner), True, update_status=False, long_running=True
+                )
+                out = str(result.output or "")
+                if not result.ok or "__UG_RESTORE_DONE__" not in out:
                     raise RuntimeError(out.strip() or "restore failed")
                 self.root.after(0, lambda: self._backup_log(self.t("backup.restore_done", dst=dst)))
             except Exception as e:
-                self.root.after(0, lambda: self._backup_log(self.t("backup.restore_failed", err=str(e))))
+                self.root.after(0, lambda detail=str(e): self._backup_log(self.t("backup.restore_failed", err=detail)))
             finally:
                 if tmp_remote:
                     try:

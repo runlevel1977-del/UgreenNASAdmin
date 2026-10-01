@@ -32,7 +32,7 @@ Dateinamensfilter allein ersetzt diese Zuordnung nicht.
 
 ## Prüfung und Grenzen
 
-Die Korrektur baut auf PR #5 (Fehlerbehandlung und temporäre Archive) auf.
+Die Korrektur ergänzt die Fehlerbehandlung und temporären Archive in PR #5.
 Acht Backup-Tests bestehen gemeinsam: Fehler-/Abbruchfälle, erfolgreiche
 wiederholte geplante Läufe sowie vier gleichzeitig gestartete manuelle Läufe.
 Alle Inhalte sind künstlich; tar ist ein Stub. Fremde und alte Archive bleiben
