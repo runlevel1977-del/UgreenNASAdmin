@@ -2355,7 +2355,9 @@ class MixinTabsSetup:
         os.makedirs(local_dir, exist_ok=True)
         host = self.entry_ip.get().strip() if hasattr(self, "entry_ip") else ""
         user = self.entry_user.get().strip() if hasattr(self, "entry_user") else ""
-        pwd = self.entry_pwd.get() if hasattr(self, "entry_pwd") else ""
+        pwd = self._get_effective_ssh_password() if hasattr(self, "_get_effective_ssh_password") else (
+            self.entry_pwd.get() if hasattr(self, "entry_pwd") else ""
+        )
         auth = self._ssh_auth_payload() if hasattr(self, "_ssh_auth_payload") else {}
         local_path = os.path.join(local_dir, os.path.basename(remote_file.rstrip("/")) or "backup.tar.gz")
         self._ssh_mgr.pull_remote_file_via_exec(
@@ -3383,6 +3385,20 @@ class MixinTabsSetup:
             self._settings_install_pubkey_dialog,
             self.color_btn_secondary,
             width=26,
+        ).pack(side=tk.LEFT, padx=(0, 8))
+        self.create_modern_btn(
+            conn_row2,
+            self.t("settings.forget_host_key_btn"),
+            self._forget_ssh_host_key_clicked,
+            self.color_btn_secondary,
+            width=22,
+        ).pack(side=tk.LEFT, padx=(0, 8))
+        self.create_modern_btn(
+            conn_row2,
+            self.t("settings.forget_tls_cert_btn"),
+            self._forget_ugos_tls_cert_clicked,
+            self.color_btn_secondary,
+            width=22,
         ).pack(side=tk.LEFT)
         conn_row3 = tk.Frame(conn_btns, bg=self.color_surface)
         conn_row3.pack(anchor="w", fill=tk.X, pady=(6, 0))
@@ -3418,6 +3434,7 @@ class MixinTabsSetup:
             conn_row3,
             text=self.t("settings.ugos_api_https"),
             variable=self.var_settings_ugos_api_https,
+            command=self._ugos_api_ssl_hint_refresh,
             bg=self.color_surface,
             fg=self.color_text,
             selectcolor=self.color_surface,
@@ -3429,12 +3446,31 @@ class MixinTabsSetup:
             conn_row3,
             text=self.t("settings.ugos_api_verify_ssl"),
             variable=self.var_settings_ugos_api_verify_ssl,
+            command=self._ugos_api_ssl_hint_refresh,
             bg=self.color_surface,
-            fg=self.color_text_muted,
+            fg=self.color_text,
             selectcolor=self.color_surface,
             activebackground=self.color_surface,
             font=("Segoe UI", 8),
         ).pack(side=tk.LEFT)
+
+        conn_row3b = tk.Frame(conn_btns, bg=self.color_surface)
+        conn_row3b.pack(anchor="w", fill=tk.X, pady=(2, 0))
+        self.lbl_ugos_api_ssl_hint = tk.Label(
+            conn_row3b,
+            text="",
+            bg=self.color_surface,
+            fg=getattr(self, "color_warn", "#b45309"),
+            font=("Segoe UI", 8),
+            wraplength=560,
+            justify=tk.LEFT,
+            anchor="w",
+        )
+        self.lbl_ugos_api_ssl_hint.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        try:
+            self._ugos_api_ssl_hint_refresh()
+        except Exception:
+            pass
 
         conn_row4 = tk.Frame(conn_btns, bg=self.color_surface)
         conn_row4.pack(anchor="w", fill=tk.X, pady=(6, 0))

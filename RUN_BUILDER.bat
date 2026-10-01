@@ -10,7 +10,13 @@ echo ==========================================
 set "PYTHON_EXE="
 where py >nul 2>nul
 if %errorlevel%==0 (
-    set "PYTHON_EXE=py -3"
+    rem Prefer 3.12 — PyInstaller + python3xx.dll is unstable on 3.13/3.14
+    py -3.12 -c "import sys" >nul 2>nul
+    if %errorlevel%==0 (
+        set "PYTHON_EXE=py -3.12"
+    ) else (
+        set "PYTHON_EXE=py -3"
+    )
 ) else (
     where python >nul 2>nul
     if %errorlevel%==0 set "PYTHON_EXE=python"
@@ -19,7 +25,8 @@ if %errorlevel%==0 (
 if "%PYTHON_EXE%"=="" (
     echo.
     echo [FEHLER] Kein Python im PATH gefunden.
-    echo Bitte Python installieren oder PATH korrigieren.
+    echo Bitte Python 3.12 installieren oder PATH korrigieren.
+    echo Optional: set UGREEN_BUILD_PYTHON=C:\Pfad\zu\python.exe
     pause
     exit /b 1
 )

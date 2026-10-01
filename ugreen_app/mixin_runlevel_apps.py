@@ -371,7 +371,7 @@ class MixinRunlevelApps:
         return self._runlevel_ssh.run_ex(
             self.entry_ip.get(),
             self.entry_user.get(),
-            self.entry_pwd.get(),
+            self._get_effective_ssh_password(),
             cmd,
             ssh_port=auth["ssh_port"],
             ssh_use_key=auth["ssh_use_key"],

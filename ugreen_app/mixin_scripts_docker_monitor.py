@@ -311,7 +311,7 @@ class MixinScriptsDockerMonitor:
     ):
         kwargs = {
             "username": self.entry_user.get(),
-            "password": self.entry_pwd.get(),
+            "password": self._get_effective_ssh_password(),
             "port": self._get_ssh_port(),
             "timeout": timeout,
             "look_for_keys": look_for_keys,
@@ -338,6 +338,30 @@ class MixinScriptsDockerMonitor:
             t.set_keepalive(max(5, min(120, int(interval_sec))))
         except Exception:
             pass
+
+    def _prepare_ssh_client(self, ssh, host: str | None = None, port: int | None = None) -> None:
+        """TOFU host-key policy for ad-hoc SSHClient instances."""
+        import nas_ssh
+
+        h = (host if host is not None else self.entry_ip.get()).strip()
+        p = int(port if port is not None else self._get_ssh_port())
+        nas_ssh.prepare_ssh_client(ssh, h, p)
+
+    def _ssh_connect_with_host_keys(self, ssh, host: str | None = None, **connect_kwargs):
+        """connect() with TOFU policy; remaps BadHostKeyException to HostKeyChangedError."""
+        import nas_ssh
+        from ugreen_app.ssh_host_keys import HostKeyChangedError
+
+        h = (host if host is not None else self.entry_ip.get()).strip()
+        port = int(connect_kwargs.get("port") or self._get_ssh_port())
+        self._prepare_ssh_client(ssh, h, port)
+        try:
+            ssh.connect(h, **connect_kwargs)
+        except Exception as exc:
+            pk = _paramiko()
+            if isinstance(exc, pk.BadHostKeyException):
+                raise HostKeyChangedError.from_bad_host_key(h, port, exc) from exc
+            raise
 
     def schedule_update_human_text(self):
         """Cron-Klartext: Tastatur-Events entprellen (weniger UI-Last beim Tippen)."""
@@ -734,7 +758,7 @@ class MixinScriptsDockerMonitor:
     def _docker_log_tail_worker(self, container_name: str):
         pk = _paramiko()
         ssh = pk.SSHClient()
-        ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
+        self._prepare_ssh_client(ssh)
         stop_ev = getattr(self, "_docker_tail_stop_event", None)
         try:
             ssh.connect(self.entry_ip.get().strip(), **self._ssh_connect_kwargs(timeout=25, banner_timeout=45, auth_timeout=45))
@@ -857,7 +881,7 @@ class MixinScriptsDockerMonitor:
         return self._ssh_mgr.run(
             self.entry_ip.get(),
             self.entry_user.get(),
-            self.entry_pwd.get(),
+            self._get_effective_ssh_password(),
             cmd,
             ssh_port=auth["ssh_port"],
             ssh_use_key=auth["ssh_use_key"],
@@ -879,7 +903,7 @@ class MixinScriptsDockerMonitor:
         return self._ssh_mgr.run_ex(
             self.entry_ip.get(),
             self.entry_user.get(),
-            self.entry_pwd.get(),
+            self._get_effective_ssh_password(),
             cmd,
             ssh_port=auth["ssh_port"],
             ssh_use_key=auth["ssh_use_key"],
@@ -2635,7 +2659,7 @@ class MixinScriptsDockerMonitor:
         full = f"sudo -S bash -lc {nas_ssh.quote_remote_bash_lc(inner)}"
         stdin, stdout, stderr = ssh.exec_command(full)
         try:
-            stdin.write((self.entry_pwd.get() or "") + "\n")
+            stdin.write((self._get_effective_ssh_password() or "") + "\n")
             stdin.flush()
             try:
                 stdin.channel.shutdown_write()
@@ -3885,7 +3909,7 @@ class MixinScriptsDockerMonitor:
         try:
             pk = _paramiko()
             ssh = pk.SSHClient()
-            ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
+            self._prepare_ssh_client(ssh)
             ssh.connect(
                 self.entry_ip.get(),
                 **self._ssh_connect_kwargs(timeout=5, banner_timeout=20, auth_timeout=20),
@@ -5089,7 +5113,7 @@ echo "$max"
             while not w._webcam_preview_stop.is_set():
                 if ssh is None:
                     ssh = pk.SSHClient()
-                    ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
+                    self._prepare_ssh_client(ssh)
                     try:
                         ssh.connect(self.entry_ip.get().strip(), **self._ssh_connect_kwargs(timeout=25, banner_timeout=45, auth_timeout=45))
                         self._ssh_transport_keepalive(ssh)

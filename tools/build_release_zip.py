@@ -70,6 +70,8 @@ _SKIP_NAMES = frozenset(
         "nas_daily_report_local.json",
         "transfer_log.txt",
         "last_github_update_check.txt",
+        "ssh_known_hosts.json",
+        "ugos_tls_certs.json",
     }
 )
 
@@ -110,6 +112,13 @@ def main() -> int:
             if src.is_file():
                 shutil.copy2(src, src_root / name)
 
+        # Build helper used by builder.py (Python 3.12 resolver)
+        tools_dst = src_root / "tools"
+        tools_dst.mkdir(parents=True, exist_ok=True)
+        bp = ROOT / "tools" / "build_python.py"
+        if bp.is_file():
+            shutil.copy2(bp, tools_dst / "build_python.py")
+
         # dist: kompletter One-Dir-Ordner (EXE + DLLs)
         dist_dst = src_root / "dist" / "UgreenNASAdmin"
         if dist_dst.exists():
@@ -135,7 +144,9 @@ def main() -> int:
             "source/\n"
             "  Quellcode und Dateien zum Selbstbauen der App (Python + PyInstaller).\n"
             "  Kurz: pip install -r requirements.txt && pip install \"paramiko>=3.0\"\n"
-            "  Optional: pip install keyring  (für PW-Tresor in der App)\n"
+            "  (keyring steht in requirements.txt — Passwort im Windows-Tresor)\n"
+            "  Empfohlen: Python 3.12 (builder.py bevorzugt py -3.12; optional\n"
+            "  UGREEN_BUILD_PYTHON=… setzen). Hilfsmodul: tools/build_python.py\n"
             "  Dann im Ordner source/: python builder.py\n"
             "  Die fertige Portable-EXE liegt zusätzlich unter source/dist/ (Kopie vom Build).\n\n"
             "installer/\n"

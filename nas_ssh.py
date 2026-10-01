@@ -14,6 +14,13 @@ from dataclasses import dataclass
 from typing import Callable, Optional
 import time
 
+from ugreen_app.ssh_host_keys import (
+    HostKeyChangedError,
+    is_host_key_error,
+    prepare_ssh_client,
+    set_store_path as set_host_keys_store_path,
+)
+
 _paramiko_mod = None
 
 
@@ -140,7 +147,7 @@ class SSHManager:
             self._client = None
         pk = _paramiko()
         ssh = pk.SSHClient()
-        ssh.set_missing_host_key_policy(pk.AutoAddPolicy())
+        prepare_ssh_client(ssh, host.strip(), int(ssh_port or 22))
         conn_kwargs = {
             "username": user,
             "password": password,
@@ -157,7 +164,16 @@ class SSHManager:
             conn_kwargs["key_filename"] = key_path
             if ssh_key_passphrase:
                 conn_kwargs["passphrase"] = ssh_key_passphrase
-        ssh.connect(host.strip(), **conn_kwargs)
+        try:
+            ssh.connect(host.strip(), **conn_kwargs)
+        except Exception as exc:
+            if isinstance(exc, pk.BadHostKeyException):
+                raise HostKeyChangedError.from_bad_host_key(
+                    host.strip(), int(ssh_port or 22), exc
+                ) from exc
+            if is_host_key_error(exc):
+                raise
+            raise
         try:
             tr = ssh.get_transport()
             if tr is not None:

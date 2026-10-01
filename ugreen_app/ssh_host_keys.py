@@ -1,0 +1,238 @@
+# -*- coding: utf-8 -*-
+"""SSH host-key store (TOFU): trust first key, reject later changes (MITM protection)."""
+from __future__ import annotations
+
+import base64
+import hashlib
+import json
+import threading
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+_lock = threading.RLock()
+_store_path: Path | None = None
+
+
+class HostKeyChangedError(Exception):
+    """Raised when the remote SSH host key differs from the trusted one."""
+
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        expected_fp: str,
+        got_fp: str,
+    ) -> None:
+        self.host = host
+        self.port = int(port)
+        self.expected_fp = expected_fp
+        self.got_fp = got_fp
+        super().__init__(self.format_message())
+
+    def format_message(self) -> str:
+        return (
+            f"SSH host key changed for {self.host}:{self.port}.\n"
+            f"Trusted:  {self.expected_fp}\n"
+            f"Received: {self.got_fp}\n"
+            "If the NAS was reinstalled, use Settings → Forget SSH host key, then reconnect."
+        )
+
+    @classmethod
+    def from_bad_host_key(cls, host: str, port: int, exc: Any) -> HostKeyChangedError:
+        expected = getattr(exc, "expected_key", None)
+        got = getattr(exc, "key", None)
+        return cls(
+            host,
+            port,
+            fingerprint_sha256(expected) if expected is not None else "?",
+            fingerprint_sha256(got) if got is not None else "?",
+        )
+
+
+@dataclass(frozen=True)
+class HostKeyEntry:
+    key_type: str
+    key_base64: str
+    fingerprint: str
+    first_seen: str
+
+    def to_pkey(self) -> Any:
+        """Rebuild a paramiko PKey from stored base64."""
+        from ugreen_app._paramiko import _paramiko
+
+        pk = _paramiko()
+        data = base64.b64decode(self.key_base64.encode("ascii"))
+        return pk.PKey.from_type_string(self.key_type, data)
+
+
+def fingerprint_sha256(key: Any) -> str:
+    """OpenSSH-style SHA256 fingerprint (unpadded base64)."""
+    digest = hashlib.sha256(key.asbytes()).digest()
+    return "SHA256:" + base64.b64encode(digest).decode("ascii").rstrip("=")
+
+
+def host_port_key(host: str, port: int) -> str:
+    return f"{(host or '').strip().lower()}:{int(port or 22)}"
+
+
+def host_keys_name(host: str, port: int) -> str:
+    """Paramiko HostKeys lookup name."""
+    h = (host or "").strip()
+    p = int(port or 22)
+    if p == 22:
+        return h
+    return f"[{h}]:{p}"
+
+
+def set_store_path(path: str | Path) -> None:
+    """Set JSON path for trusted host keys (call once at app start)."""
+    global _store_path
+    with _lock:
+        _store_path = Path(path)
+
+
+def get_store_path() -> Path:
+    global _store_path
+    with _lock:
+        if _store_path is None:
+            _store_path = Path.home() / ".ugreen_nas_admin_ssh_known_hosts.json"
+        return _store_path
+
+
+def _load_raw() -> dict[str, Any]:
+    path = get_store_path()
+    if not path.is_file():
+        return {"hosts": {}}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"hosts": {}}
+    if not isinstance(data, dict):
+        return {"hosts": {}}
+    hosts = data.get("hosts")
+    if not isinstance(hosts, dict):
+        data["hosts"] = {}
+    return data
+
+
+def _save_raw(data: dict[str, Any]) -> None:
+    path = get_store_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(path)
+
+
+def get_entry(host: str, port: int) -> HostKeyEntry | None:
+    with _lock:
+        raw = _load_raw()
+        item = (raw.get("hosts") or {}).get(host_port_key(host, port))
+        if not isinstance(item, dict):
+            return None
+        try:
+            return HostKeyEntry(
+                key_type=str(item["key_type"]),
+                key_base64=str(item["key_base64"]),
+                fingerprint=str(item["fingerprint"]),
+                first_seen=str(item.get("first_seen") or ""),
+            )
+        except (KeyError, TypeError, ValueError):
+            return None
+
+
+def trust_key(host: str, port: int, key: Any) -> HostKeyEntry:
+    """Persist host key (TOFU / explicit re-trust)."""
+    entry = HostKeyEntry(
+        key_type=str(key.get_name()),
+        key_base64=base64.b64encode(key.asbytes()).decode("ascii"),
+        fingerprint=fingerprint_sha256(key),
+        first_seen=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    )
+    with _lock:
+        raw = _load_raw()
+        hosts = raw.setdefault("hosts", {})
+        hosts[host_port_key(host, port)] = {
+            "key_type": entry.key_type,
+            "key_base64": entry.key_base64,
+            "fingerprint": entry.fingerprint,
+            "first_seen": entry.first_seen,
+        }
+        _save_raw(raw)
+    return entry
+
+
+def forget_host(host: str, port: int) -> bool:
+    """Remove trusted key for host:port. Returns True if an entry was removed."""
+    with _lock:
+        raw = _load_raw()
+        hosts = raw.get("hosts") or {}
+        key = host_port_key(host, port)
+        if key not in hosts:
+            return False
+        del hosts[key]
+        raw["hosts"] = hosts
+        _save_raw(raw)
+        return True
+
+
+class TofuHostKeyPolicy:
+    """Accept unknown keys once and store them; reject changes."""
+
+    def __init__(self, host: str, port: int) -> None:
+        self.host = (host or "").strip()
+        self.port = int(port or 22)
+
+    def missing_host_key(self, client: Any, hostname: str, key: Any) -> None:
+        recorded = get_entry(self.host, self.port)
+        got_fp = fingerprint_sha256(key)
+        if recorded is None:
+            trust_key(self.host, self.port, key)
+            _add_to_client_host_keys(client, self.host, self.port, key)
+            return
+        if recorded.fingerprint == got_fp:
+            _add_to_client_host_keys(client, self.host, self.port, key)
+            return
+        raise HostKeyChangedError(self.host, self.port, recorded.fingerprint, got_fp)
+
+
+def _add_to_client_host_keys(client: Any, host: str, port: int, key: Any) -> None:
+    name = host_keys_name(host, port)
+    try:
+        client.get_host_keys().add(name, key.get_name(), key)
+    except Exception:
+        pass
+
+
+def prepare_ssh_client(client: Any, hostname: str, port: int = 22) -> None:
+    """
+    Load trusted key into the client (so paramiko detects mismatches) and
+    install TOFU policy for first contact.
+    """
+    host = (hostname or "").strip()
+    p = int(port or 22)
+    entry = get_entry(host, p)
+    if entry is not None:
+        try:
+            pkey = entry.to_pkey()
+            name = host_keys_name(host, p)
+            client.get_host_keys().add(name, entry.key_type, pkey)
+            if p == 22 and name != host:
+                client.get_host_keys().add(host, entry.key_type, pkey)
+        except Exception:
+            # Corrupt entry → treat as unknown (TOFU again after forget would be cleaner,
+            # but auto-forget would weaken MITM protection; leave for user reset).
+            pass
+    client.set_missing_host_key_policy(TofuHostKeyPolicy(host, p))
+
+
+def is_host_key_error(exc: BaseException) -> bool:
+    if isinstance(exc, HostKeyChangedError):
+        return True
+    name = type(exc).__name__
+    if name == "BadHostKeyException":
+        return True
+    msg = str(exc).lower()
+    return "host key" in msg and ("changed" in msg or "does not match" in msg)

@@ -650,10 +650,12 @@ class MixinThemeUI:
             auth = self._ssh_auth_payload()
             if auth.get("ssh_use_key"):
                 return bool(str(auth.get("ssh_key_path") or "").strip())
-            pwd = self.entry_pwd.get() if hasattr(self, "entry_pwd") else ""
+            pwd = self._get_effective_ssh_password() if hasattr(self, "_get_effective_ssh_password") else (
+                self.entry_pwd.get() if hasattr(self, "entry_pwd") else ""
+            )
             if pwd:
                 return True
-            return bool(keyring_helper.get_ssh_password(host, user))
+            return False
         except Exception:
             return False
 
@@ -949,18 +951,21 @@ class MixinThemeUI:
         ).pack(side=tk.LEFT, padx=(0, 8))
         self.create_modern_btn(
             row_btns,
-            self.t("btn.check_updates"),
-            self._check_updates_manual,
-            self.color_btn_secondary,
-            width=16,
-        ).pack(side=tk.LEFT, padx=(0, 0))
-        self.create_modern_btn(
-            row_btns,
             self.t("info.youtube_follow"),
             self._open_youtube_channel,
             self.color_btn_purple,
             width=19,
-        ).pack(side=tk.LEFT, padx=(8, 0))
+        ).pack(side=tk.LEFT, padx=(0, 0))
+
+        row_upd = tk.Frame(pad, bg=self.color_surface)
+        row_upd.pack(fill=tk.X, pady=(0, 10))
+        self.create_modern_btn(
+            row_upd,
+            self.t("btn.check_updates"),
+            self._check_updates_manual,
+            self.color_cron,
+            width=22,
+        ).pack(side=tk.LEFT)
 
         _sup_fg, _sup_hov = self.color_info_fg, self.color_btn_blue
         sup = tk.Label(
