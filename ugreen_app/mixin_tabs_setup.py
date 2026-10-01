@@ -31,6 +31,7 @@ import urllib.parse
 import nas_ssh
 import nas_utils
 from ugreen_app.root_runtime import BACKUP_STATE, ROOT_RUNTIME_DIR
+from ugreen_app.backup_generation import MARKER, active_state_path, generation_paths, transaction_code
 from ugreen_app.backup_commands import inline_backup_command
 from ugreen_app.scheduled_backup_cron import build_backup_cron_lines
 from ugreen_app.scroll_helpers import (
@@ -2787,6 +2788,9 @@ class MixinTabsSetup:
         out: list[str] = []
         i = 0
         while i < len(lines):
+            if lines[i].startswith(MARKER):
+                i += 1
+                continue
             if lines[i].strip().startswith("# ScheduledBackup job:"):
                 i += 1
                 if i < len(lines):
@@ -3011,13 +3015,20 @@ class MixinTabsSetup:
             try:
                 volumes = self._backup_collect_volumes()
                 legacy = posixpath.join(self._backup_pick_target_volume(volumes), "backup", "ugreen_admin", "scheduled_backups.json")
-                jp = BACKUP_STATE
+                cron_path = str(getattr(self, "stable_cron_path", "/etc/cron.d/papa_jobs") or "/etc/cron.d/papa_jobs")
+                cp = shlex.quote(cron_path)
+                snapshot = self.run_ssh_cmd_ex(f"if [ -e {cp} ]; then /bin/cat -- {cp}; elif [ -L {cp} ]; then exit 1; fi", True, update_status=False)
+                if not snapshot.ok:
+                    raise RuntimeError("Cannot read active backup generation")
+                selected = active_state_path(snapshot.output or "")
+                jp = selected or BACKUP_STATE
                 # Read old state only when private state is absent. A broken or
                 # unreadable private file must not revive outdated schedules.
                 p, old = shlex.quote(jp), shlex.quote(legacy)
                 result = self.run_ssh_cmd_ex(
                     f"if [ -e {p} ] || [ -L {p} ]; then /bin/cat -- {p}; "
-                    f"elif [ -e {old} ] || [ -L {old} ]; then /bin/cat -- {old}; else printf '{{\"jobs\":[]}}'; fi",
+                    + (f"else echo 'Active backup generation missing' >&2; exit 1; fi" if selected else
+                     f"elif [ -e {old} ] || [ -L {old} ]; then /bin/cat -- {old}; else printf '{{\"jobs\":[]}}'; fi"),
                     True, update_status=False,
                 )
                 if not result.ok:
@@ -3025,6 +3036,7 @@ class MixinTabsSetup:
                 doc, _trail = self._scheduled_backup_try_parse_jobs_json_blob(result.output)
                 if doc is not None and isinstance(doc.get("jobs"), list) and all(isinstance(x, dict) for x in doc["jobs"]):
                     jobs = doc["jobs"]
+                    self._scheduled_backup_loaded_cron = snapshot.output or ""
                 else:
                     err = self.t("backup.sched.bad_json")
             except Exception as e:
@@ -3057,8 +3069,8 @@ class MixinTabsSetup:
                 body = self._scheduled_backup_runner_template_text()
                 if not body.strip():
                     raise RuntimeError(self.t("backup.sched.runner_missing_local"))
-                runner_remote = posixpath.join(ROOT_RUNTIME_DIR, self.SCHEDULED_BACKUP_RUNNER_BASENAME)
-                jp = BACKUP_STATE
+                generation = uuid.uuid4().hex
+                runner_remote, jp = generation_paths(generation)
                 jp_show = posixpath.normpath(jp)
                 runner_show = posixpath.normpath(runner_remote)
                 jobs = getattr(self, "scheduled_backup_jobs", []) or []
@@ -3076,7 +3088,11 @@ class MixinTabsSetup:
                 )
                 if not current.ok:
                     raise RuntimeError(current.output or "Cron-Datei konnte nicht gelesen werden / cannot read crontab")
-                curr_txt = self._sanitize_stable_cron_text(current.output or "")
+                expected = current.output or ""
+                loaded = getattr(self, "_scheduled_backup_loaded_cron", None)
+                if loaded is not None and loaded != expected:
+                    raise RuntimeError("Backup schedule changed since loading; reload before synchronizing")
+                curr_txt = self._sanitize_stable_cron_text(expected)
                 lines_keep = self._scheduled_backup_strip_cron_blocks(curr_txt)
                 head = ("\n".join(lines_keep)).strip()
                 tail = ("\n".join(cron_lines_new)).strip()
@@ -3088,15 +3104,16 @@ class MixinTabsSetup:
                     cron_out = head + "\n"
                 else:
                     cron_out = "\n"
-                # The atomic root writer checks all parents and creates the
-                # private leaf with 0700. A shell mkdir here would preempt it.
-                if not self.write_root_file(runner_remote, body):
-                    raise RuntimeError(self.t("backup.sched.runner_write_fail"))
+                cron_out = MARKER + generation + "\n" + cron_out
                 payload = json.dumps({"version": 2, "jobs": jobs}, indent=2, ensure_ascii=False)
-                if not self.write_root_file(jp, payload):
-                    raise RuntimeError(self.t("backup.sched.json_write_fail"))
-                if not self.write_root_file(cron_path, cron_out):
-                    raise RuntimeError(self.t("backup.sched.cron_write_fail"))
+                code = transaction_code(cron_path, expected, cron_out, body, payload, generation)
+                ok, detail = self._ssh_mgr.run_root_transaction(
+                    self.entry_ip.get(), self.entry_user.get(), self._get_effective_ssh_password(), code,
+                    **self._ssh_auth_payload(),
+                )
+                if not ok:
+                    raise RuntimeError(detail or "Backup generation was not activated")
+                self._scheduled_backup_loaded_cron = cron_out
             except Exception as e:
                 err_msg = str(e)
 

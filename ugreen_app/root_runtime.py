@@ -3,7 +3,7 @@ ROOT_RUNTIME_DIR = "/var/lib/ugreen-nas-admin"
 BACKUP_STATE = ROOT_RUNTIME_DIR + "/scheduled_backups.json"
 
 
-def private_runtime_directory_code() -> str:
+def private_runtime_directory_code(*, keep_open=False) -> str:
     """Remote Linux Python: open/check every component without following links.
 
     Only our own leaf may be created. Existing permissions are never repaired
@@ -28,7 +28,8 @@ def _prepare_ugreen_runtime():
             forbidden = 0o077 if component == 'ugreen-nas-admin' else 0o022
             if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & forbidden:
                 raise PermissionError('Unsafe root helper directory: ' + str(component or '/'))
-    finally:
+    except BaseException:
         os.close(directory)
-_prepare_ugreen_runtime()
-'''
+        raise
+    return directory
+''' + ('_ugreen_runtime_fd = _prepare_ugreen_runtime()\n' if keep_open else 'os.close(_prepare_ugreen_runtime())\n')

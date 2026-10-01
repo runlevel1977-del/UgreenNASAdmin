@@ -12,6 +12,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from ugreen_app.mixin_tabs_setup import MixinTabsSetup
+from tests.test_backup_generation import payload_from_code
 from ugreen_app.root_runtime import BACKUP_STATE, ROOT_RUNTIME_DIR
 from ugreen_app.root_runtime import private_runtime_directory_code
 from tests.test_private_runtime import DirectoryOS
@@ -35,6 +36,11 @@ class PrivateBackupStateTests(unittest.TestCase):
         ui.run_ssh_cmd_ex = Mock(return_value=SimpleNamespace(ok=True, output='{"jobs":[]}'))
         ui.run_ssh_cmd = Mock(return_value="")
         ui.write_root_file = Mock(return_value=True)
+        ui._ssh_mgr = Mock()
+        ui._ssh_mgr.run_root_transaction.return_value = (True, "")
+        ui.entry_ip = Mock(); ui.entry_user = Mock()
+        ui._get_effective_ssh_password = lambda: "synthetic"
+        ui._ssh_auth_payload = lambda: {}
         ui.scheduled_backup_jobs = [{"id": "keep-until-success"}]
         return ui
 
@@ -66,46 +72,34 @@ class PrivateBackupStateTests(unittest.TestCase):
         ui.scheduled_backup_jobs = []
         ui.run_ssh_cmd_ex.return_value = SimpleNamespace(ok=True, output="")
         self.run_worker(ui.scheduled_backup_sync_to_nas)
-        self.assertEqual([c.args[0] for c in ui.write_root_file.call_args_list], [
-            ROOT_RUNTIME_DIR + "/ugreen_scheduled_backup_runner.py", BACKUP_STATE, "/etc/cron.d/papa_jobs"])
-        self.assertNotIn("mkdir", str(ui.run_ssh_cmd_ex.call_args_list))
-        self.assertNotIn("mkdir", str(ui.run_ssh_cmd.call_args_list))
+        ui.write_root_file.assert_not_called()
+        source = ui._ssh_mgr.run_root_transaction.call_args.args[3]
+        payload = payload_from_code(source)
+        self.assertTrue(payload["runner"].startswith("backup-"))
+        self.assertTrue(payload["state"].endswith("-jobs.json"))
+        self.assertEqual(payload["cron_path"], "/etc/cron.d/papa_jobs")
+        self.assertIn("_prepare_ugreen_runtime", source)
 
     def test_helper_failure_preserves_state_and_cron(self):
         ui = self.ui()
         ui.scheduled_backup_jobs = []
         ui.run_ssh_cmd_ex.return_value = SimpleNamespace(ok=True, output="")
-        ui.write_root_file.return_value = False
+        ui._ssh_mgr.run_root_transaction.return_value = (False, "synthetic failure")
         self.run_worker(ui.scheduled_backup_sync_to_nas)
-        self.assertEqual(ui.write_root_file.call_count, 1)
+        self.assertEqual(ui._ssh_mgr.run_root_transaction.call_count, 1)
         self.assertIn("sync_fail", ui._backup_log.call_args.args[0])
 
     def test_first_sync_creates_private_directory_through_checked_writer(self):
-        # Simulate Linux umask 022: an unchecked shell mkdir creates 0755,
-        # which the actual remote private-directory guard must reject.
-        ui = self.ui()
-        ui.scheduled_backup_jobs = []
-        directory = DirectoryOS(existing=False)
-        published = []
-        def command(text, *args, **kwargs):
-            if text.startswith("mkdir "):
-                directory.entries.setdefault(ROOT_RUNTIME_DIR, (0, 0o755))
-            return SimpleNamespace(ok=True, output="")
-        def write(path, content):
-            if path.startswith(ROOT_RUNTIME_DIR + "/"):
-                try:
-                    with patch.dict(sys.modules, {"os": directory}):
-                        exec(private_runtime_directory_code(), {})
-                except PermissionError:
-                    return False
-            published.append(path)
-            return True
-        ui.run_ssh_cmd_ex.side_effect = command
-        ui.write_root_file.side_effect = write
+        ui = self.ui(); ui.scheduled_backup_jobs = []
+        ui.run_ssh_cmd_ex.return_value = SimpleNamespace(ok=True, output="")
         self.run_worker(ui.scheduled_backup_sync_to_nas)
+        source = ui._ssh_mgr.run_root_transaction.call_args.args[3]
+        directory = DirectoryOS(existing=False)
+        namespace = {}
+        with patch.dict(sys.modules, {"os": directory}):
+            exec(source.split("PAYLOAD =", 1)[0], namespace)
         self.assertEqual(directory.entries[ROOT_RUNTIME_DIR], (0, 0o700))
-        self.assertEqual(published, [ROOT_RUNTIME_DIR + "/ugreen_scheduled_backup_runner.py",
-                                     BACKUP_STATE, "/etc/cron.d/papa_jobs"])
+        directory.close(namespace["_ugreen_runtime_fd"])
         self.assertEqual(directory.handles, {})
 
     def test_malformed_job_list_does_not_replace_loaded_jobs(self):
