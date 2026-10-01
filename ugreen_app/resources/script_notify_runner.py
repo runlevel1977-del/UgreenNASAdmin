@@ -42,7 +42,7 @@ def _send_telegram(cfg: dict, text: str) -> tuple[bool, str]:
                 return False, f"http {resp.status}"
             return True, ""
     except Exception as e:
-        return False, str(e)
+        return False, type(e).__name__
 
 
 def _send_email(cfg: dict, subject: str, body: str) -> tuple[bool, str]:
@@ -83,7 +83,7 @@ def _send_email(cfg: dict, subject: str, body: str) -> tuple[bool, str]:
                 s.sendmail(mail_from, [mail_to], msg.as_string())
         return True, ""
     except Exception as e:
-        return False, str(e)
+        return False, type(e).__name__
 
 
 def _matches(rule: dict, script_name: str, ok: bool) -> bool:

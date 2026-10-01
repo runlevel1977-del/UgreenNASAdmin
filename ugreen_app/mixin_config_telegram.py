@@ -31,6 +31,7 @@ from email.mime.text import MIMEText
 
 import nas_ssh
 import nas_utils
+from ugreen_app.private_json import write_private_json
 from ugreen_app._paramiko import _paramiko
 from ugreen_app import keyring_helper
 
@@ -466,8 +467,7 @@ class MixinConfigTelegram:
             for k in ("ip", "port", "user", "password", "ssh_use_key", "ssh_key_path", "ssh_key_passphrase"):
                 data.pop(k, None)
         try:
-            with open(p, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
+            write_private_json(p, data)
         except Exception:
             pass
 
@@ -522,8 +522,7 @@ class MixinConfigTelegram:
             "active_profile": int(getattr(self, "_connection_active_index", 0) or 0),
             "ui_lang": getattr(self, "ui_lang", "de"),
         }
-        with open(p, "w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=2)
+        write_private_json(p, payload)
 
     def _profiles_sanitized_for_disk(self, profiles=None) -> list:
         """Copy profiles without secrets; failed vault writes abort before JSON."""
@@ -1065,8 +1064,7 @@ class MixinConfigTelegram:
                 "active_profile": int(self._connection_active_index),
                 "ui_lang": getattr(self, "ui_lang", "de"),
             }
-            with open(p, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=2)
+            write_private_json(p, payload)
             self._connection_profiles = profiles
             for marker, value in markers.items():
                 setattr(self, marker, value)
@@ -1658,7 +1656,7 @@ class MixinConfigTelegram:
         try:
             socket.getaddrinfo(host, port, type=socket.SOCK_STREAM, proto=socket.IPPROTO_TCP)
         except OSError as e:
-            return False, str(e)
+            return False, type(e).__name__
         try:
             ctx = ssl.create_default_context()
             if use_ssl:
@@ -1679,7 +1677,7 @@ class MixinConfigTelegram:
                     s.sendmail(mail_from, [mail_to], msg.as_string())
             return True, ""
         except Exception as e:
-            return False, str(e)
+            return False, type(e).__name__
 
     def script_notify_send_for_result(self, script_name: str, ok: bool, output_text: str = "") -> None:
         rules = self._script_notify_get_matching_rules(script_name, ok)
@@ -1764,7 +1762,7 @@ def _send_telegram(cfg, text):
         with urllib.request.urlopen(req, timeout=25) as resp:
             return (resp.status == 200), ("" if resp.status == 200 else f"http {resp.status}")
     except Exception as e:
-        return False, str(e)
+        return False, type(e).__name__
 def _send_email(cfg, subject, body):
     host = str(cfg.get("smtp_host") or "").strip(); mail_from = str(cfg.get("smtp_from") or "").strip(); mail_to = str(cfg.get("smtp_to") or "").strip()
     if not host or not mail_from or not mail_to: return False, "smtp host/from/to missing"
@@ -1790,7 +1788,7 @@ def _send_email(cfg, subject, body):
                 s.sendmail(mail_from, [mail_to], msg.as_string())
         return True, ""
     except Exception as e:
-        return False, str(e)
+        return False, type(e).__name__
 def _matches(rule, script_name, ok):
     rs = str(rule.get("script") or "").strip()
     if not rs: return False
@@ -2401,8 +2399,7 @@ if __name__ == "__main__":
         try:
             # Verbindungsdaten parallel in die bestehende Connection-Datei schreiben.
             self._save_connection_config_clicked()
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(cfg, f, indent=2)
+            write_private_json(path, cfg)
             try:
                 self.ensure_script_notify_runner_on_nas(cfg)
             except Exception:
@@ -2542,8 +2539,7 @@ if __name__ == "__main__":
             return
         path = os.path.abspath(self._telegram_config_path())
         try:
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(cfg, f, indent=2)
+            write_private_json(path, cfg)
         except Exception as e:
             messagebox.showerror(self.t("msg.telegram"), self.t("msg.telegram_save_failed", e=e))
             return
@@ -2576,16 +2572,16 @@ if __name__ == "__main__":
             with urllib.request.urlopen(req, timeout=20) as resp:
                 raw = resp.read().decode("utf-8", errors="replace")
                 if resp.status != 200:
-                    return False, raw[:200]
+                    return False, f"Telegram HTTP {resp.status}"
                 try:
                     j = json.loads(raw)
                     if not j.get("ok"):
-                        return False, str(j.get("description", raw))[:200]
+                        return False, "Telegram API rejected the request"
                 except json.JSONDecodeError:
                     pass
                 return True, ""
         except Exception as e:
-            return False, str(e)
+            return False, type(e).__name__
 
     def telegram_send_test(self):
         if not self._danger_gate():
