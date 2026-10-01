@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-import os
+from pathlib import Path
+import tempfile
 import unittest
 
 from ugreen_app.runlevel_apps_scan import (
@@ -144,9 +145,30 @@ class TestRunlevelAppsScan(unittest.TestCase):
         self.assertIsNotNone(base)
         assert base is not None
         self.assertEqual(base.name, "com.runlevel.transferhub")
-        roots = [os.path.normpath(os.path.join(os.path.dirname(__file__), os.pardir))]
-        enriched = enrich_row_from_local_sources(base, ui_lang="de", search_roots=roots)
-        self.assertIn("Transfer", enriched.name)
+        # The developer workspace is deliberately excluded from the public repo.
+        # Exercise the real file reader using synthetic metadata in a temp root.
+        with tempfile.TemporaryDirectory() as root:
+            config = Path(root) / "ugreen_developer/apps/com.runlevel.transferhub/build_dir/rootfs/config.json"
+            config.parent.mkdir(parents=True)
+            config.write_text(json.dumps({
+                "appId": "com.runlevel.transferhub",
+                "i18n": [{"langName": "en-US", "name": "Synthetic Transfer"},
+                         {"langName": "de-DE", "name": "Synthetischer Transfer"}],
+                "version": {"version": "0.0.1-test"},
+            }), encoding="utf-8")
+            enriched = enrich_row_from_local_sources(base, ui_lang="de", search_roots=[root])
+        self.assertEqual(enriched.name, "Synthetischer Transfer")
+        self.assertEqual(enriched.version, "0.0.1-test")
+        self.assertEqual(base.name, "com.runlevel.transferhub")
+
+    def test_enrich_without_local_metadata_preserves_row(self) -> None:
+        base = row_from_payload(
+            {"app_id": "com.runlevel.transferhub", "cfg": {}, "running": False}, ui_lang="de",
+        )
+        self.assertIsNotNone(base)
+        with tempfile.TemporaryDirectory() as root:
+            enriched = enrich_row_from_local_sources(base, ui_lang="de", search_roots=[root])
+        self.assertIs(enriched, base)
 
 
 if __name__ == "__main__":
