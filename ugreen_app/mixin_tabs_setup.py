@@ -30,6 +30,7 @@ import urllib.parse
 
 import nas_ssh
 import nas_utils
+from ugreen_app.scheduled_backup_cron import build_backup_cron_lines
 from ugreen_app.scroll_helpers import (
     should_ignore_smooth_mousewheel_target,
     smooth_bind_mousewheel_tree,
@@ -3033,40 +3034,22 @@ class MixinTabsSetup:
                 jp_show = posixpath.normpath(jp)
                 runner_show = posixpath.normpath(runner_remote)
                 jp_dir = posixpath.dirname(jp)
-                self.run_ssh_cmd("/bin/bash -lc " + shlex.quote(f"mkdir -p {jp_dir}"), True, update_status=False)
-                jobs = getattr(self, "scheduled_backup_jobs", []) or []
+                jobs = getattr(self, "scheduled_backup_jobs", [])
+                # Imported JSON is data, not trusted root-crontab syntax. Validate
+                # the whole batch before creating directories or writing files.
+                cron_lines_new = build_backup_cron_lines(jobs, runner_remote, jp)
                 if not getattr(self, "write_root_file", None):
                     raise RuntimeError(self.t("backup.sched.writer_missing"))
-                if not self.write_root_file(runner_remote, body):
-                    raise RuntimeError(self.t("backup.sched.runner_write_fail"))
-                payload = json.dumps({"version": 1, "jobs": jobs}, indent=2, ensure_ascii=False)
-                if not self.write_root_file(jp, payload):
-                    raise RuntimeError(self.t("backup.sched.json_write_fail"))
                 cron_path = str(getattr(self, "stable_cron_path", "/etc/cron.d/papa_jobs") or "/etc/cron.d/papa_jobs")
-                try:
-                    curr_txt = self._sanitize_stable_cron_text(
-                        self.run_ssh_cmd(f"/bin/cat {shlex.quote(cron_path)}", True, update_status=False) or ""
-                    )
-                except Exception:
-                    curr_txt = ""
+                cp = shlex.quote(cron_path)
+                current = self.run_ssh_cmd_ex(
+                    f"if [ -e {cp} ]; then /bin/cat -- {cp}; elif [ -L {cp} ]; then exit 1; fi",
+                    True, update_status=False,
+                )
+                if not current.ok:
+                    raise RuntimeError(current.output or "Cron-Datei konnte nicht gelesen werden / cannot read crontab")
+                curr_txt = self._sanitize_stable_cron_text(current.output or "")
                 lines_keep = self._scheduled_backup_strip_cron_blocks(curr_txt)
-                cron_lines_new: list[str] = []
-                for j in jobs:
-                    jid = str(j.get("id") or "").strip()
-                    if not jid or not nas_utils.is_safe_job_id(jid):
-                        continue
-                    vc = list(j.get("cron") or [])
-                    if not nas_utils.validate_cron_fields(vc):
-                        continue
-                    if not nas_utils.is_safe_abs_volume_path(str(j.get("target_volume") or "/volume1")):
-                        continue
-                    label_safe = "".join(ch for ch in str(j.get("label") or "")[:200] if ch not in "\n\r\t")
-                    core = f"/usr/bin/python3 {shlex.quote(runner_remote)} {shlex.quote(jid)} {shlex.quote(jp)}"
-                    if bool(j.get("first_week")):
-                        core = "[ $(date +\\%d) -le 7 ] && " + core
-                    cron_ln = f"{vc[0]} {vc[1]} {vc[2]} {vc[3]} {vc[4]} root {core}"
-                    cron_lines_new.append(f"# ScheduledBackup job: id={jid} label={label_safe}")
-                    cron_lines_new.append(cron_ln)
                 head = ("\n".join(lines_keep)).strip()
                 tail = ("\n".join(cron_lines_new)).strip()
                 if head and tail:
@@ -3077,6 +3060,14 @@ class MixinTabsSetup:
                     cron_out = head + "\n"
                 else:
                     cron_out = "\n"
+                created = self.run_ssh_cmd_ex(f"mkdir -p -- {shlex.quote(jp_dir)}", True, update_status=False)
+                if not created.ok:
+                    raise RuntimeError(created.output or "Backup-Verzeichnis konnte nicht erstellt werden / cannot create backup directory")
+                if not self.write_root_file(runner_remote, body):
+                    raise RuntimeError(self.t("backup.sched.runner_write_fail"))
+                payload = json.dumps({"version": 1, "jobs": jobs}, indent=2, ensure_ascii=False)
+                if not self.write_root_file(jp, payload):
+                    raise RuntimeError(self.t("backup.sched.json_write_fail"))
                 if not self.write_root_file(cron_path, cron_out):
                     raise RuntimeError(self.t("backup.sched.cron_write_fail"))
             except Exception as e:
