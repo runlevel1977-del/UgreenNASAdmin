@@ -4,14 +4,17 @@
 Spiegelt nur öffentlich nötige Dateien in einen Git-Worktree und pusht nach ``public/main``.
 
 Ziel-Layout (übersichtlich):
-  README / LICENSE / CHANGELOG / requirements / Einstieg + Build-Dateien
+  README / LICENSE / CHANGELOG / requirements.txt
+  ugreen_nas_admin.py, nas_ssh.py, nas_utils.py   # Einstieg (Imports)
   docs/          — Handbücher + PDFs
+  assets/        — App-Icons
+  packaging/     — builder, PyInstaller-Spec, create_icon, RUN_BUILDER.bat
   ugreen_app/    — App-Code
   tools/         — öffentliche Build-/Release-Helfer
   installer/     — Inno Setup (ohne output/)
   images/        — Screenshots
   tests/         — Unit-Tests
-  .github/       — Funding + CI
+  .github/       — Funding (+ optional CI)
 
 Nicht mitnehmen: Cursor-Regeln, interne Release-Notizen, Forum-Entwürfe, Dev-Helfer.
 """
@@ -33,17 +36,10 @@ TOP_FILES = frozenset(
         "LICENSE",
         "README.md",
         "CHANGELOG.md",
-        "builder.py",
-        "create_icon.py",
-        "UgreenNASAdmin.spec",
         "requirements.txt",
-        "RUN_BUILDER.bat",
         "ugreen_nas_admin.py",
         "nas_ssh.py",
         "nas_utils.py",
-        "nas_icon.ico",
-        "nas_icon_app.png",
-        "nas_icon.png",
     }
 )
 
@@ -55,6 +51,23 @@ DOC_FILES = frozenset(
         "HANDBUCH.pdf",
         "HANDBOOK_EN.pdf",
         "handbook_page_index.json",
+    }
+)
+
+ASSET_FILES = frozenset(
+    {
+        "nas_icon.ico",
+        "nas_icon_app.png",
+        "nas_icon.png",
+    }
+)
+
+PACKAGING_FILES = frozenset(
+    {
+        "builder.py",
+        "create_icon.py",
+        "UgreenNASAdmin.spec",
+        "RUN_BUILDER.bat",
     }
 )
 
@@ -88,13 +101,20 @@ REMOVE_REL_PATHS = frozenset(
         "tools/_check_nas_locale.py",
         "tools/_list_nas_admin_keys.py",
         "tools/translate_handbook_en.py",
-        # Legacy root docs (vor docs/-Umzug)
+        # Legacy root docs / icons / build (vor docs/, assets/, packaging/)
         "HANDBUCH.md",
         "HANDBOOK_EN.md",
         "HANDBUCH_STRUKTURIERT.md",
         "HANDBUCH.pdf",
         "HANDBOOK_EN.pdf",
         "handbook_page_index.json",
+        "nas_icon.ico",
+        "nas_icon_app.png",
+        "nas_icon.png",
+        "builder.py",
+        "create_icon.py",
+        "UgreenNASAdmin.spec",
+        "RUN_BUILDER.bat",
     }
 )
 
@@ -114,7 +134,6 @@ SENSITIVE_UGREEN_FILES = frozenset(
     }
 )
 
-# Tests that are safe/useful publicly (no private paths or secrets).
 PUBLIC_TEST_FILES = frozenset(
     {
         "test_shell_safety.py",
@@ -128,7 +147,6 @@ PUBLIC_TEST_FILES = frozenset(
         "test_ugos_power_schedule.py",
         "test_ugos_api_dashboard.py",
         "test_nas_utils_ugos_serv.py",
-        "test_docker_deploy_wizard.py",
         "test_window_geometry.py",
         "test_runlevel_apps_scan.py",
     }
@@ -178,6 +196,16 @@ def _copy_tree(src: Path, dst: Path) -> None:
         shutil.copy2(path, target)
 
 
+def _sync_folder_files(src_dir: Path, dst_dir: Path, names: frozenset[str]) -> None:
+    if dst_dir.exists():
+        shutil.rmtree(dst_dir)
+    dst_dir.mkdir(parents=True, exist_ok=True)
+    for name in names:
+        src = src_dir / name
+        if src.is_file():
+            shutil.copy2(src, dst_dir / name)
+
+
 def _sync_content() -> None:
     for name in TOP_FILES:
         src = ROOT / name
@@ -186,14 +214,9 @@ def _sync_content() -> None:
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
 
-    docs_dst = WORKTREE / "docs"
-    if docs_dst.exists():
-        shutil.rmtree(docs_dst)
-    docs_dst.mkdir(parents=True, exist_ok=True)
-    for name in DOC_FILES:
-        src = ROOT / "docs" / name
-        if src.is_file():
-            shutil.copy2(src, docs_dst / name)
+    _sync_folder_files(ROOT / "docs", WORKTREE / "docs", DOC_FILES)
+    _sync_folder_files(ROOT / "assets", WORKTREE / "assets", ASSET_FILES)
+    _sync_folder_files(ROOT / "packaging", WORKTREE / "packaging", PACKAGING_FILES)
 
     for folder in ("ugreen_app", "images", "installer"):
         src = ROOT / folder
@@ -205,7 +228,6 @@ def _sync_content() -> None:
         out = WORKTREE / ".github" / "FUNDING.yml"
         out.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(funding, out)
-    # CI workflow: only with --include-workflows (GitHub PAT needs `workflow` scope to push).
     if getattr(_sync_content, "_include_workflows", False):
         ci = ROOT / ".github" / "workflows" / "ci.yml"
         if ci.is_file():

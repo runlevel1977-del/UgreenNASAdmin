@@ -32,15 +32,10 @@ ROOT_FILES = (
     "ugreen_nas_admin.py",
     "nas_ssh.py",
     "nas_utils.py",
-    "builder.py",
-    "create_icon.py",
-    "UgreenNASAdmin.spec",
     "requirements.txt",
     "LICENSE",
     "README.md",
     "CHANGELOG.md",
-    "nas_icon.ico",
-    "nas_icon_app.png",
 )
 
 DOC_FILES = (
@@ -50,6 +45,19 @@ DOC_FILES = (
     "HANDBUCH.pdf",
     "HANDBOOK_EN.pdf",
     "handbook_page_index.json",
+)
+
+ASSET_FILES = (
+    "nas_icon.ico",
+    "nas_icon_app.png",
+    "nas_icon.png",
+)
+
+PACKAGING_FILES = (
+    "builder.py",
+    "create_icon.py",
+    "UgreenNASAdmin.spec",
+    "RUN_BUILDER.bat",
 )
 
 
@@ -90,7 +98,7 @@ def _ignore_ugreen_app(_dirpath: str, names: list[str]) -> set[str]:
 def main() -> int:
     ver = _read_version()
     if not DIST_EXE.is_file():
-        print(f"FEHLER: {DIST_EXE} fehlt — zuerst ``python builder.py`` ausführen.", file=sys.stderr)
+        print(f"FEHLER: {DIST_EXE} fehlt — zuerst ``python packaging/builder.py`` ausführen.", file=sys.stderr)
         return 2
 
     RELEASE_DIR.mkdir(parents=True, exist_ok=True)
@@ -122,7 +130,21 @@ def main() -> int:
             if src.is_file():
                 shutil.copy2(src, docs_dst / name)
 
-        # Build helper used by builder.py (Python 3.12 resolver)
+        assets_dst = src_root / "assets"
+        assets_dst.mkdir(parents=True, exist_ok=True)
+        for name in ASSET_FILES:
+            src = ROOT / "assets" / name
+            if src.is_file():
+                shutil.copy2(src, assets_dst / name)
+
+        pack_dst = src_root / "packaging"
+        pack_dst.mkdir(parents=True, exist_ok=True)
+        for name in PACKAGING_FILES:
+            src = ROOT / "packaging" / name
+            if src.is_file():
+                shutil.copy2(src, pack_dst / name)
+
+        # Build helper used by packaging/builder.py (Python 3.12 resolver)
         tools_dst = src_root / "tools"
         tools_dst.mkdir(parents=True, exist_ok=True)
         bp = ROOT / "tools" / "build_python.py"
@@ -142,7 +164,7 @@ def main() -> int:
         else:
             (inst / "README_INSTALLER_BAUEN.txt").write_text(
                 f"Keine passende Setup-EXE: erwartet installer/output/UgreenNASAdmin_setup_{ver}.exe\n\n"
-                "1) Im Projektroot: python builder.py\n"
+                "1) Im Projektroot: python packaging/builder.py\n"
                 "2) installer/UgreenNASAdmin_installer.iss: MyAppVersion prüfen\n"
                 "3) installer/BUILD_INSTALLER.ps1 (oder Inno Setup GUI) ausführen\n"
                 "4) Dieses Skript erneut: python tools/build_release_zip.py\n",
@@ -155,13 +177,13 @@ def main() -> int:
             "  Quellcode und Dateien zum Selbstbauen der App (Python + PyInstaller).\n"
             "  Kurz: pip install -r requirements.txt && pip install \"paramiko>=3.0\"\n"
             "  (keyring steht in requirements.txt — Passwort im Windows-Tresor)\n"
-            "  Empfohlen: Python 3.12 (builder.py bevorzugt py -3.12; optional\n"
+            "  Empfohlen: Python 3.12 (packaging/builder.py bevorzugt py -3.12; optional\n"
             "  UGREEN_BUILD_PYTHON=… setzen). Hilfsmodul: tools/build_python.py\n"
-            "  Dann im Ordner source/: python builder.py\n"
+            "  Dann im Ordner source/: python packaging/builder.py\n"
             "  Die fertige Portable-EXE liegt zusätzlich unter source/dist/ (Kopie vom Build).\n\n"
             "installer/\n"
             "  Windows-Setup (Inno Setup), falls beim Packen vorhanden.\n"
-            "  Neu bauen: installer/BUILD_INSTALLER.ps1 nach builder.py; Version in\n"
+            "  Neu bauen: installer/BUILD_INSTALLER.ps1 nach packaging/builder.py; Version in\n"
             "  installer/UgreenNASAdmin_installer.iss (#define MyAppVersion) anpassen.\n\n"
             "Installer: gespeicherte Verbindungen (.json) mitnehmen\n"
             "  Von alter EXE/Installation die Konfig-JSONs übernehmen, z. B.:\n"

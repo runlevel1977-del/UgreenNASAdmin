@@ -498,22 +498,34 @@ class MixinThemeUI:
         return c.inner
 
     def _setup_app_icons(self):
-        # Frozen: PyInstaller datas; Dev: Projektroot (neben ugreen_app/)
-        if getattr(sys, "_MEIPASS", None):
-            base = sys._MEIPASS
+        # Frozen: PyInstaller datas im Bundle-Root; Dev: assets/ neben ugreen_app/
+        candidates: list[str] = []
+        meip = getattr(sys, "_MEIPASS", None)
+        if meip:
+            candidates.append(meip)
         else:
-            base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        ico = os.path.join(base, "nas_icon.ico")
-        png = os.path.join(base, "nas_icon_app.png")
+            root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            candidates.append(os.path.join(root, "assets"))
+            candidates.append(root)
+        ico = png = ""
+        for base in candidates:
+            c_ico = os.path.join(base, "nas_icon.ico")
+            c_png = os.path.join(base, "nas_icon_app.png")
+            if not ico and os.path.isfile(c_ico):
+                ico = c_ico
+            if not png and os.path.isfile(c_png):
+                png = c_png
+            if ico and png:
+                break
         self._photo_app_icon = None
         self._photo_sidebar_icon = None
-        if os.path.isfile(png):
+        if png and os.path.isfile(png):
             try:
                 self._photo_app_icon = tk.PhotoImage(file=png)
                 self._photo_sidebar_icon = self._photo_app_icon.subsample(2, 2)
             except tk.TclError:
                 pass
-        if os.name == "nt" and os.path.isfile(ico):
+        if os.name == "nt" and ico and os.path.isfile(ico):
             try:
                 self.root.iconbitmap(default=ico)
             except tk.TclError:

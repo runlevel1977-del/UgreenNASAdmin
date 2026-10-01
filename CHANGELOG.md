@@ -1,5 +1,15 @@
 # Changelog — Ugreen NAS Admin
 
+## 23.8.55 — 2026-10-01
+
+### Deutsch
+
+- **Repo-Root aufgeräumt:** Icons → **`assets/`**, Builder/Spec/`RUN_BUILDER.bat` → **`packaging/`**. Im Root bleiben nur README/Lizenz/Changelog/requirements und die drei Einstiegs-Module.
+
+### English (short)
+
+- **Cleaner repo root:** Icons → **`assets/`**, builder/spec/`RUN_BUILDER.bat` → **`packaging/`**. Root keeps only README/license/changelog/requirements and the three entry modules.
+
 ## 23.8.54 — 2026-10-01
 
 ### Deutsch

@@ -1,10 +1,11 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
 
-PROJECT = os.path.abspath(SPECPATH)
+# Spec liegt unter packaging/ — Projektroot ist eine Ebene höher
+PROJECT = os.path.abspath(os.path.join(SPECPATH, os.pardir))
 MAIN = os.path.join(PROJECT, "ugreen_nas_admin.py")
-ICON = os.path.join(PROJECT, "nas_icon.ico")
-PNG = os.path.join(PROJECT, "nas_icon_app.png")
+ICON = os.path.join(PROJECT, "assets", "nas_icon.ico")
+PNG = os.path.join(PROJECT, "assets", "nas_icon_app.png")
 NAS_WATCH = os.path.join(PROJECT, "ugreen_app", "resources", "nas_central_watch.py")
 NAS_DAILY = os.path.join(PROJECT, "ugreen_app", "resources", "nas_daily_report.py")
 NAS_SB_RUNNER = os.path.join(PROJECT, "ugreen_app", "resources", "ugreen_scheduled_backup_runner.py")
