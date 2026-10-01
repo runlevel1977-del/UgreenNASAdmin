@@ -31,3 +31,15 @@ Gleichzeitige externe Schreiber sind zu vermeiden; die abschließende
 Identitätsprüfung ist keine systemweite Sperre. Für neue Uploads ist jetzt
 auch bei einem sonst direkt beschreibbaren Ziel sudo erforderlich. Platz für
 alte und neue Dateiversion muss bis zur Veröffentlichung verfügbar sein.
+# Ergänzung: ACLs und Zusatzmetadaten
+
+Beim Ersetzen einer vorhandenen Datei werden POSIX-Zugriffs-ACLs, `user.*`-xattrs
+und ein vorhandenes SELinux-Label über den geöffneten ursprünglichen Dateideskriptor
+übernommen. Eigentümer und gewöhnliche Modusbits bleiben ebenfalls erhalten.
+Kann eine Zusatzmetadatenoperation nicht ausgeführt werden, wird das Original
+nicht ersetzt. Geänderte Metadaten während des Transfers führen zum Abbruch.
+
+Dateicapabilities, IMA/EVM und andere unbekannte Sicherheitsattribute werden
+abgelehnt: ihre Bedeutung darf nicht auf neue Dateiinhalte übertragen werden.
+Es werden höchstens 1 MiB Attributwerte übernommen. Die Prüfung erfolgt offline
+mit simulierten POSIX-ACL/xattr-Aufrufen; effektive UGOS-ACLs wurden nicht verändert.

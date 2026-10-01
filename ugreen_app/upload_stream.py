@@ -12,7 +12,7 @@ owner = pwd.getpwnam(user)
 stream = sys.stdin.buffer
 marker = marker.encode('ascii') + b'\n'
 for _ in range(2):
-    line = stream.readline()
+    line = stream.readline(65537)
     if line == marker:
         break
 else:
@@ -38,6 +38,21 @@ try:
             raise ValueError('Upload destination is a link or special file')
         return value
     before = destination_info()
+    attributes = {}
+    if before is not None:
+        original = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+        try:
+            opened = os.fstat(original)
+            if (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino):
+                raise ValueError('Upload destination changed before metadata capture')
+            for attribute in os.listxattr(original):
+                if not (attribute.startswith('user.') or attribute in ('system.posix_acl_access', 'security.selinux')):
+                    raise ValueError('Upload destination has unsupported security metadata')
+                attributes[attribute] = os.getxattr(original, attribute)
+                if sum(len(value) for value in attributes.values()) > 1024 * 1024:
+                    raise ValueError('Upload destination metadata exceeds limit')
+        finally:
+            os.close(original)
     staging = '.ugreen-upload-' + uuid.uuid4().hex
     os.mkdir(staging, 0o700, dir_fd=parent)
     staging_fd = os.open(staging, flags, dir_fd=parent)
@@ -61,11 +76,21 @@ try:
             raise ValueError('Upload size or digest mismatch')
         output.flush()
         current = destination_info()
-        identity = lambda value: None if value is None else (value.st_dev,value.st_ino,value.st_size,value.st_mtime_ns)
+        identity = lambda value: None if value is None else (value.st_dev,value.st_ino,value.st_size,value.st_mtime_ns,value.st_ctime_ns,value.st_mode,value.st_uid,value.st_gid)
         if identity(before) != identity(current):
             raise ValueError('Upload destination changed during transfer')
         os.fchown(output.fileno(), before.st_uid if before else owner.pw_uid, before.st_gid if before else owner.pw_gid)
         os.fchmod(output.fileno(), (before.st_mode & 0o777) if before else 0o600)
+        for attribute, value in attributes.items():
+            os.setxattr(output.fileno(), attribute, value)
+        # A concurrent ACL change must not be silently replaced by the captured ACL.
+        if before is not None:
+            original = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+            try:
+                if identity(os.fstat(original)) != identity(before) or {key: os.getxattr(original, key) for key in os.listxattr(original)} != attributes:
+                    raise ValueError('Upload destination metadata changed during transfer')
+            finally:
+                os.close(original)
         os.fsync(output.fileno())
     os.replace('payload', name, src_dir_fd=staging_fd, dst_dir_fd=parent)
 finally:

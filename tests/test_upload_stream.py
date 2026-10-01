@@ -40,27 +40,36 @@ class UploadStreamTests(unittest.TestCase):
         def metadata(value, directory=False):
             return SimpleNamespace(st_mode=(stat.S_IFDIR | 0o700) if directory else value.st_mode,
                 st_uid=0, st_gid=0, st_nlink=1, st_dev=value.st_dev, st_ino=value.st_ino,
-                st_size=value.st_size, st_mtime_ns=value.st_mtime_ns)
+                st_size=value.st_size, st_mtime_ns=value.st_mtime_ns, st_ctime_ns=value.st_ctime_ns)
         fake = SimpleNamespace(**{name:getattr(os,name) for name in dir(os)})
         fake.path = posixpath
         fake.O_DIRECTORY, fake.O_NOFOLLOW = 0x40000000, 0x20000000
+        fake.O_NONBLOCK = 0
         fake.open = open_at
         fake.close = lambda fd: directories.pop(fd) if fd in directories else real['close'](fd)
         fake.stat = lambda path, dir_fd=None, **kw: metadata(real['stat'](resolve(path,dir_fd)))
-        fake.fstat = lambda fd: metadata(real['stat'](directories[fd]), True) if fd in directories else real['fstat'](fd)
+        fake.fstat = lambda fd: metadata(real['stat'](directories[fd]), True) if fd in directories else metadata(real['fstat'](fd))
         fake.mkdir = lambda path, mode=0o777, dir_fd=None: real['mkdir'](resolve(path,dir_fd), mode)
         fake.unlink = lambda path, dir_fd=None: real['unlink'](resolve(path,dir_fd))
         fake.rmdir = lambda path, dir_fd=None: real['rmdir'](resolve(path,dir_fd))
         fake.replace = lambda src,dst,src_dir_fd=None,dst_dir_fd=None: real['replace'](resolve(src,src_dir_fd),resolve(dst,dst_dir_fd))
         fake.fchown, fake.fchmod = Mock(), Mock()
+        fake.listxattr, fake.getxattr, fake.setxattr = Mock(return_value=[]), Mock(), Mock()
         with patch.dict(sys.modules, {'os':fake, 'pwd':SimpleNamespace(getpwnam=lambda user: SimpleNamespace(pw_uid=1000,pw_gid=1000))}):
             yield fake
         self.assertEqual(directories, {}, 'Directory handles must be closed')
 
-    def run_receiver(self, root, payload, size, password=True):
+    def run_receiver(self, root, payload, size, password=True, attributes=None, metadata_failure=False, metadata_change=False):
         stream = (b'synthetic-password\n' if password else b'') + b'FRAME\n' + payload
         with self.filesystem(root) as filesystem, patch.object(sys, 'argv', ['receiver','/target/file','synthetic-user','FRAME',str(size)]), \
              patch.object(sys, 'stdin', SimpleNamespace(buffer=io.BytesIO(stream))):
+            attributes = attributes or {}
+            filesystem.listxattr.return_value = list(attributes)
+            filesystem.getxattr.side_effect = lambda fd, key: attributes[key]
+            if metadata_failure:
+                filesystem.setxattr.side_effect = OSError('metadata write failed')
+            if metadata_change:
+                filesystem.listxattr.side_effect = [list(attributes), []]
             exec(compile(REMOTE_UPLOAD_CODE, '<test-receiver>', 'exec'), {})
         return filesystem
 
@@ -109,6 +118,24 @@ class UploadStreamTests(unittest.TestCase):
         command=upload_command(path,'synthetic-user','FRAME',9)
         self.assertEqual(shlex.split(command)[-4:],[path,'synthetic-user','FRAME','9'])
         self.assertNotIn('synthetic-password',command)
+
+    def test_acl_user_attributes_and_security_label_are_copied(self):
+        attributes = {'system.posix_acl_access': b'synthetic-acl', 'user.note': b'note', 'security.selinux': b'synthetic-label'}
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder); (root/'target').mkdir(); (root/'target/file').write_bytes(b'old')
+            calls=self.run_receiver(root,self.frame(b'new'),3,attributes=attributes)
+            self.assertEqual({call.args[1]:call.args[2] for call in calls.setxattr.call_args_list}, attributes)
+
+    def test_metadata_failure_change_or_capability_keeps_original_file(self):
+        for options in ({'attributes': {'user.note':b'note'}, 'metadata_failure':True},
+                        {'attributes': {'system.posix_acl_access':b'acl'}, 'metadata_change':True},
+                        {'attributes': {'security.capability':b'capability'}}):
+            with self.subTest(options=options), tempfile.TemporaryDirectory() as folder:
+                root=Path(folder); (root/'target').mkdir(); (root/'target/file').write_bytes(b'old')
+                with self.assertRaises((ValueError,OSError)):
+                    self.run_receiver(root,self.frame(b'new'),3,**options)
+                self.assertEqual((root/'target/file').read_bytes(), b'old')
+                self.assertEqual(len(list((root/'target').iterdir())), 1)
 
 
 if __name__ == '__main__':
