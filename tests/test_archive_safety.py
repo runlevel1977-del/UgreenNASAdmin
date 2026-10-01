@@ -2,6 +2,7 @@
 import contextlib
 import io
 import os
+import posixpath
 from pathlib import Path
 import shlex
 import stat
@@ -112,16 +113,24 @@ class ArchiveSafetyTests(unittest.TestCase):
         directories = {10:root}
         counter = [10000]
         def resolve(name, dir_fd):
+            if str(name).startswith('/'):
+                return root / str(name).lstrip('/')
             return directories.get(dir_fd,root) / name
         def open_at(name, flags, mode=0o777, *, dir_fd=None):
             path=resolve(name,dir_fd)
             if flags & 0x40000000:
+                if not path.is_dir():raise FileNotFoundError(str(path))
                 counter[0]+=1;directories[counter[0]]=path
                 return counter[0]
-            return original_open(path, flags & ~getattr(os, "O_NOFOLLOW", 0), mode)
+            return original_open(path, flags & ~0x20000000, mode)
         def stat_at(name, *, dir_fd=None, follow_symlinks=True):
             return original_stat(resolve(name,dir_fd), follow_symlinks=follow_symlinks)
         with contextlib.ExitStack() as stack:
+            fake=SimpleNamespace(**{name:getattr(os,name) for name in dir(os)})
+            fake.path=posixpath
+            def duplicate(fd):
+                counter[0]+=1;directories[counter[0]]=directories[fd]
+                return counter[0]
             for name, value in dict(open=open_at, stat=stat_at,
                     unlink=lambda name, dir_fd=None: original_unlink(resolve(name,dir_fd)),
                     replace=lambda src, dst, src_dir_fd=None,dst_dir_fd=None: original_replace(resolve(src,src_dir_fd),resolve(dst,dst_dir_fd)),
@@ -130,10 +139,38 @@ class ArchiveSafetyTests(unittest.TestCase):
                     close=lambda fd: directories.pop(fd) if fd in directories else original_close(fd),
                     fstat=lambda fd: SimpleNamespace(st_uid=0,st_mode=stat.S_IFDIR|0o700) if fd in directories else original_fstat(fd),
                     geteuid=lambda:0,O_DIRECTORY=0x40000000,
+                    dup=duplicate,utime=lambda *args:None,O_NONBLOCK=0,
                     fchown=lambda *a: None, fchmod=lambda *a: None,
-                    O_NOFOLLOW=getattr(os, "O_NOFOLLOW", 0)).items():
-                stack.enter_context(patch.object(safe.os, name, value, create=True))
+                    O_NOFOLLOW=0x20000000).items():
+                setattr(fake,name,value)
+            stack.enter_context(patch.object(safe,'os',fake))
             yield
+        self.assertEqual(directories,{10:root})
+
+    def test_complete_tar_and_zip_helper_with_local_files(self):
+        for kind in ('tar','zip'):
+            with self.subTest(kind=kind),tempfile.TemporaryDirectory() as base:
+                root=Path(base);source=root/'source'
+                if kind=='tar':
+                    with tarfile.open(source,'w:gz') as archive:
+                        item=tarfile.TarInfo('folder/file');item.size=4
+                        archive.addfile(item,io.BytesIO(b'data'))
+                else:
+                    with zipfile.ZipFile(source,'w') as archive:
+                        archive.writestr('folder/file',b'data')
+                with self.file_bindings(root):
+                    safe.extract_archive('/source','/target',kind)
+                self.assertEqual((root/'target/folder/file').read_bytes(),b'data')
+                self.assertEqual([p.name for p in (root/'target/folder').iterdir()],['file'])
+
+    def test_invalid_late_member_prevents_all_destination_changes(self):
+        with tempfile.TemporaryDirectory() as base:
+            root=Path(base)
+            with zipfile.ZipFile(root/'source','w') as archive:
+                archive.writestr('ordinary',b'data');archive.writestr('../escape',b'bad')
+            with self.file_bindings(root),self.assertRaises(ValueError):
+                safe.extract_archive('/source','/target','zip')
+            self.assertFalse((root/'target').exists())
 
     def test_partial_member_keeps_existing_file_and_removes_staging(self):
         with tempfile.TemporaryDirectory() as base:
