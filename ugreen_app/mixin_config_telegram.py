@@ -1651,6 +1651,8 @@ class MixinConfigTelegram:
         password = str(em.get("smtp_pass") or "")
         use_ssl = bool(em.get("smtp_ssl", False))
         use_tls = bool(em.get("smtp_starttls", True))
+        if (user or password) and not (use_ssl or use_tls):
+            return False, "SMTP credentials require SSL or STARTTLS"
         msg = MIMEText(str(body or ""), "plain", "utf-8")
         msg["Subject"] = " ".join(str(subject or "").replace("\r", " ").replace("\n", " ").split())[:900]
         msg["From"] = mail_from
@@ -1772,6 +1774,8 @@ def _send_email(cfg, subject, body):
     except Exception: port = 587
     user = str(cfg.get("smtp_user") or "").strip(); pwd = str(cfg.get("smtp_password") or "")
     use_ssl = bool(cfg.get("smtp_ssl", False)); use_tls = bool(cfg.get("smtp_tls", True))
+    if (user or pwd) and not (use_ssl or use_tls):
+        return False, "SMTP credentials require SSL or STARTTLS"
     msg = MIMEText(body, "plain", "utf-8"); msg["Subject"] = " ".join(subject.replace("\\r"," ").replace("\\n"," ").split())[:900]; msg["From"] = mail_from; msg["To"] = mail_to
     try:
         ctx = ssl.create_default_context()

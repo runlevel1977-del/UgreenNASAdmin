@@ -713,6 +713,8 @@ def _send_email(cfg: dict[str, Any], subject: str, body: str) -> tuple[bool, str
     mail_to = (cfg.get("smtp_to") or "").strip()
     use_ssl = bool(cfg.get("smtp_ssl", False))
     use_tls = bool(cfg.get("smtp_tls", True))
+    if (user or password) and not (use_ssl or use_tls):
+        return False, "SMTP credentials require SSL or STARTTLS"
     if not host or not mail_from or not mail_to:
         return False, _tr(cfg, "smtp_host/from/to fehlt", "smtp_host/from/to missing")
     msg = MIMEText(body, "plain", "utf-8")

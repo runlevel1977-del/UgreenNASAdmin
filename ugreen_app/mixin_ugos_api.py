@@ -76,7 +76,7 @@ class MixinUgosApi:
         elif https and verify:
             lbl.config(text=self.t("settings.ugos_api_ssl_secure_hint"), fg=self.color_text_muted)
         else:
-            lbl.config(text="")
+            lbl.config(text="HTTP disabled: enable HTTPS and check the API port.", fg=self.color_text_muted)
 
     def _ugos_api_credentials(self) -> tuple[str, str, str]:
         host = self.entry_ip.get().strip() if hasattr(self, "entry_ip") else ""

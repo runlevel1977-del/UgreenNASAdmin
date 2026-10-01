@@ -166,11 +166,13 @@ class UgosApiClient:
         verify_ssl: bool = False,
         token: str = "",
     ) -> None:
+        if not use_https:
+            raise UgosApiError("UGOS API requires HTTPS. Enable HTTPS and check the API port in settings.")
         self.host = (host or "").strip()
         self.port = int(port)
         self.username = (username or "").strip()
         self.password = password or ""
-        self.scheme = "https" if use_https else "http"
+        self.scheme = "https"
         self.base_url = f"{self.scheme}://{self.host}:{self.port}"
         self.verify_ssl = bool(verify_ssl)
         self.token = (token or "").strip()

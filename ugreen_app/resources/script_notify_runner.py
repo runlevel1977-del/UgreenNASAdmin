@@ -59,6 +59,8 @@ def _send_email(cfg: dict, subject: str, body: str) -> tuple[bool, str]:
     pwd = str(cfg.get("smtp_password") or "")
     use_ssl = bool(cfg.get("smtp_ssl", False))
     use_tls = bool(cfg.get("smtp_tls", True))
+    if (user or pwd) and not (use_ssl or use_tls):
+        return False, "SMTP credentials require SSL or STARTTLS"
     msg = MIMEText(body, "plain", "utf-8")
     msg["Subject"] = " ".join(subject.replace("\r", " ").replace("\n", " ").split())[:900]
     msg["From"] = mail_from
