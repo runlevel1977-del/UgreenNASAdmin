@@ -16,6 +16,7 @@ Ausgabe: release/UgreenNASAdmin_v<Version>_release.zip (Version aus ugreen_app/n
 from __future__ import annotations
 
 import re
+import argparse
 import os
 import shutil
 import subprocess
@@ -27,6 +28,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from tools.release_source_guard import release_source_state, reject_runtime_files, export_committed_sources
+from tools.reproducible_release import verify_record
 NAS_MANAGER = ROOT / "ugreen_app" / "nas_manager.py"
 DIST_DIR = ROOT / "dist" / "UgreenNASAdmin"
 DIST_EXE = DIST_DIR / "UgreenNASAdmin.exe"
@@ -41,16 +43,17 @@ def _read_version() -> str:
     return m.group(1)
 
 
-def main() -> int:
+def main(build_dir: Path) -> int:
     ver = _read_version()
-    if not DIST_EXE.is_file():
-        print(f"FEHLER: {DIST_EXE} fehlt — zuerst ``python packaging/builder.py`` ausführen.", file=sys.stderr)
-        return 2
-
+    dist_dir = build_dir / "portable"
+    installer_out = build_dir / "installer"
     try:
         source_state = release_source_state(ROOT, ver)
-        reject_runtime_files(DIST_DIR)
-    except (ValueError, OSError, subprocess.CalledProcessError) as exc:
+        record = verify_record(build_dir)
+        if record["source"]["source_commit"] != source_state["source_commit"]:
+            raise ValueError("Build manifest belongs to a different source commit")
+        reject_runtime_files(dist_dir)
+    except (KeyError, ValueError, OSError, subprocess.CalledProcessError) as exc:
         print(f"FEHLER: {exc}", file=sys.stderr)
         return 2
     RELEASE_DIR.mkdir(parents=True, exist_ok=True)
@@ -65,16 +68,19 @@ def main() -> int:
         inst.mkdir(parents=True)
 
         # Only the exact committed source tree, never ignored local settings.
-        export_committed_sources(ROOT, src_root, source_state)
+        exported = export_committed_sources(ROOT, src_root, source_state)
+        if exported["source_sha256"] != record["source"]["source_sha256"]:
+            raise ValueError("Build source hashes differ from exported release sources")
+        shutil.copy2(build_dir / "BUILD_MANIFEST.json", base / "BUILD_MANIFEST.json")
 
         # dist: kompletter One-Dir-Ordner (EXE + DLLs)
         dist_dst = src_root / "dist" / "UgreenNASAdmin"
         if dist_dst.exists():
             shutil.rmtree(dist_dst)
-        shutil.copytree(DIST_DIR, dist_dst)
+        shutil.copytree(dist_dir, dist_dst)
 
         # Installer: nur Setup zur aktuellen Version (keine alten Builds im ZIP)
-        setup_ver = INSTALLER_OUT / f"UgreenNASAdmin_setup_{ver}.exe"
+        setup_ver = installer_out / f"UgreenNASAdmin_setup_{ver}.exe"
         if setup_ver.is_file():
             shutil.copy2(setup_ver, inst / setup_ver.name)
         else:
@@ -130,4 +136,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    parser = argparse.ArgumentParser(description="Package a verified release build")
+    parser.add_argument("--build-dir", type=Path, required=True)
+    raise SystemExit(main(parser.parse_args().build_dir))

@@ -30,9 +30,65 @@ Sieben Offline-Tests prüfen Tagzuordnung, geänderte Quellen, bekannte private
 Dateien, Git-Export, Hashmanifest und das Verhalten bei gesperrter EXE. Kein
 Builder, Installer oder ausführbares Release wurde gestartet.
 
-Das Quellenmanifest ist kein signierter Buildnachweis und belegt nicht, dass
-die beigepackte EXE aus genau diesem Commit gebaut wurde. Ein vollständiges
-Buildmanifest mit aufgelösten Abhängigkeiten, Buildwerkzeugversionen und
-reproduzierbarem Binärvergleich bleibt eine Aufgabe des Release-Prozesses.
+## Überprüfbarer Build-Ablauf
+
+Das neue tools/reproducible_release.py stellt drei Schritte bereit:
+
+1. In einer dedizierten, bereits eingerichteten Windows-Buildumgebung:
+   python tools/reproducible_release.py lock --iscc C:\Pfad\ISCC.exe
+   erzeugt packaging/build-environment.lock.json und
+   packaging/requirements-build.lock.txt. Alle dort installierten Distributionen,
+   einschließlich transitiver Abhängigkeiten, erhalten genaue Versionspins.
+   Python-Version, Plattform, Architektur, Python-EXE-Hash und ISCC-Hash werden
+   festgehalten. Beide Dateien prüfen und committen; sie dürfen nicht während
+   des eigentlichen Builds neu erzeugt werden. Kein Paket wird vom Werkzeug
+   installiert. Generische Mindestversionen in requirements.txt bleiben nur für
+   Entwicklungsumgebungen bestehen. Die Pins sind Versionspins, keine Wheel-Hashes.
+2. Mit derselben Umgebung:
+   python tools/reproducible_release.py build --iscc C:\Pfad\ISCC.exe --output release/build-a
+   exportiert ausschließlich Git-Quellen in einen frischen temporären Ordner,
+   prüft die Umgebung gegen den committed Lock und führt pip check, PyInstaller
+   sowie Inno Setup aus. PYTHONHASHSEED und SOURCE_DATE_EPOCH sind festgelegt;
+   PYTHONPATH wird entfernt, User-Site-Packages werden deaktiviert. Icons werden
+   aus Git übernommen. Nach dem Build werden Quellen und Umgebung erneut
+   verglichen. BUILD_MANIFEST.json enthält Quellen-, Werkzeug-, Paket- und
+   SHA-256-Nachweise für sämtliche erzeugten Dateien. Vorhandene Buildordner
+   werden nicht überschrieben. Der öffentliche Sync nimmt auch diese Werkzeuge
+   und beide Lockdateien mit.
+3. In einer separat eingerichteten Umgebung aus denselben Pins erneut bauen:
+   python tools/reproducible_release.py compare release/build-a release/build-b
+   bestätigt nur dann Übereinstimmung, wenn die verzeichneten Eingaben und alle
+   tatsächlichen Ausgabebytes identisch sind. Abweichungen werden als Fehler
+   gemeldet; Zeitstempel, Pfade, Compiler-DLLs oder andere Umgebungsunterschiede
+   können weiterhin unterschiedliche Builds verursachen.
+
+Der ZIP-Packer verlangt jetzt --build-dir release/build-a. Er prüft Manifest,
+Quellencommit und die tatsächlichen Artefakthashes und legt BUILD_MANIFEST.json
+bei. Der frühere direkte Weg aus einem beliebigen dist-Ordner wird abgewiesen.
+Danach eine Kopie des Installers mit tools/sign_release_asset.py signieren und
+EXE sowie .sig und (mit PR #21) .release.json zusammen veröffentlichen. Den
+vermessenen Buildordner unverändert aufbewahren; zusätzliche Dateien darin
+führen beim Vergleich/Packen absichtlich zum Abbruch.
+
+Acht zusätzliche Offline-Tests prüfen vollständigen synthetischen Build-Ablauf,
+Eingabeabweichungen, manipulierbare Outputs, Versionspins und Binärvergleiche.
+Es wurden keine Buildwerkzeuge installiert und keine realen EXEs gebaut.
+
+## Noch vom Maintainer auszuführen
+
+Die echte Release-Umgebung muss erfasst und ihr Lock committet werden; hier
+wurde ausdrücklich kein erfundener Lock aus unvollständigen Release-Metadaten
+angelegt. Danach beide Windows-Builds ausführen und vergleichen. Erst ein
+übereinstimmender unabhängiger Build ist ein Reproduzierbarkeitsnachweis.
+Das Manifest allein ist eine überprüfbare Aufzeichnung, keine unabhängige
+Attestation. Auch die signierte Commit-Aussage aus PR #21 ersetzt den Vergleich
+nicht. Ein gehärteter CI-Dienst mit signierten Attestationen bleibt optionaler
+weiterer Ausbau; Schlüssel gehören nicht ins öffentliche Repository.
+
+Den schon veröffentlichten falsch zugeordneten v23.8.57-Tag verändert dieser
+PR nicht. Für die nächste Version einen neuen, korrekten Tag auf den geprüften
+Release-Commit setzen; die bisherige Fehlzuordnung in den Release Notes offen
+benennen. Ein bestehender falscher Tag stoppt diesen Build-/Packablauf.
+
 Die Dateinamensprüfung erkennt bekannte Laufzeitdateien, nicht beliebige unter
 anderen Namen abgelegte Geheimnisse in einer Portable-Ausgabe.

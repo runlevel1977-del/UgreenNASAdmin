@@ -869,3 +869,10 @@ Laufzeit-JSON neben der EXE — **nicht** committen.
 This project is licensed under the MIT License. See the `LICENSE` file in this folder for details.
 
 **Deutsch:** Dieses Projekt steht unter der MIT-Lizenz; Details in der Datei `LICENSE` in diesem Ordner.
+
+### Verified release builds / Geprüfte Release-Builds
+
+For published releases, use the committed-source build and comparison workflow
+in [docs/RELEASE_SOURCE_GUARD_DE.md](docs/RELEASE_SOURCE_GUARD_DE.md).
+The release ZIP packer requires `--build-dir` pointing to a verified build record.
+A source manifest alone does not prove binary reproducibility.
