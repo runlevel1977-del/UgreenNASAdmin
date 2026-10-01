@@ -40,7 +40,9 @@ class UploadStreamTests(unittest.TestCase):
         def metadata(value, directory=False):
             return SimpleNamespace(st_mode=(stat.S_IFDIR | 0o700) if directory else value.st_mode,
                 st_uid=0, st_gid=0, st_nlink=1, st_dev=value.st_dev, st_ino=value.st_ino,
-                st_size=value.st_size, st_mtime_ns=value.st_mtime_ns, st_ctime_ns=value.st_ctime_ns)
+                # Windows stat/fstat can expose different creation/change times;
+                # this fixture models Linux ctime separately from host metadata.
+                st_size=value.st_size, st_mtime_ns=value.st_mtime_ns, st_ctime_ns=0)
         fake = SimpleNamespace(**{name:getattr(os,name) for name in dir(os)})
         fake.path = posixpath
         fake.O_DIRECTORY, fake.O_NOFOLLOW = 0x40000000, 0x20000000
