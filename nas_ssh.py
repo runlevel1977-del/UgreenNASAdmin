@@ -681,6 +681,16 @@ class SSHManager:
                     pass
                 return False, str(e)
 
+    def run_root_transaction(self, host, user, password, source, **auth) -> tuple[bool, str]:
+        """Send a reviewed root transaction through the bounded stdin bootstrap."""
+        with self._lock:
+            try:
+                self._ensure_client(host, user, password, **auth)
+                return self._exec_root_write_code(password, source)
+            except Exception as exc:
+                self.close()
+                return False, str(exc)
+
     def write_remote_file_user(
         self,
         host: str,
