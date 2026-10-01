@@ -16,50 +16,22 @@ Ausgabe: release/UgreenNASAdmin_v<Version>_release.zip (Version aus ugreen_app/n
 from __future__ import annotations
 
 import re
+import os
 import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from tools.release_source_guard import release_source_state, reject_runtime_files, export_committed_sources
 NAS_MANAGER = ROOT / "ugreen_app" / "nas_manager.py"
 DIST_DIR = ROOT / "dist" / "UgreenNASAdmin"
 DIST_EXE = DIST_DIR / "UgreenNASAdmin.exe"
 INSTALLER_OUT = ROOT / "installer" / "output"
 RELEASE_DIR = ROOT / "release"
-
-ROOT_FILES = (
-    "ugreen_nas_admin.py",
-    "nas_ssh.py",
-    "nas_utils.py",
-    "requirements.txt",
-    "LICENSE",
-    "README.md",
-    "CHANGELOG.md",
-)
-
-DOC_FILES = (
-    "HANDBUCH.md",
-    "HANDBUCH_STRUKTURIERT.md",
-    "HANDBOOK_EN.md",
-    "HANDBUCH.pdf",
-    "HANDBOOK_EN.pdf",
-    "handbook_page_index.json",
-)
-
-ASSET_FILES = (
-    "nas_icon.ico",
-    "nas_icon_app.png",
-    "nas_icon.png",
-)
-
-PACKAGING_FILES = (
-    "builder.py",
-    "create_icon.py",
-    "UgreenNASAdmin.spec",
-    "RUN_BUILDER.bat",
-)
-
 
 def _read_version() -> str:
     raw = NAS_MANAGER.read_text(encoding="utf-8", errors="replace")
@@ -69,38 +41,18 @@ def _read_version() -> str:
     return m.group(1)
 
 
-_SKIP_NAMES = frozenset(
-    {
-        "__pycache__",
-        ".mypy_cache",
-        "ugreen_pro_app",
-        "app_settings.json",
-        "nas_admin_connection.json",
-        "telegram_notify.json",
-        "nas_watch_local.json",
-        "nas_daily_report_local.json",
-        "transfer_log.txt",
-        "last_github_update_check.txt",
-        "ssh_known_hosts.json",
-        "ugos_tls_certs.json",
-    }
-)
-
-
-def _ignore_ugreen_app(_dirpath: str, names: list[str]) -> set[str]:
-    out: set[str] = set()
-    for n in names:
-        if n in _SKIP_NAMES or n.endswith(".pyc"):
-            out.add(n)
-    return out
-
-
 def main() -> int:
     ver = _read_version()
     if not DIST_EXE.is_file():
         print(f"FEHLER: {DIST_EXE} fehlt — zuerst ``python packaging/builder.py`` ausführen.", file=sys.stderr)
         return 2
 
+    try:
+        source_state = release_source_state(ROOT, ver)
+        reject_runtime_files(DIST_DIR)
+    except (ValueError, OSError, subprocess.CalledProcessError) as exc:
+        print(f"FEHLER: {exc}", file=sys.stderr)
+        return 2
     RELEASE_DIR.mkdir(parents=True, exist_ok=True)
     bundle_name = f"UgreenNASAdmin_v{ver}_release"
 
@@ -112,44 +64,8 @@ def main() -> int:
         src_root.mkdir(parents=True)
         inst.mkdir(parents=True)
 
-        # Quellbaum
-        shutil.copytree(
-            ROOT / "ugreen_app",
-            src_root / "ugreen_app",
-            ignore=_ignore_ugreen_app,
-        )
-        for name in ROOT_FILES:
-            src = ROOT / name
-            if src.is_file():
-                shutil.copy2(src, src_root / name)
-
-        docs_dst = src_root / "docs"
-        docs_dst.mkdir(parents=True, exist_ok=True)
-        for name in DOC_FILES:
-            src = ROOT / "docs" / name
-            if src.is_file():
-                shutil.copy2(src, docs_dst / name)
-
-        assets_dst = src_root / "assets"
-        assets_dst.mkdir(parents=True, exist_ok=True)
-        for name in ASSET_FILES:
-            src = ROOT / "assets" / name
-            if src.is_file():
-                shutil.copy2(src, assets_dst / name)
-
-        pack_dst = src_root / "packaging"
-        pack_dst.mkdir(parents=True, exist_ok=True)
-        for name in PACKAGING_FILES:
-            src = ROOT / "packaging" / name
-            if src.is_file():
-                shutil.copy2(src, pack_dst / name)
-
-        # Build helper used by packaging/builder.py (Python 3.12 resolver)
-        tools_dst = src_root / "tools"
-        tools_dst.mkdir(parents=True, exist_ok=True)
-        bp = ROOT / "tools" / "build_python.py"
-        if bp.is_file():
-            shutil.copy2(bp, tools_dst / "build_python.py")
+        # Only the exact committed source tree, never ignored local settings.
+        export_committed_sources(ROOT, src_root, source_state)
 
         # dist: kompletter One-Dir-Ordner (EXE + DLLs)
         dist_dst = src_root / "dist" / "UgreenNASAdmin"
@@ -197,12 +113,17 @@ def main() -> int:
             encoding="utf-8",
         )
 
-        out_base = RELEASE_DIR / bundle_name
         out_zip = RELEASE_DIR / f"{bundle_name}.zip"
-        if out_zip.is_file():
-            out_zip.unlink()
-
-        shutil.make_archive(str(out_base), "zip", root_dir=tmp, base_dir=bundle_name)
+        # Build elsewhere; preserve a prior release ZIP if packing fails.
+        staged_zip = shutil.make_archive(str(tmp / "completed-release"), "zip", root_dir=base.parent, base_dir=bundle_name)
+        fd, staged_destination = tempfile.mkstemp(prefix=".ugreen-release-", suffix=".zip", dir=RELEASE_DIR)
+        os.close(fd)
+        try:
+            shutil.copyfile(staged_zip, staged_destination)
+            os.replace(staged_destination, out_zip)
+        finally:
+            if os.path.exists(staged_destination):
+                os.unlink(staged_destination)
 
     print(f"OK: {out_zip}")
     return 0

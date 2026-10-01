@@ -20,23 +20,6 @@ if PACK_DIR not in sys.path:
 from tools.build_python import resolve_build_python  # noqa: E402
 
 
-def _taskkill_exe_if_running(exe_stem: str) -> None:
-    """Windows: beendet laufende Instanz der EXE, damit dist\\*.exe ueberschrieben werden kann."""
-    if os.name != "nt":
-        return
-    exe = f"{exe_stem}.exe"
-    try:
-        kwargs = {"args": ["taskkill", "/IM", exe, "/F"], "capture_output": True, "timeout": 15}
-        if hasattr(subprocess, "CREATE_NO_WINDOW"):
-            kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW  # type: ignore[attr-defined]
-        r = subprocess.run(**kwargs)
-        if r.returncode == 0:
-            print(f'Hinweis: laufende "{exe}" wurde beendet (Lock auf dist\\{exe}).')
-            time.sleep(0.4)
-    except Exception:
-        pass
-
-
 def _remove_dist_exe_maybe_locked(path: str, exe_stem: str) -> bool:
     if not os.path.isfile(path):
         return True
@@ -46,16 +29,8 @@ def _remove_dist_exe_maybe_locked(path: str, exe_stem: str) -> bool:
         return True
     except OSError as e:
         print(f"Konnte alte EXE nicht loeschen: {e}")
-        print("Versuch: gleichnamiges Programm unter Windows beenden …")
-        _taskkill_exe_if_running(exe_stem)
-        try:
-            os.remove(path)
-            print("Alte dist-EXE nach Beenden erfolgreich entfernt.")
-            return True
-        except OSError as e2:
-            print(f"FEHLER: dist-EXE ist noch gesperrt (haeufig: App noch offen / Explorer-Vorschau): {e2}")
-            print("— UgreenNASAdmin.exe schliessen, ggf. Task-Manager, Build erneut starten.")
-            return False
+        print("Bitte die laufende App selbst schließen und den Build erneut starten.")
+        return False
 
 
 def _sha256(path: str) -> str:
@@ -99,9 +74,9 @@ def build():
     dist_exe = os.path.join(dist_dir, f"{EXE_NAME}.exe")
     legacy_exe = os.path.join(ROOT, "dist", f"{EXE_NAME}.exe")
     if os.path.isfile(legacy_exe):
-        _remove_dist_exe_maybe_locked(legacy_exe, EXE_NAME)
+        if not _remove_dist_exe_maybe_locked(legacy_exe, EXE_NAME):
+            sys.exit(1)
     if os.path.isdir(dist_dir):
-        _taskkill_exe_if_running(EXE_NAME)
         try:
             shutil.rmtree(dist_dir, ignore_errors=False)
             print(f"Altes dist/{EXE_NAME}/ entfernt.")
@@ -153,8 +128,7 @@ def build():
         "\nWindows-Hinweis:\n"
         "- Defender-Fehlalarme werden durch den Build reduziert (UPX ist deaktiviert).\n"
         "- SmartScreen-Warnungen lassen sich ohne Code-Signatur nicht vollstaendig vermeiden.\n"
-        "- Fuer lokale Starts hilft meist ein Defender-Exclude fuer den dist-Ordner (Admin):\n"
-        f"  Add-MpPreference -ExclusionPath \"{os.path.join(ROOT, 'dist')}\""
+        "- Sicherheitsmeldungen vor einer Ausführung prüfen; keine pauschalen Scanner-Ausnahmen setzen.\n"
     )
 
 
