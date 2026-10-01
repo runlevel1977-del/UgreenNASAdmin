@@ -48,10 +48,10 @@ class MixinMigrationAssistant:
                 [
                     f"test -d {sq(src)} && echo PREF_SRC_OK || echo PREF_SRC_MISSING",
                     f"du -sk {sq(src)} 2>/dev/null | awk '{{print \"PREF_SRC_KB=\" $1}}'",
-                    f"ssh -o ConnectTimeout=12 -o BatchMode=yes {sq(remote)} {sq('echo PREF_SSH_OK')}",
-                    f"ssh -o ConnectTimeout=12 -o BatchMode=yes {sq(remote)} {sq(f'mkdir -p {dst}')}",
-                    f"ssh -o ConnectTimeout=12 -o BatchMode=yes {sq(remote)} {sq(f'test -d {dst} && echo PREF_DST_OK || echo PREF_DST_MISSING')}",
-                    f"ssh -o ConnectTimeout=12 -o BatchMode=yes {sq(remote)} {sq(f'df -Pk {rvol} | tail -1 | awk {{print \"PREF_DST_AVAIL_KB=\" $4}}')}",
+                    f"ssh -o ConnectTimeout=12 -o BatchMode=yes -- {sq(remote)} {sq('echo PREF_SSH_OK')}",
+                    f"ssh -o ConnectTimeout=12 -o BatchMode=yes -- {sq(remote)} {sq('mkdir -p -- ' + sq(dst))}",
+                    f"ssh -o ConnectTimeout=12 -o BatchMode=yes -- {sq(remote)} {sq('test -d ' + sq(dst) + ' && echo PREF_DST_OK || echo PREF_DST_MISSING')}",
+                    f"ssh -o ConnectTimeout=12 -o BatchMode=yes -- {sq(remote)} " + sq('df -Pk -- ' + sq(rvol) + " | tail -1 | awk '{print \"PREF_DST_AVAIL_KB=\" $4}'"),
                 ]
             )
         else:
@@ -60,9 +60,9 @@ class MixinMigrationAssistant:
                 [
                     f"mkdir -p {sq(dst)} 2>/dev/null; test -d {sq(dst)} && echo PREF_DST_OK || echo PREF_DST_MISSING",
                     f"df -Pk {sq(self._migration_volume_root(dst))} 2>/dev/null | tail -1 | awk '{{print \"PREF_DST_AVAIL_KB=\" $4}}'",
-                    f"ssh -o ConnectTimeout=12 -o BatchMode=yes {sq(remote)} {sq('echo PREF_SSH_OK')}",
-                    f"ssh -o ConnectTimeout=12 -o BatchMode=yes {sq(remote)} {sq(f'test -d {src} && echo PREF_SRC_OK || echo PREF_SRC_MISSING')}",
-                    f"ssh -o ConnectTimeout=12 -o BatchMode=yes {sq(remote)} {sq(f'du -sk {src} 2>/dev/null | awk {{print \"PREF_SRC_KB=\" $1}}')}",
+                    f"ssh -o ConnectTimeout=12 -o BatchMode=yes -- {sq(remote)} {sq('echo PREF_SSH_OK')}",
+                    f"ssh -o ConnectTimeout=12 -o BatchMode=yes -- {sq(remote)} {sq('test -d ' + sq(src) + ' && echo PREF_SRC_OK || echo PREF_SRC_MISSING')}",
+                    f"ssh -o ConnectTimeout=12 -o BatchMode=yes -- {sq(remote)} " + sq('du -sk -- ' + sq(src) + " 2>/dev/null | awk '{print \"PREF_SRC_KB=\" $1}'"),
                 ]
             )
         if need_remote and not host:
@@ -142,7 +142,7 @@ class MixinMigrationAssistant:
         host = (remote_host or "").strip()
         user = (remote_user or "admin").strip() or "admin"
 
-        flags = "-aHAX --info=progress2 --numeric-ids"
+        flags = "-aHAX --protect-args --info=progress2 --numeric-ids"
         if dry_run:
             flags += " -n"
         if delete_extra:
@@ -170,14 +170,14 @@ class MixinMigrationAssistant:
                 f'SRC={shlex.quote(src_trail)}\n'
                 f'DST={shlex.quote(dst_trail)}\n'
                 f'mkdir -p "${{DST%/}}"\n'
-                f'rsync {flags} "$SRC" "$DST"\n'
+                f'rsync {flags} -- "$SRC" "$DST"\n'
             )
         elif scenario == "nas_push":
             remote = f"{user}@{host}:{dst_trail}"
             body = (
                 f'SRC={shlex.quote(src_trail)}\n'
                 f'RSYNC_DST={shlex.quote(remote)}\n'
-                f'rsync {flags} -e ssh "$SRC" "$RSYNC_DST"\n'
+                f'rsync {flags} -e ssh -- "$SRC" "$RSYNC_DST"\n'
             )
         elif scenario == "nas_pull":
             remote = f"{user}@{host}:{src_trail}"
@@ -185,7 +185,7 @@ class MixinMigrationAssistant:
                 f'RSYNC_SRC={shlex.quote(remote)}\n'
                 f'DST={shlex.quote(dst_trail)}\n'
                 f'mkdir -p "${{DST%/}}"\n'
-                f'rsync {flags} -e ssh "$RSYNC_SRC" "$DST"\n'
+                f'rsync {flags} -e ssh -- "$RSYNC_SRC" "$DST"\n'
             )
         else:
             body = (
@@ -194,7 +194,7 @@ class MixinMigrationAssistant:
                 f'RSYNC_SRC={shlex.quote(f"{user}@{host}:{src_trail}")}\n'
                 f'DST={shlex.quote(dst_trail)}\n'
                 f'mkdir -p "${{DST%/}}"\n'
-                f'rsync {flags} -e ssh "$RSYNC_SRC" "$DST"\n'
+                f'rsync {flags} -e ssh -- "$RSYNC_SRC" "$DST"\n'
             )
 
         footer = 'echo "rsync migration step done"\n'

@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import base64
+import http.client
+from functools import partial
 import json
 import ssl
 import urllib.error
@@ -14,6 +16,43 @@ from typing import Any
 
 class UgosApiError(Exception):
     pass
+
+
+class _RejectRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise UgosApiError("UGOS API redirects are disabled; configure the API endpoint directly.")
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    def __init__(self, *args, pinned_fingerprint=None, **kwargs):
+        self._pinned_fingerprint = pinned_fingerprint
+        super().__init__(*args, **kwargs)
+
+    def connect(self):
+        super().connect()
+        if self._pinned_fingerprint is None:
+            return
+        from ugreen_app.ugos_tls_certs import TlsCertChangedError, fingerprint_der
+
+        try:
+            der = self.sock.getpeercert(binary_form=True)
+            if not der:
+                raise UgosApiError("TLS peer did not provide a certificate.")
+            actual = fingerprint_der(der)
+            if actual != self._pinned_fingerprint:
+                raise TlsCertChangedError(self.host, self.port, self._pinned_fingerprint, actual)
+        except Exception:
+            self.close()
+            raise
+
+
+class _PinnedHTTPSHandler(urllib.request.HTTPSHandler):
+    def https_open(self, req):
+        factory = partial(
+            _PinnedHTTPSConnection,
+            pinned_fingerprint=getattr(self._context, "_ugreen_pinned_fingerprint", None),
+        )
+        return self.do_open(factory, req, context=self._context)
 
 
 def _ssl_context(
@@ -153,8 +192,14 @@ class UgosApiClient:
             verify_ca=self.verify_ssl,
         )
 
+    def _open(self, req, *, timeout):
+        opener = urllib.request.build_opener(
+            _PinnedHTTPSHandler(context=self._ctx()), _RejectRedirects()
+        )
+        return opener.open(req, timeout=timeout)
+
     def _request(self, method: str, path: str, payload: dict | None = None) -> dict[str, Any]:
-        from ugreen_app.ugos_tls_certs import TlsCertChangedError
+        from ugreen_app.ugos_tls_certs import TlsCertChangedError, TlsCertStoreError
 
         if not self.token and not self.login():
             raise UgosApiError("UGOS-API-Login fehlgeschlagen.")
@@ -167,10 +212,10 @@ class UgosApiClient:
         headers = _api_headers(json_body=payload is not None)
         req = urllib.request.Request(url, data=data, method=method, headers=headers)
         try:
-            with urllib.request.urlopen(req, timeout=20, context=self._ctx()) as resp:
+            with self._open(req, timeout=20) as resp:
                 body = resp.read().decode("utf-8", errors="replace")
                 out = json.loads(body) if body.strip() else {}
-        except TlsCertChangedError as e:
+        except (TlsCertChangedError, TlsCertStoreError) as e:
             raise UgosApiError(str(e)) from e
         except urllib.error.HTTPError as e:
             raw = e.read().decode("utf-8", errors="replace") if e.fp else str(e)
@@ -194,7 +239,7 @@ class UgosApiClient:
         return out if isinstance(out, dict) else {}
 
     def login(self) -> bool:
-        from ugreen_app.ugos_tls_certs import TlsCertChangedError
+        from ugreen_app.ugos_tls_certs import TlsCertChangedError, TlsCertStoreError
 
         if not self.host or not self.username or not self.password:
             raise UgosApiError("Host, Benutzer und Passwort werden für die UGOS-API benötigt.")
@@ -211,7 +256,7 @@ class UgosApiClient:
             headers=_api_headers(json_body=True),
         )
         try:
-            with urllib.request.urlopen(req, timeout=15, context=self._ctx()) as resp:
+            with self._open(req, timeout=15) as resp:
                 hdr = resp.headers.get("x-rsa-token") or resp.headers.get("X-Rsa-Token") or ""
                 pub = _load_public_key(hdr)
                 enc = base64.b64encode(
@@ -219,7 +264,7 @@ class UgosApiClient:
                 ).decode("ascii")
         except UgosApiError:
             raise
-        except TlsCertChangedError as e:
+        except (TlsCertChangedError, TlsCertStoreError) as e:
             raise UgosApiError(str(e)) from e
         except urllib.error.URLError as e:
             reason = e.reason
@@ -246,9 +291,9 @@ class UgosApiClient:
             headers=_api_headers(json_body=True),
         )
         try:
-            with urllib.request.urlopen(req2, timeout=15, context=self._ctx()) as resp:
+            with self._open(req2, timeout=15) as resp:
                 data = json.loads(resp.read().decode("utf-8", errors="replace"))
-        except TlsCertChangedError as e:
+        except (TlsCertChangedError, TlsCertStoreError) as e:
             raise UgosApiError(str(e)) from e
         except urllib.error.URLError as e:
             reason = e.reason

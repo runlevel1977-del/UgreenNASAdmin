@@ -16,6 +16,10 @@ _lock = threading.RLock()
 _store_path: Path | None = None
 
 
+class TlsCertStoreError(Exception):
+    """Stored trust is unreadable or invalid; do not trust another certificate."""
+
+
 class TlsCertChangedError(Exception):
     """Raised when the remote TLS certificate differs from the trusted one."""
 
@@ -84,17 +88,16 @@ def get_store_path() -> Path:
 
 def _load_raw() -> dict[str, Any]:
     path = get_store_path()
-    if not path.is_file():
-        return {"certs": {}}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except FileNotFoundError:
+        if path.is_symlink():
+            raise TlsCertStoreError("TLS trust store points to a missing file.") from None
         return {"certs": {}}
-    if not isinstance(data, dict):
-        return {"certs": {}}
-    certs = data.get("certs")
-    if not isinstance(certs, dict):
-        data["certs"] = {}
+    except (OSError, ValueError, UnicodeError) as exc:
+        raise TlsCertStoreError("Cannot read TLS trust store; restore or repair it before connecting.") from exc
+    if not isinstance(data, dict) or not isinstance(data.get("certs"), dict):
+        raise TlsCertStoreError("Invalid TLS trust store; existing trust was not reset.")
     return data
 
 
@@ -110,19 +113,25 @@ def _save_raw(data: dict[str, Any]) -> None:
 def get_entry(host: str, port: int) -> TlsCertEntry | None:
     with _lock:
         raw = _load_raw()
-        item = (raw.get("certs") or {}).get(host_port_key(host, port))
-        if not isinstance(item, dict):
+        certs = raw["certs"]
+        key = host_port_key(host, port)
+        if key not in certs:
             return None
+        item = certs[key]
         try:
-            pem = str(item["pem"])
-            fp = str(item.get("fingerprint") or fingerprint_pem(pem))
+            if not isinstance(item, dict) or not isinstance(item.get("pem"), str):
+                raise ValueError("invalid certificate entry")
+            pem = item["pem"]
+            fp = fingerprint_pem(pem)
+            if "fingerprint" in item and item["fingerprint"] != fp:
+                raise ValueError("certificate fingerprint mismatch")
             return TlsCertEntry(
                 pem=pem,
                 fingerprint=fp,
                 first_seen=str(item.get("first_seen") or ""),
             )
-        except (KeyError, TypeError, ValueError):
-            return None
+        except (KeyError, TypeError, ValueError) as exc:
+            raise TlsCertStoreError("Invalid saved TLS certificate; existing trust was not reset.") from exc
 
 
 def trust_pem(host: str, port: int, pem: str) -> TlsCertEntry:
@@ -150,6 +159,7 @@ def trust_pem(host: str, port: int, pem: str) -> TlsCertEntry:
 def forget_host(host: str, port: int) -> bool:
     """Remove trusted cert for host:port. Returns True if an entry was removed."""
     with _lock:
+        get_entry(host, port)  # Do not silently remove a malformed saved entry.
         raw = _load_raw()
         certs = raw.get("certs") or {}
         key = host_port_key(host, port)
@@ -179,21 +189,28 @@ def fetch_server_cert_pem(host: str, port: int, *, timeout: float = 15.0) -> str
 
 def ssl_context_tofu(host: str, port: int, *, timeout: float = 15.0) -> ssl.SSLContext:
     """
-    Build an SSLContext that requires the TOFU-pinned leaf certificate.
+    Build a verifying SSLContext and expose the expected leaf fingerprint.
 
     First contact stores the cert; later contacts verify against the pin
     (self-signed UGOS works without a custom CA on the PC).
     """
     h = (host or "").strip()
     p = int(port)
-    entry = get_entry(h, p)
-    if entry is None:
-        pem = fetch_server_cert_pem(h, p, timeout=timeout)
-        entry = trust_pem(h, p, pem)
+    with _lock:
+        entry = get_entry(h, p)
+        if entry is None:
+            pem = fetch_server_cert_pem(h, p, timeout=timeout)
+            entry = trust_pem(h, p, pem)
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_REQUIRED
-    ctx.load_verify_locations(cadata=entry.pem)
+    try:
+        ctx.load_verify_locations(cadata=entry.pem)
+    except (ssl.SSLError, ValueError) as exc:
+        raise TlsCertStoreError("Saved TLS certificate could not be loaded; connection aborted.") from exc
+    # A trust anchor can authorize descendants. The HTTP connection must also
+    # compare the actual peer leaf before sending an API request.
+    ctx._ugreen_pinned_fingerprint = entry.fingerprint
     return ctx
 
 

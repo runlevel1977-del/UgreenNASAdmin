@@ -149,6 +149,19 @@ PUBLIC_TEST_FILES = frozenset(
         "test_nas_utils_ugos_serv.py",
         "test_window_geometry.py",
         "test_runlevel_apps_scan.py",
+        "test_upload_directory_permissions.py",
+        "test_atomic_root_write.py",
+        "test_script_commands.py",
+        "test_scheduled_backup_cron.py",
+        "test_keyring_resave.py",
+        "test_backup_preflight.py",
+        "test_backup_failures.py",
+        "test_backup_restore_errors.py",
+        "test_backup_archive_preservation.py",
+        "test_admin_commands.py",
+        "test_ugos_api_transport.py",
+        "test_ssh_host_verification.py",
+        "backup_fixtures.py",
     }
 )
 

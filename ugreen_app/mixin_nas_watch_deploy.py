@@ -12,10 +12,10 @@ import tkinter as tk
 from tkinter import messagebox
 
 class MixinNasWatchDeploy:
-    REMOTE_SCRIPT = "/volume1/scripts/ugreen_watch.py"
-    REMOTE_CONFIG = "/volume1/scripts/ugreen_watch_config.json"
-    REMOTE_DAILY_SCRIPT = "/volume1/scripts/ugreen_daily_report.py"
-    REMOTE_DAILY_CONFIG = "/volume1/scripts/ugreen_daily_report_config.json"
+    REMOTE_SCRIPT = "/var/lib/ugreen-nas-admin/ugreen_watch.py"
+    REMOTE_CONFIG = "/var/lib/ugreen-nas-admin/ugreen_watch_config.json"
+    REMOTE_DAILY_SCRIPT = "/var/lib/ugreen-nas-admin/ugreen_daily_report.py"
+    REMOTE_DAILY_CONFIG = "/var/lib/ugreen-nas-admin/ugreen_daily_report_config.json"
 
     def _nas_watch_local_path(self) -> str:
         return os.path.join(self._app_data_dir(), "nas_watch_local.json")

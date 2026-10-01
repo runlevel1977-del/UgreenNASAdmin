@@ -52,10 +52,9 @@ def delete_ssh_password(host: str, user: str) -> bool:
     try:
         import keyring
 
-        try:
-            keyring.delete_password(_SERVICE, _account(host, user))
-        except keyring.errors.PasswordDeleteError:
-            pass
+        account = _account(host, user)
+        if keyring.get_password(_SERVICE, account) is not None:
+            keyring.delete_password(_SERVICE, account)
         return True
     except Exception:
         return False
@@ -82,10 +81,7 @@ def set_ssh_key_passphrase(host: str, user: str, passphrase: str) -> bool:
         if passphrase:
             keyring.set_password(_SERVICE, account, passphrase)
         else:
-            try:
-                keyring.delete_password(_SERVICE, account)
-            except keyring.errors.PasswordDeleteError:
-                pass
+            return delete_ssh_key_passphrase(host, user)
         return True
     except Exception:
         return False
@@ -97,10 +93,9 @@ def delete_ssh_key_passphrase(host: str, user: str) -> bool:
     try:
         import keyring
 
-        try:
-            keyring.delete_password(_SERVICE, _passphrase_account(host, user))
-        except keyring.errors.PasswordDeleteError:
-            pass
+        account = _passphrase_account(host, user)
+        if keyring.get_password(_SERVICE, account) is not None:
+            keyring.delete_password(_SERVICE, account)
         return True
     except Exception:
         return False

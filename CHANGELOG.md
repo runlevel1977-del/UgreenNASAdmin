@@ -1,80 +1,159 @@
 # Changelog — Ugreen NAS Admin
 
+## 23.8.57 — 2026-10-01
+
+Großes Sicherheits-Update. Wer von **≤ 23.8.48** kommt, bekommt mit dieser Version den gesamten heutigen Stand (23.8.49–57): Vertrauensprüfung für SSH und UGOS, Keyring, Danger-Lock, atomare Root-Dateien, private Runner-Pfade und die Review-Punkte zu Backup/Restore und Shell.
+
+### Deutsch
+
+**Kritisch — Disk-Restore**
+- NAS-Restore per `gzip | dd`: **`pipefail`** und Prüfung des echten SSH-Exitcodes.
+- Früher konnte gzip abbrechen, `dd` trotzdem mit Exit 0 enden und die App „Restore fertig“ melden — bei **teilweise überschriebener Platte**. Das ist behoben.
+- Disk-Image schreiben: fail-closed (`set -e`, sicheres `mkdir`); Ziel nur unter `/volumeN/…` oder typischen USB-Mounts (`/mnt`, `/media`).
+- Image-Quelle für Restore: dieselben Allowlists, kein `/dev/…` als „Image-Datei“.
+
+**Backup — manuell und geplant**
+- Vor dem Schreiben: Mount-/Dateisystem-Identität (Preflight); nach `tar` erneut geprüft.
+- Archiv nur veröffentlicht bei **tar-Exit 0** und nichtleerer Datei — kein Erfolg bei kaputtem/teilweisem Archiv.
+- **Keine** automatische Löschung älterer Archive mehr über Dateinamen-Präfix (fremde/parallele Jobs bleiben erhalten).
+- Cron- und Job-Felder werden **komplett validiert, bevor** Runner, JSON oder `/etc/cron.d` als root geschrieben werden.
+- Geplante Backups und Runner liegen unter **`/var/lib/ugreen-nas-admin/`** (nicht mehr unter `/volume1/scripts/`).
+- Archiv-Restore: ein `tar -xf` (kein `||`-Zweitversuch über halb extrahierte Bäume); Zielpfad-Allowlist; echter Exit-Status in der UI.
+- Manuelles Backup ohne `__UG_BACKUP_FILE__`-Marker → klarer Fehler, nicht „unbekannt fertig“.
+
+**Vertrauen & Geheimnisse** (ergänzt 23.8.49–51)
+- SSH-Hostkey-Store und UGOS-TLS-Store: unlesbar/kaputt → **Abbruch**, kein stiller „Erstkontakt“.
+- UGOS-API: **keine** HTTP-Redirects (auch nicht HTTPS→HTTP); Peer-Zertifikat wird gegen den gespeicherten Pin geprüft.
+- Keyring: Klartext-Passwörter/Passphrasen verschwinden aus der JSON erst, wenn der Vault-Schreibvorgang **wirklich** gelingt.
+
+**Shell, Pfade, Upload** (ergänzt 23.8.52–56)
+- Skriptnamen: kein stilles Umwandeln von `../x.sh` → `x.sh`; Cron lehnt `%` im Namen ab.
+- Docker-Jobnamen mit Hash (keine Kollision `a+b` / `a_b`); härteres Quoting für Migration/rsync, ZFS-Snapshots, Docker-Mounts (JSON).
+- Upload: `chown` nur für **neu angelegte** Ordnerkomponenten (23.8.56); Symlinks abgelehnt.
+- Root-Dateien atomar (Staging + Hash + `os.replace` als root-Inode).
+
+**Hinweis nach dem Update**
+1. Watch / Daily Report / Script-Notify / geplante Backups einmal **neu aufs NAS** schreiben.
+2. Cron prüfen: Pfade müssen `/var/lib/ugreen-nas-admin/…` nutzen, nicht `/volume1/scripts/ugreen_…`.
+3. Eigene Skripte bleiben unter `/volume1/scripts/` — die App-Helfer bewusst nicht.
+
+### English
+
+Major security release. Upgrading from **≤ 23.8.48** includes everything from today’s 23.8.49–57 train: SSH/UGOS trust, keyring, danger lock, atomic root writes, private runner paths, and review fixes for backup/restore and shell safety.
+
+**Critical — disk restore**
+- NAS `gzip | dd` restore uses **`pipefail`** and the real SSH exit code.
+- Previously gzip could fail while `dd` still exited 0 and the UI said “restore done” with a **partially overwritten disk**. Fixed.
+- Disk image write is fail-closed; destinations limited to `/volumeN/…` or typical USB mounts (`/mnt`, `/media`).
+
+**Backup — manual and scheduled**
+- Mount/filesystem identity preflight (and re-check after tar).
+- Publish only on tar exit **0** and a non-empty archive.
+- No automatic prune of older archives by filename prefix.
+- Full cron/job validation **before** any root writes; state under **`/var/lib/ugreen-nas-admin/`**.
+- Archive restore: single `tar -xf`, path allowlist, real exit status; missing archive marker → failure.
+
+**Trust & secrets** (builds on 23.8.49–51)
+- Corrupt SSH/TLS stores fail closed (no silent first-contact).
+- UGOS API rejects redirects; peer certificate pin checked.
+- Keyring clears JSON secrets only after a successful vault write.
+
+**Shell, paths, upload** (builds on 23.8.52–56)
+- No silent `../` script aliasing; hashed Docker job names; tighter rsync/ZFS/Docker quoting.
+- Upload `chown` only for newly created path components; atomic root file publication.
+
+**After updating**
+Redeploy Watch / Daily Report / Script-Notify / scheduled backups once, and confirm cron lines use `/var/lib/ugreen-nas-admin/…`.
+
+## 23.8.56 — 2026-10-01
+
+### Deutsch
+
+- **Upload (PR #9):** `chown` nur für **neu angelegte** Ordnerkomponenten; bestehende Eigentümer bleiben; Symlinks → Abbruch.
+- **Root-Schreiben (PR #8):** privilegierte Dateien **atomar** als root-Inode (Staging + Hash-Check + `os.replace`).
+- **Private Helfer:** Watch, Daily Report, Script-Notify und geplante-Backup-Runner unter **`/var/lib/ugreen-nas-admin/`** (nicht unter `/volume1/scripts/`).
+
+### English
+
+- **Upload (PR #9):** `chown` only for **newly created** path components; existing owners untouched; symlinks rejected.
+- **Root writes (PR #8):** privileged files published as **atomic** root-owned inodes.
+- **Private helpers:** Watch, Daily Report, Script-Notify, scheduled backup runners under **`/var/lib/ugreen-nas-admin/`**.
+
 ## 23.8.55 — 2026-10-01
 
 ### Deutsch
 
-- **Repo-Root aufgeräumt:** Icons → **`assets/`**, Builder/Spec/`RUN_BUILDER.bat` → **`packaging/`**. Im Root bleiben nur README/Lizenz/Changelog/requirements und die drei Einstiegs-Module.
+- **Repo-Root:** Icons → **`assets/`**, Builder/Spec/`RUN_BUILDER.bat` → **`packaging/`**. Im Root bleiben README, Lizenz, Changelog, requirements und die Einstiegs-Module.
 
-### English (short)
+### English
 
-- **Cleaner repo root:** Icons → **`assets/`**, builder/spec/`RUN_BUILDER.bat` → **`packaging/`**. Root keeps only README/license/changelog/requirements and the three entry modules.
+- **Repo root:** Icons → **`assets/`**, builder/spec/`RUN_BUILDER.bat` → **`packaging/`**. Root keeps README, license, changelog, requirements, and entry modules.
 
 ## 23.8.54 — 2026-10-01
 
 ### Deutsch
 
-- **Repo-Struktur:** Handbücher/PDFs unter **`docs/`**; öffentliches Sync-Layout aufgeräumt (`docs/`, `tests/`).
-- **CI:** Workflow-Datei unter `.github/workflows/ci.yml` vorbereitet (Push braucht GitHub-Token mit `workflow`-Scope).
+- **Repo-Struktur:** Handbücher und PDFs unter **`docs/`**; öffentliches Sync-Layout (`docs/`, `tests/`) aufgeräumt.
+- **CI:** Workflow unter `.github/workflows/ci.yml` vorbereitet (Push braucht Token mit `workflow`-Scope).
 
-### English (short)
+### English
 
-- **Repo layout:** Handbooks/PDFs under **`docs/`**; cleaner public sync (`docs/`, `tests/`).
-- **CI:** Workflow prepared at `.github/workflows/ci.yml` (push needs a GitHub token with `workflow` scope).
+- **Repo layout:** Handbooks/PDFs under **`docs/`**; cleaner public sync layout.
+- **CI:** Workflow prepared at `.github/workflows/ci.yml` (needs a token with `workflow` scope to push).
 
 ## 23.8.53 — 2026-10-01
 
 ### Deutsch
 
-- **Nachprüfung Shell:** Skript löschen / Host-Test / Docker-Test und Docker-Logs nutzen sichere Basenames bzw. Quoting (Restlücken nach 23.8.52).
-- **UI/Handbuch:** Docker-Wizard-Texte auf `chmod 755` angeglichen (nicht nur DE/EN).
+- **Shell-Nachzug:** Skript löschen, Host-/Docker-Test und Docker-Logs mit sicheren Basenames/Quoting (Rest nach 23.8.52).
+- **UI/Handbuch:** Docker-Wizard-Texte auf `chmod 755` angeglichen.
 
-### English (short)
+### English
 
-- **Shell follow-up:** Script delete/host-test/docker-test and docker logs use safe basenames/quoting (gaps after 23.8.52).
-- **UI/handbook:** Docker wizard copy aligned to `chmod 755` (not only DE/EN).
+- **Shell follow-up:** Script delete, host/docker test, and docker logs use safe basenames/quoting.
+- **UI/handbook:** Docker wizard copy aligned to `chmod 755`.
 
 ## 23.8.52 — 2026-10-01
 
 ### Deutsch
 
-- **Shell-Sicherheit:** Skriptnamen und Cron-Felder werden vor Root-/Shell-Befehlen validiert bzw. gequotet (kein Einbau unsicherer Dateinamen).
-- **Geplante Backups:** `tar`-Fehler → kein „Erfolg“, fehlerhafte Archive werden verworfen; ältere Backups werden **nur nach erfolgreichem Archiv** gelöscht. Job-Pfade/Cron-Werte vor Schreiben nach `/etc/cron.d` geprüft.
-- **Upload:** `chown` nur noch auf dem Zielordner selbst (kein `chown -R` mehr über bestehende Bäume).
-- **Docker:** kein rekursives `chmod 777` mehr — Mount-Punkte/`mkdir` mit `755`.
+- **Shell:** Skriptnamen und Cron-Felder vor Root-/Shell-Befehlen validiert bzw. gequotet.
+- **Geplante Backups:** `tar`-Fehler ≠ Erfolg; fehlerhafte Archive verwerfen; ältere Backups nur nach verifiziertem Archiv löschen; Job-/Cron-Werte vor `/etc/cron.d` geprüft.
+- **Upload:** `chown` nur noch auf dem Zielordner (kein `chown -R` über bestehende Bäume).
+- **Docker:** kein rekursives `chmod 777` — Mounts/`mkdir` mit `755`.
 
-### English (short)
+### English
 
-- **Shell safety:** Script names and cron fields validated/quoted before root/shell use.
-- **Scheduled backups:** Failed `tar` is not treated as success; old archives pruned only after a verified archive. Cron/job values validated before writing `/etc/cron.d`.
-- **Upload:** `chown` on the leaf directory only (no recursive `chown -R`).
-- **Docker:** no recursive `chmod 777` — mount/`mkdir` uses `755`.
+- **Shell:** Script names and cron fields validated/quoted before root/shell use.
+- **Scheduled backups:** Failed `tar` is not success; prune only after a verified archive; cron/job values checked before writing `/etc/cron.d`.
+- **Upload:** leaf `chown` only (no recursive `chown -R`).
+- **Docker:** no recursive `chmod 777` — mounts/`mkdir` use `755`.
 
 ## 23.8.51 — 2026-10-01
 
 ### Deutsch
 
-- **Sicherheit:** Gefährliche Funktionen starten wieder **gesperrt**. „Volle Rechte“ muss bewusst im Header freigeschaltet werden (`danger_functions_unlocked = False`).
+- **Danger-Lock:** Gefährliche Aktionen starten wieder **gesperrt**. „Volle Rechte“ muss bewusst im Header freigeschaltet werden.
 
-### English (short)
+### English
 
-- **Safety:** Dangerous features start **locked** again. Users must consciously enable “Full access” in the header (`danger_functions_unlocked = False`).
+- **Danger lock:** Dangerous actions start **locked**. Users must enable “Full access” in the header deliberately.
 
 ## 23.8.50 — 2026-10-01
 
 ### Deutsch
 
-- **SSH:** Beim **ersten** Kontakt Dialog mit Fingerprint — Key wird nur nach Bestätigung gespeichert (kein stilles TOFU mehr).
-- **Secrets:** SSH-Passwort **und** Key-Passphrase nur noch im System-Tresor; Klartext in der JSON wird nicht mehr geschrieben (`keyring` erforderlich zum Speichern von Secrets).
-- **Auto-Update:** Neben SHA-256 wird eine **Ed25519-Signatur** (`.sig`-Asset) geprüft — schützt auch bei kompromittiertem GitHub-Account (privater Key lokal, nicht im Repo).
-- **Public Build:** u. a. `tools/split_ugreen_manager.py`, `secret_scan.py`, `sign_release_asset.py` werden mitgespiegelt.
+- **SSH:** Beim **ersten** Kontakt Fingerprint-Dialog — Key nur nach Bestätigung (kein stilles TOFU).
+- **Secrets:** SSH-Passwort und Key-Passphrase nur noch im System-Tresor; kein Klartext in der JSON (`keyring` nötig zum Speichern).
+- **Auto-Update:** zusätzlich zur SHA-256 eine **Ed25519-Signatur** (`.sig`) — schützt auch bei kompromittiertem GitHub-Account.
+- **Public Build:** u. a. Split-/Scan-/Sign-Hilfen werden mitgespiegelt.
 
-### English (short)
+### English
 
-- **SSH:** First contact shows a fingerprint dialog — key stored only after confirmation (no silent TOFU).
-- **Secrets:** SSH password **and** key passphrase only in the OS vault; no plaintext JSON (`keyring` required to save secrets).
-- **Auto-update:** Ed25519 signature (`.sig` asset) required in addition to SHA-256 — mitigates compromised GitHub account (private key local only).
-- **Public build:** includes `split_ugreen_manager.py`, `secret_scan.py`, `sign_release_asset.py`, and related tools.
+- **SSH:** First contact shows a fingerprint dialog — key stored only after confirmation.
+- **Secrets:** SSH password and key passphrase only in the OS vault; no plaintext JSON.
+- **Auto-update:** Ed25519 `.sig` in addition to SHA-256.
+- **Public build:** split/scan/sign helpers included in the mirror.
 
 ## Unreleased
 

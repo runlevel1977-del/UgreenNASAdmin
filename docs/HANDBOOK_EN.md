@@ -247,7 +247,7 @@ Click **Save** after changes. Full guide: **§79**.
 
 ### 23.4 Connection buttons (including new SSH features)
 
-- **Save connection:** saves all connection fields permanently in config. The **SSH password** goes into the **OS credential vault** (not the JSON file).
+- **Save connection:** saves all connection fields permanently in config. The **SSH password** goes into the **OS credential vault** (not the JSON file). If the vault write fails, secrets stay in the UI and the JSON is **not** cleared.
 - **PW Safe:** stores only the current SSH password in the system keyring (without the other connection fields).
 - **Create SSH key pair:** creates a new key pair on your PC (`ugreen_nas_admin` + `ugreen_nas_admin.pub`), copies the public key to clipboard, and can directly apply the private key path to the form.
 - **Install public key on NAS:** does a one-time password-based SSH login to the selected target and appends the public key to `~/.ssh/authorized_keys`.
@@ -1561,12 +1561,15 @@ Buttons:
 - Install on NAS
 - Test on NAS
 
+**Deploy path (from 23.8.56):** Watcher, config and state live under **`/var/lib/ugreen-nas-admin/`** (no longer under `/volume1/scripts/`). After updating, run **Install on NAS** once; cron lines must use the same path.
+
 ### 31.5 Daily Report Block
 
 - Enabled checkbox
 - Save locally
 - Install on NAS
 - test
+- **Deploy path (from 23.8.56):** Script and config under **`/var/lib/ugreen-nas-admin/`**. Cron example: `…/ugreen_script_notify_runner.py … -- /usr/bin/python3 /var/lib/ugreen-nas-admin/ugreen_daily_report.py`. Dry-run: `python3 …/ugreen_daily_report.py --dry-run`; real send test: `--force-send`.
 - **Report content (NAS script):** Since **v23.8.1** the daily report includes an **OS / UGOS** section (excerpt from **`/etc/os-release`**: e.g. `PRETTY_NAME`, `VERSION_ID`, `OS_VERSION`, `OS_IS_BETA`) — useful for support and version checks alongside the existing blocks.
 
 ---
@@ -2103,6 +2106,8 @@ Fields:
 - Job type
 - Cron fields
 - Additional options
+
+**Security (from 23.8.57):** Saving to the NAS preflights sources/mounts and validates cron lines **before** any root write. State/runner live under **`/var/lib/ugreen-nas-admin/`**. There is **no** automatic archive deletion — manage free space manually.
 
 ---
 

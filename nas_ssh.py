@@ -4,9 +4,11 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import io
 import os
 import posixpath
+import re
 import shlex
 import threading
 import uuid
@@ -14,6 +16,7 @@ from dataclasses import dataclass
 from typing import Callable, Optional
 import time
 
+from ugreen_app.root_runtime import ROOT_RUNTIME_DIR, private_runtime_directory_code
 from ugreen_app.ssh_host_keys import (
     HostKeyChangedError,
     HostKeyRejectedError,
@@ -23,6 +26,33 @@ from ugreen_app.ssh_host_keys import (
 )
 
 _paramiko_mod = None
+
+
+def _atomic_root_write_code(path: str, mode: int, data_code: str) -> str:
+    """Remote Python: publish a new root-owned inode only after a complete write."""
+    if path.startswith(ROOT_RUNTIME_DIR + "/") and posixpath.dirname(path) != ROOT_RUNTIME_DIR:
+        raise ValueError("Bundled helper files must be direct children of the private runtime directory")
+    return (
+        "import base64,hashlib,os,stat,tempfile\n"
+        + (private_runtime_directory_code() if path.startswith(ROOT_RUNTIME_DIR + "/") else "")
+        + data_code
+        + "\n"
+        + f"target = {path!r}\n"
+        "if os.path.islink(target):\n"
+        "    raise ValueError('Refusing symbolic-link destination')\n"
+        "fd, temporary = tempfile.mkstemp(prefix='.ugreen-root-', dir=os.path.dirname(target))\n"
+        "try:\n"
+        "    with os.fdopen(fd, 'wb') as output:\n"
+        "        output.write(data)\n"
+        "        output.flush()\n"
+        "        os.fsync(output.fileno())\n"
+        "        os.fchown(output.fileno(), 0, 0)\n"
+        + f"        os.fchmod(output.fileno(), {mode})\n"
+        "    os.replace(temporary, target)\n"
+        "finally:\n"
+        "    if os.path.exists(temporary):\n"
+        "        os.unlink(temporary)\n"
+    )
 
 
 def _paramiko():
@@ -415,17 +445,18 @@ class SSHManager:
         rp_final: str,
         chmod_mode: str,
     ) -> tuple[bool, str]:
-        """Ohne SFTP: sudo python3 schreibt Datei (Base64). Für NAS ohne schreibbares SFTP-Ziel."""
+        """Ohne SFTP: denselben atomaren Root-Schreibweg mit Base64 verwenden."""
         b64 = base64.b64encode(local_bytes).decode("ascii")
         try:
             mode_oct = int(str(chmod_mode).strip(), 8)
         except ValueError:
-            mode_oct = 0o644
-        rp = rp_final.strip()
-        py_code = (
-            f"import base64,os; p={rp!r}; data=base64.b64decode({b64!r}); "
-            f"open(p,'wb').write(data); os.chmod(p,{mode_oct})"
+            return False, "Invalid file mode"
+        py_code = _atomic_root_write_code(
+            rp_final, mode_oct, f"data = base64.b64decode({b64!r}, validate=True)"
         )
+        return self._exec_root_write_code(password, py_code)
+
+    def _exec_root_write_code(self, password: str, py_code: str) -> tuple[bool, str]:
         cmd = f"sudo -S /usr/bin/python3 -c {shlex.quote(py_code)}"
         stdin, stdout, stderr = self._client.exec_command(cmd)
         stdin.write((password or "") + "\n")
@@ -456,8 +487,14 @@ class SSHManager:
         ssh_key_path: str = "",
         ssh_key_passphrase: str = "",
     ) -> tuple[bool, str]:
-        """SFTP-Staging (relativ / $HOME / /tmp) + sudo mv, oder Fallback ohne SFTP (Base64 + sudo python3)."""
+        """Datei atomar als root veröffentlichen; SFTP-Staging oder Base64-Fallback."""
         rp_final = remote_final_path.strip()
+        mode = str(chmod_mode).strip()
+        if not posixpath.isabs(rp_final) or rp_final == "/" or "\x00" in rp_final:
+            return False, "Absolute remote file path required"
+        if not re.fullmatch(r"0?[0-7]{3}", mode):
+            return False, "Invalid file mode (expected 000 through 777)"
+        chmod_mode = mode
         with self._lock:
             try:
                 self._ensure_client(
@@ -477,6 +514,7 @@ class SSHManager:
                     f"/tmp/nas_admin_{uid}.tmp",
                 ]
                 tmp_abs: str | None = None
+                staging_cand: str | None = None
                 try:
                     sftp = self._client.open_sftp()
                 except Exception:
@@ -485,10 +523,13 @@ class SSHManager:
                     )
                 try:
                     for cand in candidates:
+                        created = False
                         try:
-                            fh = sftp.file(cand, "wb")
-                            fh.write(local_bytes)
-                            fh.close()
+                            with sftp.file(cand, "wx") as fh:
+                                created = True
+                                fh.chmod(0o600)
+                                fh.write(local_bytes)
+                            staging_cand = cand
                             if cand.startswith("/"):
                                 tmp_abs = cand
                             else:
@@ -502,6 +543,11 @@ class SSHManager:
                                     tmp_abs = posixpath.join(home, cand)
                             break
                         except OSError:
+                            if created:
+                                try:
+                                    sftp.remove(cand)
+                                except OSError:
+                                    pass
                             continue
                 finally:
                     try:
@@ -509,30 +555,33 @@ class SSHManager:
                     except Exception:
                         pass
 
-                if tmp_abs is None:
+                if tmp_abs is None or staging_cand is None:
                     return self._write_remote_file_sudo_base64(
                         password, local_bytes, rp_final, chmod_mode
                     )
 
-                inner = (
-                    f"mv {shlex.quote(tmp_abs)} {shlex.quote(rp_final)} "
-                    f"&& chmod {shlex.quote(str(chmod_mode))} {shlex.quote(rp_final)}"
+                data_code = (
+                    f"source_fd = os.open({tmp_abs!r}, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)\n"
+                    "with os.fdopen(source_fd, 'rb') as source:\n"
+                    "    if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):\n"
+                    "        raise ValueError('Staging source is not a regular file')\n"
+                    + f"    data = source.read({len(local_bytes) + 1})\n"
+                    + f"if hashlib.sha256(data).hexdigest() != {hashlib.sha256(local_bytes).hexdigest()!r}:\n"
+                    "    raise ValueError('Staging content changed or upload incomplete')"
                 )
-                full = f"sudo -S bash -lc {quote_remote_bash_lc(inner)}"
-                stdin, stdout, stderr = self._client.exec_command(full)
-                stdin.write((password or "") + "\n")
-                stdin.flush()
                 try:
-                    stdin.channel.shutdown_write()
-                except Exception:
-                    pass
-                out_b = stdout.read() or b""
-                err_b = stderr.read() or b""
-                code = stdout.channel.recv_exit_status()
-                msg = (_decode_out(out_b) + _decode_out(err_b)).strip()
-                if code != 0:
-                    return False, msg or f"exit {code}"
-                return True, ""
+                    return self._exec_root_write_code(
+                        password, _atomic_root_write_code(rp_final, int(mode, 8), data_code)
+                    )
+                finally:
+                    try:
+                        cleanup_sftp = self._client.open_sftp()
+                        try:
+                            cleanup_sftp.remove(staging_cand)
+                        finally:
+                            cleanup_sftp.close()
+                    except Exception:
+                        pass
             except Exception as e:
                 try:
                     self.close()

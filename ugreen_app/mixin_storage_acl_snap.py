@@ -270,6 +270,10 @@ class MixinStorageAclSnap:
         if not target:
             messagebox.showwarning(self.t("storage.disk_image_title"), self.t("storage.disk_target_path_missing"))
             return
+        target = posixpath.normpath(target)
+        if not nas_utils.is_safe_backup_data_path(target, require_under_volume_leaf=True):
+            messagebox.showwarning(self.t("storage.disk_image_title"), self.t("storage.disk_target_path_missing"))
+            return
         if not self._storage_confirm_sensitive_disk_action(dev, self.t("storage.disk_image_title")):
             return
         if not messagebox.askyesno(self.t("storage.disk_image_title"), self.t("storage.disk_image_confirm_nas", dev=dev, target=target)):
@@ -279,10 +283,24 @@ class MixinStorageAclSnap:
         def worker():
             qd = shlex.quote(dev)
             qt = shlex.quote(target)
-            cmd = f"mkdir -p $(dirname {qt}) 2>/dev/null; dd if={qd} of={qt} bs=4M status=progress conv=fsync 2>&1"
-            out = self.run_ssh_cmd(cmd, True, update_status=False)
-            self.root.after(0, lambda: self._storage_log(out or "(keine Ausgabe)"))
-            self.root.after(0, lambda: self.set_status(self.t("storage.status_image_nas_done")))
+            cmd = (
+                "set -euo pipefail; "
+                f"parent=$(dirname -- {qt}); "
+                'mkdir -p -- "$parent"; '
+                f"dd if={qd} of={qt} bs=4M status=progress conv=fsync 2>&1"
+            )
+            res = self.run_ssh_cmd_ex(cmd, True, update_status=False, long_running=True)
+            out = (res.output or "").strip() or "(keine Ausgabe)"
+            if res.ok:
+                self.root.after(0, lambda: self._storage_log(out))
+                self.root.after(0, lambda: self.set_status(self.t("storage.status_image_nas_done")))
+            else:
+                rc = res.exit_code
+                self.root.after(
+                    0,
+                    lambda: self._storage_log(f"❌ Image-Schreiben fehlgeschlagen (rc={rc}):\n{out}"),
+                )
+                self.root.after(0, lambda: self.set_status(self.t("storage.status_image_failed")))
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -369,6 +387,13 @@ class MixinStorageAclSnap:
         if not src:
             messagebox.showwarning(self.t("storage.restore_title"), self.t("storage.restore_path_missing"))
             return
+        src = posixpath.normpath(src)
+        if not nas_utils.is_safe_backup_data_path(src, require_under_volume_leaf=True):
+            messagebox.showwarning(self.t("storage.restore_title"), self.t("storage.restore_path_missing"))
+            return
+        if src.startswith("/dev/") or "/dev/" in src:
+            messagebox.showwarning(self.t("storage.restore_title"), self.t("storage.restore_path_missing"))
+            return
         if not self._storage_confirm_sensitive_disk_action(dev, self.t("storage.restore_title")):
             return
         if not messagebox.askyesno(self.t("storage.restore_warning_title"), self.t("storage.restore_warning_nas", dev=dev, src=src)):
@@ -380,19 +405,29 @@ class MixinStorageAclSnap:
         def worker():
             qs = shlex.quote(src)
             qd = shlex.quote(dev)
-            cmd = (
-                f"if [ \"${{qs##*.}}\" = \"gz\" ]; then "
-                f"gzip -dc {qs} | dd of={qd} bs=4M conv=fsync status=progress; "
-                f"else dd if={qs} of={qd} bs=4M conv=fsync status=progress; fi 2>&1"
-            )
-            # Shell erhält qs nicht als Variable, daher direkt mit Pfadprüfung bauen:
+            # pipefail: gzip-Fehler (kaputtes/teilweises Archiv) dürfen nicht als dd-Erfolg enden.
+            # Ohne pipefail schreibt dd oft weiter bis EOF und exit 0 — Platte halb überschrieben.
             if src.lower().endswith(".gz"):
-                cmd = f"gzip -dc {qs} | dd of={qd} bs=4M conv=fsync status=progress 2>&1"
+                cmd = (
+                    "set -o pipefail; "
+                    f"gzip -dc {qs} | dd of={qd} bs=4M conv=fsync status=progress 2>&1"
+                )
             else:
                 cmd = f"dd if={qs} of={qd} bs=4M conv=fsync status=progress 2>&1"
-            out = self.run_ssh_cmd(cmd, True, update_status=False)
-            self.root.after(0, lambda: self._storage_log(out or "(keine Ausgabe)"))
-            self.root.after(0, lambda: self.set_status(self.t("storage.status_restore_nas_done")))
+            res = self.run_ssh_cmd_ex(cmd, True, update_status=False, long_running=True)
+            out = (res.output or "").strip() or "(keine Ausgabe)"
+            if res.ok:
+                self.root.after(0, lambda: self._storage_log(out))
+                self.root.after(0, lambda: self.set_status(self.t("storage.status_restore_nas_done")))
+            else:
+                rc = res.exit_code
+                self.root.after(
+                    0,
+                    lambda: self._storage_log(
+                        f"❌ Restore fehlgeschlagen (rc={rc}):\n{out}"
+                    ),
+                )
+                self.root.after(0, lambda: self.set_status(self.t("storage.status_restore_failed")))
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -603,7 +638,8 @@ class MixinStorageAclSnap:
             out = ""
             res = None
             try:
-                cmd = f"timeout 300 sh -c 'du -x --max-depth=3 {sq} 2>/dev/null | sort -nr | head -n 21'"
+                inner = f"du -x --max-depth=3 {sq} 2>/dev/null | sort -nr | head -n 21"
+                cmd = "timeout 300 sh -c " + shlex.quote(inner)
                 res = self.run_ssh_cmd_ex(cmd, False, update_status=False, long_running=True)
                 out = res.output or ""
                 if not out.strip() or "Permission denied" in out or not res.ok:
@@ -611,7 +647,7 @@ class MixinStorageAclSnap:
                     out = res.output or ""
                 if not out.strip():
                     res = self.run_ssh_cmd_ex(
-                        f"timeout 300 sh -c 'du -x -d 3 {sq} 2>/dev/null | sort -nr | head -n 21'",
+                        "timeout 300 sh -c " + shlex.quote(f"du -x -d 3 {sq} 2>/dev/null | sort -nr | head -n 21"),
                         True,
                         update_status=False,
                         long_running=True,
@@ -771,7 +807,8 @@ class MixinStorageAclSnap:
         s1, s2 = self._shell_quote(src.strip()), self._shell_quote(dest.strip())
         if not messagebox.askyesno(self.t("snap.btrfs_title"), self.t("snap.btrfs_create_confirm", src=src, dest=dest)):
             return
-        out = self.run_ssh_cmd(f"mkdir -p $(dirname {s2}) 2>/dev/null; btrfs subvolume snapshot {s1} {s2}", True)
+        parent = shlex.quote(posixpath.dirname(dest.strip()) or ".")
+        out = self.run_ssh_cmd(f"mkdir -p -- {parent} 2>/dev/null && btrfs subvolume snapshot {s1} {s2}", True)
         self.snap_output.delete("1.0", tk.END)
         self.snap_output.insert(tk.END, out)
         messagebox.showinfo(self.t("snap.btrfs_title"), self.t("snap.command_executed"))
@@ -786,9 +823,11 @@ class MixinStorageAclSnap:
         if not tag:
             return
         snap = f"{ds.strip()}@{tag.strip()}"
+        if not self._valid_single_zfs_snapshot(snap):
+            return
         if not messagebox.askyesno(self.t("snap.zfs_title"), self.t("snap.zfs_create_confirm", snap=snap)):
             return
-        out = self.run_ssh_cmd(f"zfs snapshot {snap}", True)
+        out = self.run_ssh_cmd(f"zfs snapshot {shlex.quote(snap)}", True)
         self.snap_output.delete("1.0", tk.END)
         self.snap_output.insert(tk.END, out)
         messagebox.showinfo(self.t("snap.zfs_title"), self.t("snap.command_executed"))
@@ -822,15 +861,24 @@ class MixinStorageAclSnap:
         self.snap_output.delete("1.0", tk.END)
         self.snap_output.insert(tk.END, out)
 
+    def _valid_single_zfs_snapshot(self, name):
+        # A snapshot action must never accept a dataset, CLI options, or ranges.
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_./:-]*@[A-Za-z0-9_.:-]+", name):
+            messagebox.showerror(self.t("snap.zfs_title"), "Einzelnen Snapshot als pool/dataset@name angeben / Enter one snapshot as pool/dataset@name.")
+            return False
+        return True
+
     def snap_zfs_delete(self):
         if not self._danger_gate():
             return
         name = simpledialog.askstring(self.t("snap.zfs_delete_title"), self.t("snap.zfs_delete_prompt"), parent=self.root)
         if not name or not name.strip():
             return
+        if not self._valid_single_zfs_snapshot(name.strip()):
+            return
         if not messagebox.askyesno(self.t("snap.delete_confirm_title"), name):
             return
-        out = self.run_ssh_cmd(f"zfs destroy {name.strip()}", True)
+        out = self.run_ssh_cmd(f"zfs destroy {shlex.quote(name.strip())}", True)
         self.snap_output.delete("1.0", tk.END)
         self.snap_output.insert(tk.END, out)
 

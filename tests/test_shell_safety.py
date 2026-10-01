@@ -11,10 +11,10 @@ import nas_utils
 class TestShellSafety(unittest.TestCase):
     def test_safe_script_basename(self) -> None:
         self.assertEqual(nas_utils.safe_script_basename("backup.sh"), "backup.sh")
-        self.assertEqual(nas_utils.safe_script_basename("/evil/../x.sh"), "x.sh")
+        self.assertIsNone(nas_utils.safe_script_basename("/evil/../x.sh"))
         self.assertIsNone(nas_utils.safe_script_basename("a;rm -rf /"))
         self.assertIsNone(nas_utils.safe_script_basename("a b.sh"))
-        self.assertEqual(nas_utils.safe_script_basename("../x"), "x")
+        self.assertIsNone(nas_utils.safe_script_basename("../x"))
         self.assertIsNone(nas_utils.safe_script_basename(""))
 
     def test_cron_fields(self) -> None:
@@ -28,6 +28,10 @@ class TestShellSafety(unittest.TestCase):
         self.assertFalse(nas_utils.is_safe_job_id("a;b"))
         self.assertTrue(nas_utils.is_safe_abs_volume_path("/volume1/backup/x"))
         self.assertFalse(nas_utils.is_safe_abs_volume_path("/etc/passwd"))
+        self.assertTrue(nas_utils.is_safe_backup_data_path("/volume1/backup/x", require_under_volume_leaf=True))
+        self.assertFalse(nas_utils.is_safe_backup_data_path("/volume1", require_under_volume_leaf=True))
+        self.assertTrue(nas_utils.is_safe_backup_data_path("/mnt/usb1/data"))
+        self.assertFalse(nas_utils.is_safe_backup_data_path("/"))
 
 
 if __name__ == "__main__":

@@ -247,7 +247,7 @@ Nach Änderung **Speichern** klicken. Ausführliche Anleitung: **§79**.
 
 ### 23.4 Verbindungsbuttons (inkl. neuer SSH-Funktionen)
 
-- **Verbindung speichern:** speichert alle Felder im Verbindungsbereich dauerhaft in der Konfiguration. Das **SSH-Passwort** landet im **System-Tresor** (nicht in der JSON-Datei).
+- **Verbindung speichern:** speichert alle Felder im Verbindungsbereich dauerhaft in der Konfiguration. Das **SSH-Passwort** landet im **System-Tresor** (nicht in der JSON-Datei). Schlägt das Schreiben in den Tresor fehl, bleiben Secrets in der UI erhalten und die JSON wird **nicht** geleert.
 - **PW Tresor:** speichert nur das aktuelle SSH-Passwort im System-Keyring (ohne die übrigen Verbindungsfelder).
 - **SSH-Key-Paar erstellen:** erstellt auf deinem PC ein neues Schluesselpaar (`ugreen_nas_admin` + `ugreen_nas_admin.pub`), kopiert den Public Key in die Zwischenablage und kann den privaten Key-Pfad direkt ins Formular uebernehmen.
 - **Oeffentlichen Key auf NAS installieren:** verbindet sich einmalig per Passwort-SSH mit dem gewaehlten Ziel und traegt den Public Key in `~/.ssh/authorized_keys` ein.
@@ -1561,12 +1561,15 @@ Buttons:
 - Auf NAS installieren
 - Test auf NAS
 
+**Deploy-Pfad (ab 23.8.56):** Watcher, Config und State liegen unter **`/var/lib/ugreen-nas-admin/`** (nicht mehr unter `/volume1/scripts/`). Nach dem Update einmal **Auf NAS installieren**; Cron-Zeilen müssen denselben Pfad nutzen.
+
 ### 31.5 Daily-Report-Block
 
 - Enabled Checkbox
 - Lokal speichern
 - Auf NAS installieren
 - Test
+- **Deploy-Pfad (ab 23.8.56):** Skript und Config unter **`/var/lib/ugreen-nas-admin/`**. Cron-Beispiel: `…/ugreen_script_notify_runner.py … -- /usr/bin/python3 /var/lib/ugreen-nas-admin/ugreen_daily_report.py`. Trockenlauf: `python3 …/ugreen_daily_report.py --dry-run`; echter Versand-Test: `--force-send`.
 - **Berichtsinhalt (NAS-Skript):** Der per Cron auf dem NAS laufende Tagesbericht enthält seit **v23.8.1** einen Abschnitt **OS / UGOS** (Auszug aus **`/etc/os-release`**: u. a. `PRETTY_NAME`, `VERSION_ID`, `OS_VERSION`, `OS_IS_BETA`) — nützlich für Support und Versionsvergleich neben den bestehenden Blöcken (Uptime, Load, SMART, Docker, …).
 
 ---
@@ -2103,6 +2106,8 @@ Felder:
 - Jobtyp
 - Cron-Felder
 - Zusatzoptionen
+
+**Sicherheit (ab 23.8.57):** Beim Speichern auf die NAS werden Quellen/Mounts vorgeprüft und Cron-Zeilen **vor** Root-Schreiben validiert. State/Runner liegen unter **`/var/lib/ugreen-nas-admin/`**. Es gibt **keine** automatische Archivlöschung — Speicherplatz manuell verwalten.
 
 ---
 

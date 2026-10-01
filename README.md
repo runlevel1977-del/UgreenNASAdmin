@@ -109,7 +109,7 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 - **Settings SSH workflow:** create SSH key pair and install public key to UGREEN or second NAS/QNAP directly from the app. **TOFU host keys** (`ssh_known_hosts.json`) — first connect trusts the key; later changes are rejected (Settings → **Forget SSH host key**).
 - **Health improvements:** Scheduler inventory and expanded UGOS/service visibility.
 - **Updated screenshots:** `images/` now reflects the newest app state (latest captures provided by the maintainer).
-- **Version** **23.8.55** — see full details in [`CHANGELOG.md`](CHANGELOG.md).
+- **Version** **23.8.57** — see full details in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Repository layout
 

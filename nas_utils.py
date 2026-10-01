@@ -781,13 +781,18 @@ _VOLUME_ABS_RE = re.compile(r"^/volume\d+(?:/.*)?$")
 
 
 def safe_script_basename(name: str) -> str | None:
-    """Return a basename safe for shell/cron use, or None if rejected."""
-    base = posixpath.basename((name or "").strip().replace("\\", "/"))
-    if not base or base in (".", ".."):
+    """Return a single filename safe for shell/cron use, or None if rejected.
+
+    Paths with separators are rejected (no silent basename aliasing of ../x.sh).
+    """
+    raw = (name or "").strip()
+    if not raw or "/" in raw or "\\" in raw or ".." in raw:
         return None
-    if not _SAFE_SCRIPT_BASENAME_RE.fullmatch(base):
+    if not _SAFE_SCRIPT_BASENAME_RE.fullmatch(raw):
         return None
-    return base
+    if raw in (".", ".."):
+        return None
+    return raw
 
 
 def is_safe_cron_field(value: str) -> bool:
@@ -814,6 +819,20 @@ def is_safe_abs_volume_path(path: str, *, allow_root_volume: bool = True) -> boo
     if not allow_root_volume and _VOLUME_ABS_RE.fullmatch(p) and p.count("/") == 1:
         return False
     return bool(_VOLUME_ABS_RE.fullmatch(p))
+
+
+def is_safe_backup_data_path(path: str, *, require_under_volume_leaf: bool = False) -> bool:
+    """Absolute data path under /volumeN or a typical USB mount (/mnt|/media)."""
+    p = posixpath.normpath((path or "").strip())
+    if not p or p == "/" or ".." in p.split("/") or "\x00" in p:
+        return False
+    if is_safe_abs_volume_path(p, allow_root_volume=not require_under_volume_leaf):
+        return True
+    # USB / external mounts — require at least one path component after the root.
+    if re.fullmatch(r"/(?:mnt|media)/[A-Za-z0-9._-]+(?:/[A-Za-z0-9._+/-]+)?", p):
+        parts = [x for x in p.split("/") if x]
+        return len(parts) >= 2
+    return False
 
 
 def validate_cron_fields(fields: list | tuple) -> bool:
