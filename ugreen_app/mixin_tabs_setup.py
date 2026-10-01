@@ -30,6 +30,7 @@ import urllib.parse
 
 import nas_ssh
 import nas_utils
+from ugreen_app.root_runtime import ROOT_RUNTIME_DIR, BACKUP_STATE
 from ugreen_app.scroll_helpers import (
     should_ignore_smooth_mousewheel_target,
     smooth_bind_mousewheel_tree,
@@ -2980,20 +2981,27 @@ class MixinTabsSetup:
             jobs: list[dict] = []
             try:
                 vols_ss = self._backup_collect_volumes()
-                jp = posixpath.normpath(posixpath.join(self._backup_pick_target_volume(vols_ss), "backup", "ugreen_admin", "scheduled_backups.json"))
-                raw = self.run_ssh_cmd(f"/bin/cat {shlex.quote(jp)}", True, update_status=False)
+                legacy = posixpath.normpath(posixpath.join(self._backup_pick_target_volume(vols_ss), "backup", "ugreen_admin", "scheduled_backups.json"))
+                jp = BACKUP_STATE
+                # Import legacy JSON only when the private state does not exist.
+                # A read error in existing private state must not revive old jobs.
+                p, old = shlex.quote(jp), shlex.quote(legacy)
+                result = self.run_ssh_cmd_ex(
+                    f"if [ -e {p} ] || [ -L {p} ]; then /bin/cat -- {p}; "
+                    f"elif [ -e {old} ] || [ -L {old} ]; then /bin/cat -- {old}; else printf '{{\"jobs\":[]}}'; fi",
+                    True, update_status=False,
+                )
+                if not result.ok:
+                    raise RuntimeError(result.output or "Cannot read scheduled backup state")
+                raw = result.output
                 text = str(raw or "").strip()
-                lower = text.lower()
-                if not text or "no such file" in lower or ("cannot open" in lower and "{" not in text):
-                    jobs = []
+                doc, _trail = self._scheduled_backup_try_parse_jobs_json_blob(text)
+                if doc is None:
+                    err = self.t("backup.sched.bad_json")
+                elif isinstance(doc.get("jobs"), list):
+                    jobs = [x for x in doc["jobs"] if isinstance(x, dict)]
                 else:
-                    doc, _trail = self._scheduled_backup_try_parse_jobs_json_blob(text)
-                    if doc is None:
-                        err = self.t("backup.sched.bad_json")
-                    elif isinstance(doc.get("jobs"), list):
-                        jobs = [x for x in doc["jobs"] if isinstance(x, dict)]
-                    else:
-                        err = self.t("backup.sched.bad_json")
+                    err = self.t("backup.sched.bad_json")
             except Exception as e:
                 err = str(e)
 
@@ -3022,16 +3030,10 @@ class MixinTabsSetup:
                 body = self._scheduled_backup_runner_template_text()
                 if not body.strip():
                     raise RuntimeError(self.t("backup.sched.runner_missing_local"))
-                vols_ss = self._backup_collect_volumes()
-                tgt = self._backup_pick_target_volume(vols_ss)
-                scripts_dir, _dock = self._backup_paths_from_settings()
-                scripts_dir = posixpath.normpath(str(scripts_dir or "/volume1/scripts").strip().rstrip("/") or "/volume1/scripts")
-                runner_remote = posixpath.join(scripts_dir, self.SCHEDULED_BACKUP_RUNNER_BASENAME)
-                jp = posixpath.join(tgt.rstrip("/"), "backup", "ugreen_admin", "scheduled_backups.json")
+                runner_remote = posixpath.join(ROOT_RUNTIME_DIR, self.SCHEDULED_BACKUP_RUNNER_BASENAME)
+                jp = BACKUP_STATE
                 jp_show = posixpath.normpath(jp)
                 runner_show = posixpath.normpath(runner_remote)
-                jp_dir = posixpath.dirname(jp)
-                self.run_ssh_cmd("/bin/bash -lc " + shlex.quote(f"mkdir -p {jp_dir}"), True, update_status=False)
                 jobs = getattr(self, "scheduled_backup_jobs", []) or []
                 if not getattr(self, "write_root_file", None):
                     raise RuntimeError(self.t("backup.sched.writer_missing"))

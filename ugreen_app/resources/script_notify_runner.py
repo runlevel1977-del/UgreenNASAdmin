@@ -16,7 +16,7 @@ import urllib.parse
 import urllib.request
 from email.mime.text import MIMEText
 
-DEFAULT_CONFIG = "/volume1/scripts/ugreen_script_notify_config.json"
+DEFAULT_CONFIG = "/var/lib/ugreen-nas-admin/ugreen_script_notify_config.json"
 
 
 def _read_json(path: str) -> dict:

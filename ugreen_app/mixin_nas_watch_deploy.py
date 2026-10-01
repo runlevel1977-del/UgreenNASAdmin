@@ -12,10 +12,10 @@ import tkinter as tk
 from tkinter import messagebox
 
 class MixinNasWatchDeploy:
-    REMOTE_SCRIPT = "/volume1/scripts/ugreen_watch.py"
-    REMOTE_CONFIG = "/volume1/scripts/ugreen_watch_config.json"
-    REMOTE_DAILY_SCRIPT = "/volume1/scripts/ugreen_daily_report.py"
-    REMOTE_DAILY_CONFIG = "/volume1/scripts/ugreen_daily_report_config.json"
+    REMOTE_SCRIPT = "/var/lib/ugreen-nas-admin/ugreen_watch.py"
+    REMOTE_CONFIG = "/var/lib/ugreen-nas-admin/ugreen_watch_config.json"
+    REMOTE_DAILY_SCRIPT = "/var/lib/ugreen-nas-admin/ugreen_daily_report.py"
+    REMOTE_DAILY_CONFIG = "/var/lib/ugreen-nas-admin/ugreen_daily_report_config.json"
 
     def _nas_watch_local_path(self) -> str:
         return os.path.join(self._app_data_dir(), "nas_watch_local.json")
@@ -228,7 +228,6 @@ class MixinNasWatchDeploy:
             ok2, e2 = False, ""
             thread_err: str | None = None
             try:
-                self.run_ssh_cmd("mkdir -p /volume1/scripts", True, update_status=False)
                 auth = self._ssh_auth_payload()
                 ok1, e1 = self._ssh_mgr.write_remote_file_sudo(
                     self.entry_ip.get().strip(),
@@ -434,7 +433,6 @@ class MixinNasWatchDeploy:
             ok2, e2 = False, ""
             thread_err: str | None = None
             try:
-                self.run_ssh_cmd("mkdir -p /volume1/scripts", True, update_status=False)
                 auth = self._ssh_auth_payload()
                 ok1, e1 = self._ssh_mgr.write_remote_file_sudo(
                     self.entry_ip.get().strip(),

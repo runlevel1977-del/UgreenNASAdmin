@@ -15,6 +15,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Callable, Optional
 import time
+from ugreen_app.root_runtime import ROOT_RUNTIME_DIR, private_runtime_directory_code
 
 _paramiko_mod = None
 
@@ -22,11 +23,14 @@ _paramiko_mod = None
 def _atomic_root_write_code(path: str, mode: int, data_code: str) -> str:
     """Remote Python: publish a new root-owned inode only after a complete write.
 
-    Parent directories must be trusted separately; ownership of a file cannot
-    stop someone with write access to its parent from replacing that file.
+    Bundled helpers use a checked private directory. Other callers still need
+    trusted parent directories; a file's owner cannot prevent parent replacement.
     """
+    if path.startswith(ROOT_RUNTIME_DIR + "/") and posixpath.dirname(path) != ROOT_RUNTIME_DIR:
+        raise ValueError("Bundled helper files must be direct children of the private runtime directory")
     return (
         "import base64,hashlib,os,stat,tempfile\n"
+        + (private_runtime_directory_code() if path.startswith(ROOT_RUNTIME_DIR + "/") else "")
         + data_code + "\n"
         + f"target = {path!r}\n"
         "if os.path.islink(target):\n"

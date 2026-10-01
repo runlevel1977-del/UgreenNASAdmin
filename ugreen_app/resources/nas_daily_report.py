@@ -5,10 +5,10 @@ Ugreen NAS — Tagesbericht (Info, kein Alarm). Nur Python-Standardbibliothek.
 Gleiche Benachrichtigungsfelder wie ugreen_watch_config (Kanal, SMTP, Telegram).
 
 Cron (Beispiel täglich 7:00):
-  0 7 * * * /usr/bin/python3 /volume1/scripts/ugreen_daily_report.py >>/tmp/ugreen_daily.log 2>&1
+  0 7 * * * /usr/bin/python3 /var/lib/ugreen-nas-admin/ugreen_daily_report.py >>/tmp/ugreen_daily.log 2>&1
 
 Trockenlauf (nur stdout, kein Versand):
-  python3 /volume1/scripts/ugreen_daily_report.py --dry-run
+  python3 /var/lib/ugreen-nas-admin/ugreen_daily_report.py --dry-run
 """
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ import urllib.request
 from email.mime.text import MIMEText
 from typing import Any
 
-DEFAULT_CONFIG = "/volume1/scripts/ugreen_daily_report_config.json"
+DEFAULT_CONFIG = "/var/lib/ugreen-nas-admin/ugreen_daily_report_config.json"
 
 
 def _lang(cfg: dict[str, Any]) -> str:

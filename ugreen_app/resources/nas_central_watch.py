@@ -8,9 +8,9 @@ Prüft optional: Speicher (/volume*), RAID (mdstat), Temperatur, Docker,
 systemd failed units, fehlgeschlagene SSH-Logins (journalctl/auth.log).
 Benachrichtigung: Telegram und/oder E-Mail.
 
-Einmaliger Test:  python3 /volume1/scripts/ugreen_watch.py --once
-SMTP nur testen:   python3 /volume1/scripts/ugreen_watch.py --smtp-test  (notify_channel: email oder both)
-Cron (Beispiel):  */5 * * * * /usr/bin/python3 /volume1/scripts/ugreen_watch.py >>/tmp/ugreen_watch.log 2>&1
+Einmaliger Test:  python3 /var/lib/ugreen-nas-admin/ugreen_watch.py --once
+SMTP nur testen:   python3 /var/lib/ugreen-nas-admin/ugreen_watch.py --smtp-test  (notify_channel: email oder both)
+Cron (Beispiel):  */5 * * * * /usr/bin/python3 /var/lib/ugreen-nas-admin/ugreen_watch.py >>/tmp/ugreen_watch.log 2>&1
 """
 from __future__ import annotations
 
@@ -32,8 +32,8 @@ import urllib.request
 from email.mime.text import MIMEText
 from typing import Any
 
-DEFAULT_CONFIG = "/volume1/scripts/ugreen_watch_config.json"
-DEFAULT_STATE = "/volume1/scripts/ugreen_watch_state.json"
+DEFAULT_CONFIG = "/var/lib/ugreen-nas-admin/ugreen_watch_config.json"
+DEFAULT_STATE = "/var/lib/ugreen-nas-admin/ugreen_watch_state.json"
 
 
 def _lang(cfg: dict[str, Any]) -> str:
