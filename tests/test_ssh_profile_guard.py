@@ -107,6 +107,21 @@ class SshProfileGuardTests(unittest.TestCase):
             guard.rollback(self.store, TOKEN, command=self.command)
         self.assertEqual(self.store.data, b"external admin edit")
 
+    def test_ignored_dropin_rolls_back_instead_of_claiming_hardening(self):
+        def command(args):
+            if args == ['/usr/sbin/sshd', '-T']:
+                return 'ciphers aes256-ctr\n'
+            return 'yes'
+        with self.assertRaisesRegex(RuntimeError, 'not effective'):
+            guard.apply(self.store, TOKEN, b'Ciphers aes128-ctr\n', command)
+        self.assertEqual(self.store.data, b'old profile')
+        self.assertEqual(self.store.saved['status'], 'rolled_back')
+
+    def test_effective_profile_compares_configured_global_algorithms(self):
+        command = Mock(return_value='port 22\nciphers aes128-ctr\nmacs hmac-sha2-256\n')
+        guard.check_effective_profile(b'# profile\nCiphers aes128-ctr\nMACs hmac-sha2-256\n', command)
+        command.assert_called_once_with(['/usr/sbin/sshd', '-T'])
+
     def test_ui_confirmation_connects_again_before_confirming(self):
         ui = MixinNasAdmin(); calls = Mock()
         ui._danger_gate = lambda: True

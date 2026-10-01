@@ -12,6 +12,10 @@ Symlink-Folgen geöffnet; Dateien werden über festgehaltene Verzeichnisdeskript
 atomar ersetzt. Eine zweite App darf keine noch offene Transaktion überschreiben.
 Syntax- und Reloadfehler lösen sofort die Wiederherstellung aus. Ein Timerdienst
 wiederholt fehlgeschlagene Rückfälle; ein SSH-Restart als Ausweichweg entfällt.
+Zusätzlich müssen die global von `sshd -T` ausgegebenen Algorithmen den Profilwerten
+entsprechen. Ein ignoriertes Include oder eine übersteuernde frühere Einstellung
+wird damit nicht fälschlich als wirksames Hardening bestätigt. Individuelle
+`Match`-Regeln sind damit noch nicht für sämtliche Benutzer-/Adresskontexte geprüft.
 
 „SSH ok bestätigen“ schließt zuerst die bisherige SSH-Verbindung. Erst eine neue
 erfolgreiche Verbindung darf die zugehörige, noch nicht abgelaufene Transaktion

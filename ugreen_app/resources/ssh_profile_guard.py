@@ -178,6 +178,24 @@ def digest(data):
     return None if data is None else hashlib.sha256(data).hexdigest()
 
 
+def check_effective_profile(body, command):
+    managed = {'ciphers', 'macs', 'kexalgorithms', 'hostkeyalgorithms'}
+    expected = {}
+    for line in body.decode('utf-8').splitlines():
+        parts = line.split('#', 1)[0].split(None, 1)
+        if len(parts) == 2 and parts[0].lower() in managed:
+            expected[parts[0].lower()] = parts[1]
+    if not expected:
+        return
+    effective = {}
+    for line in command(['/usr/sbin/sshd', '-T']).splitlines():
+        parts = line.split(None, 1)
+        if len(parts) == 2:
+            effective[parts[0].lower()] = parts[1]
+    if any(effective.get(key) != value for key, value in expected.items()):
+        raise RuntimeError('SSH profile is not effective; check Include order and existing algorithm settings')
+
+
 def unit(token):
     if not re.fullmatch(r"[0-9a-f]{32}", token):
         raise ValueError("Invalid transaction identifier")
@@ -230,6 +248,7 @@ def apply(store, token, body, command=run, now=time.time):
         changed = True  # A failure after replace/fsync still requires restoration.
         store.publish(body)
         command(["/usr/sbin/sshd", "-t"])
+        check_effective_profile(body, command)
         command(["/usr/bin/systemctl", "reload", "ssh.service"])
         state["status"] = "pending"
         store.save(state)
