@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from tools.release_source_guard import release_source_state, export_committed_sources, reject_runtime_files
+from tools.artifact_inventory import native_inventory
 
 LOCK = Path("packaging/build-environment.lock.json")
 PINS = Path("packaging/requirements-build.lock.txt")
@@ -123,6 +124,7 @@ def build(root, iscc, output):
         shutil.copytree(portable, result/"portable")
         (result/"installer").mkdir()
         shutil.copy2(installer, result/"installer"/installer.name)
+        (result/"NATIVE_INVENTORY.json").write_text(json.dumps(native_inventory(result, observed["packages"]), indent=2)+"\n", encoding="utf-8")
         manifest = {"schema": 1, "source": source_manifest, "environment": observed,
                     "source_date_epoch": epoch, "artifacts_sha256": tree_hashes(result),
                     "claim": "Recorded build; reproducibility requires an independent matching rebuild"}

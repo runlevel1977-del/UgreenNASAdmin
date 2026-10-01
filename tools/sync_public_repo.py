@@ -82,6 +82,8 @@ TOOL_FILES = frozenset(
         "build_release_zip.py",
         "release_source_guard.py",
         "reproducible_release.py",
+        "artifact_inventory.py",
+        "secret_inventory.py",
         "sync_public_repo.py",
         "split_ugreen_manager.py",
         "secret_scan.py",

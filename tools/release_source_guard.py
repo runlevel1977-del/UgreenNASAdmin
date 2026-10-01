@@ -7,9 +7,14 @@ import subprocess
 RUNTIME_NAMES = frozenset({
     'app_settings.json','nas_admin_connection.json','telegram_notify.json',
     'nas_watch_local.json','nas_daily_report_local.json','qnap_smb_prefs.json',
-    'ssh_known_hosts.json','ugos_tls_certs.json','transfer_log.txt',
+    'ssh_known_hosts.json','ugos_tls_certs.json','transfer_log.txt','transfer.log',
     'last_github_update_check.txt','last_github_update_prompt.txt','.env',
 })
+
+
+def runtime_name(name):
+    lower = name.lower()
+    return any(lower == item or lower.startswith(item + '.') for item in RUNTIME_NAMES) or lower.startswith('release_ed25519_private')
 SOURCE_ROOTS = frozenset({'ugreen_app','tools','packaging','installer','assets','docs','tests'})
 SOURCE_FILES = frozenset({'ugreen_nas_admin.py','nas_ssh.py','nas_utils.py',
                          'requirements.txt','LICENSE','README.md','CHANGELOG.md'})
@@ -38,7 +43,7 @@ def reject_runtime_files(directory):
     for path in Path(directory).rglob('*'):
         if path.is_symlink():
             raise ValueError('Release tree contains a symbolic link: '+str(path.relative_to(directory)))
-        if path.name.lower() in RUNTIME_NAMES or path.name.lower().startswith('release_ed25519_private'):
+        if runtime_name(path.name):
             raise ValueError('Release tree contains local runtime/secret data: '+str(path.relative_to(directory)))
 
 
@@ -57,7 +62,7 @@ def export_committed_sources(root, destination, state):
             raise ValueError('Invalid source path')
         if kind != 'blob' or mode not in ('100644','100755'):
             raise ValueError('Non-regular source entry: '+str(relative))
-        if relative.name.lower() in RUNTIME_NAMES:
+        if runtime_name(relative.name):
             raise ValueError('Tracked runtime settings cannot be published')
         content=git_bytes(root,'cat-file','blob',oid)
         target=Path(destination).joinpath(*relative.parts)

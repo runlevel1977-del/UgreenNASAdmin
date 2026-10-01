@@ -32,7 +32,7 @@ class ReleaseSourceGuardTests(unittest.TestCase):
         self.assertFalse(self.state(tag_exists=1)['tag_exists'])
 
     def test_runtime_configs_rejected_even_inside_portable_bundle(self):
-        for name in ('qnap_smb_prefs.json','app_settings.json','.env','release_ed25519_private.raw'):
+        for name in ('qnap_smb_prefs.json','app_settings.json','.env','release_ed25519_private.raw','transfer.log','transfer.log.1','app_settings.json.bak'):
             with tempfile.TemporaryDirectory() as folder:
                 path=Path(folder)/'_internal';path.mkdir();(path/name).write_text('artificial-secret')
                 with self.assertRaises(ValueError): guard.reject_runtime_files(folder)
