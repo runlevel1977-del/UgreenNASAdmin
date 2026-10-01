@@ -16,7 +16,7 @@ Zeitstempel. Scheitert deren Erstellung, beginnen weder Upload noch Extraktion.
 
 Sieben lokale Tests prüfen echte verzögerte Callbacks, Fehlerstatus, Upload-
 Abbruch und Bereinigung. Einer davon führt drei Extraktionen mit vorhandenem
-GNU tar 1.35 aus: kleines künstliches TAR, gzip-TAR und ungültige Eingabe.
+lokalem tar aus: kleines künstliches TAR, gzip-TAR und ungültige Eingabe.
 Alle Ziele liegen in eigens erzeugten temporären Verzeichnissen. SSH, sudo und
 die GUI sind simuliert; das NAS wurde nicht angesprochen.
 
