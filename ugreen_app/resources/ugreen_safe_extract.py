@@ -68,7 +68,7 @@ def plan_members(archive):
     return plan
 
 
-def open_directory(path):
+def open_directory(path, create_mode=0o700):
     """Pin each existing absolute component; reject links, including parents."""
     if not path.startswith("/") or path == "/" or os.path.normpath(path) != path:
         raise ValueError("An existing canonical absolute destination is required")
@@ -77,7 +77,7 @@ def open_directory(path):
     try:
         for component in path.lstrip("/").split("/"):
             try:
-                os.mkdir(component, 0o700, dir_fd=current)
+                os.mkdir(component, create_mode, dir_fd=current)
             except FileExistsError:
                 pass
             child = os.open(component, flags, dir_fd=current)
@@ -89,13 +89,13 @@ def open_directory(path):
         raise
 
 
-def open_child(root, parts, create=False):
+def open_child(root, parts, create=False, create_mode=0o700):
     current = os.dup(root)
     try:
         for component in parts:
             if create:
                 try:
-                    os.mkdir(component, 0o700, dir_fd=current)
+                    os.mkdir(component, create_mode, dir_fd=current)
                 except FileExistsError:
                     pass
             child = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=current)
@@ -196,12 +196,13 @@ def extract_archive(source_path, destination, kind):
             raise ValueError("Archive must be a regular file")
         archive = stack.enter_context(zipfile.ZipFile(source) if kind == "zip" else tarfile.open(fileobj=source, mode="r:*"))
         plan = plan_members(archive)
-        root = open_directory(destination)
+        create_mode = 0o755 if kind == "zip" else 0o700
+        root = open_directory(destination, create_mode)
         stack.callback(os.close, root)
         check_existing_destinations(root, plan)
         directories = []
         for parts, directory, size, item in plan:
-            parent = open_child(root, parts if directory else parts[:-1], create=True)
+            parent = open_child(root, parts if directory else parts[:-1], create=True, create_mode=create_mode)
             try:
                 if directory:
                     if kind == "tar":

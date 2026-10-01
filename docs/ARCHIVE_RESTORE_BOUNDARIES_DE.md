@@ -28,7 +28,8 @@ Der Bestätigungsdialog benennt diese Einschränkung auf Deutsch und Englisch.
 Bei TAR werden numerische UID/GID, normale Modusbits und Änderungszeiten
 wiederhergestellt. Setuid/Setgid/Sticky-Bits, ACLs und xattrs werden nicht
 wiederhergestellt. ZIP-Ersatzdateien behalten vorhandene UID/GID und normale
-Modusbits; neue Dateien erhalten 0644. Neue Verzeichnisse starten mit 0700;
+Modusbits; neue Dateien erhalten 0644. Neue ZIP-Verzeichnisse erhalten 0755,
+neue TAR-Verzeichnisse starten mit 0700;
 explizite TAR-Verzeichnismetadaten werden nach den Dateien angewendet.
 
 ## Verbleibende Grenzen
