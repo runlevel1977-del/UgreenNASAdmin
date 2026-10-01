@@ -772,3 +772,52 @@ def clamp_window_rect(
         min(int(y), int(work_y) + int(work_h) - h_fit - margin),
     )
     return x_clamped, y_clamped, w_fit, h_fit
+
+
+_SAFE_SCRIPT_BASENAME_RE = re.compile(r"^[A-Za-z0-9._+-]+$")
+_SAFE_CRON_FIELD_RE = re.compile(r"^[0-9*,/\-]+$")
+_SAFE_JOB_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+_VOLUME_ABS_RE = re.compile(r"^/volume\d+(?:/.*)?$")
+
+
+def safe_script_basename(name: str) -> str | None:
+    """Return a basename safe for shell/cron use, or None if rejected."""
+    base = posixpath.basename((name or "").strip().replace("\\", "/"))
+    if not base or base in (".", ".."):
+        return None
+    if not _SAFE_SCRIPT_BASENAME_RE.fullmatch(base):
+        return None
+    return base
+
+
+def is_safe_cron_field(value: str) -> bool:
+    """True if value looks like a single crontab field (* / - , digits only)."""
+    s = (value or "").strip()
+    if not s or len(s) > 64:
+        return False
+    if ".." in s or s.startswith("-") or s.endswith("-"):
+        return False
+    return bool(_SAFE_CRON_FIELD_RE.fullmatch(s))
+
+
+def is_safe_job_id(value: str) -> bool:
+    return bool(_SAFE_JOB_ID_RE.fullmatch((value or "").strip()))
+
+
+def is_safe_abs_volume_path(path: str, *, allow_root_volume: bool = True) -> bool:
+    """Absolute path under /volumeN (optionally exactly /volumeN)."""
+    p = posixpath.normpath((path or "").strip())
+    if not p.startswith("/volume"):
+        return False
+    if p == "/" or ".." in p.split("/"):
+        return False
+    if not allow_root_volume and _VOLUME_ABS_RE.fullmatch(p) and p.count("/") == 1:
+        return False
+    return bool(_VOLUME_ABS_RE.fullmatch(p))
+
+
+def validate_cron_fields(fields: list | tuple) -> bool:
+    """Validate five crontab schedule fields."""
+    if not isinstance(fields, (list, tuple)) or len(fields) < 5:
+        return False
+    return all(is_safe_cron_field(str(fields[i])) for i in range(5))

@@ -1,20 +1,21 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
 
-PROJECT = os.path.abspath(SPECPATH)
+# Spec liegt unter packaging/ — Projektroot ist eine Ebene höher
+PROJECT = os.path.abspath(os.path.join(SPECPATH, os.pardir))
 MAIN = os.path.join(PROJECT, "ugreen_nas_admin.py")
-ICON = os.path.join(PROJECT, "nas_icon.ico")
-PNG = os.path.join(PROJECT, "nas_icon_app.png")
+ICON = os.path.join(PROJECT, "assets", "nas_icon.ico")
+PNG = os.path.join(PROJECT, "assets", "nas_icon_app.png")
 NAS_WATCH = os.path.join(PROJECT, "ugreen_app", "resources", "nas_central_watch.py")
 NAS_DAILY = os.path.join(PROJECT, "ugreen_app", "resources", "nas_daily_report.py")
 NAS_SB_RUNNER = os.path.join(PROJECT, "ugreen_app", "resources", "ugreen_scheduled_backup_runner.py")
 README = os.path.join(PROJECT, "README.md")
 CHANGELOG = os.path.join(PROJECT, "CHANGELOG.md")
-MANUAL_DE_PDF = os.path.join(PROJECT, "HANDBUCH.pdf")
-MANUAL_EN_PDF = os.path.join(PROJECT, "HANDBOOK_EN.pdf")
-MANUAL_DE_MD = os.path.join(PROJECT, "HANDBUCH.md")
-MANUAL_EN_MD = os.path.join(PROJECT, "HANDBOOK_EN.md")
-HANDBOOK_PAGE_INDEX = os.path.join(PROJECT, "handbook_page_index.json")
+MANUAL_DE_PDF = os.path.join(PROJECT, "docs", "HANDBUCH.pdf")
+MANUAL_EN_PDF = os.path.join(PROJECT, "docs", "HANDBOOK_EN.pdf")
+MANUAL_DE_MD = os.path.join(PROJECT, "docs", "HANDBUCH.md")
+MANUAL_EN_MD = os.path.join(PROJECT, "docs", "HANDBOOK_EN.md")
+HANDBOOK_PAGE_INDEX = os.path.join(PROJECT, "docs", "handbook_page_index.json")
 
 _DATAS = [
     (ICON, "."),
@@ -84,6 +85,7 @@ a = Analysis(
         "ugreen_app.ssh_host_keys",
         "ugreen_app.mixin_ugos_api",
         "ugreen_app.ugos_tls_certs",
+        "ugreen_app.release_signing",
         "ugreen_app.ugos_api_client",
         "ugreen_app.mixin_migration_assistant",
         "ugreen_app.mixin_handbook_tab",

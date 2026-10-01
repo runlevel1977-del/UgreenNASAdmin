@@ -1,8 +1,8 @@
 ; Windows-Installer (Inno Setup 6+) — liegt getrennt vom Python-Projekt unter installer/
-; Build: installer\BUILD_INSTALLER.ps1 (nach python builder.py im Projektroot)
+; Build: installer\BUILD_INSTALLER.ps1 (nach python packaging\builder.py im Projektroot)
 
 #ifndef MyAppVersion
-#define MyAppVersion "23.8.49"
+#define MyAppVersion "23.8.55"
 #endif
 
 #define MyAppName "Ugreen NAS Admin"
@@ -14,7 +14,7 @@
 #define MyRepoRoot ".."
 #define DistDir MyRepoRoot + "\dist\UgreenNASAdmin"
 #define DistExe DistDir + "\{#MyAppExeName}"
-#define RepoIcon MyRepoRoot + "\nas_icon.ico"
+#define RepoIcon MyRepoRoot + "\assets\nas_icon.ico"
 #define RepoLicense MyRepoRoot + "\LICENSE"
 
 [Setup]

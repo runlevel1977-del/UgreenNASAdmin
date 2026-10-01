@@ -14,8 +14,8 @@ if str(_TOOLS) not in sys.path:
 from handbuch_pdf_from_md import build_pdf
 
 ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "HANDBUCH.md"
-OUT = ROOT / "HANDBUCH.pdf"
+SRC = ROOT / "docs" / "HANDBUCH.md"
+OUT = ROOT / "docs" / "HANDBUCH.pdf"
 
 
 def main() -> int:

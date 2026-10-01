@@ -292,6 +292,18 @@ class MixinScriptsDockerMonitor:
             key_pass = self.entry_ssh_key_pass.get()
         except Exception:
             pass
+        if not key_pass:
+            try:
+                host = self.entry_ip.get().strip() if hasattr(self, "entry_ip") else ""
+                user = self.entry_user.get().strip() if hasattr(self, "entry_user") else ""
+                if host and user:
+                    from ugreen_app import keyring_helper
+
+                    kr = keyring_helper.get_ssh_key_passphrase(host, user)
+                    if kr:
+                        key_pass = kr
+            except Exception:
+                pass
         return {
             "ssh_port": self._get_ssh_port(),
             "ssh_use_key": use_key,
@@ -688,10 +700,10 @@ class MixinScriptsDockerMonitor:
             return
         if not paths:
             return
-        if not messagebox.askyesno(self.t("msg.docker_admin"), self.t("acl.chmod777_confirm", path="\n".join(sorted(paths)))):
+        if not messagebox.askyesno(self.t("msg.docker_admin"), "Nur diese Mount-Verzeichnisse auf 755 setzen / Set only these mount directories to 755?\n" + "\n".join(sorted(paths))):
             return
         for p in sorted(paths):
-            self.run_ssh_cmd(f"chmod -R 777 -- {shlex.quote(p)}", True)
+            self.run_ssh_cmd(f"chmod 755 -- {shlex.quote(p)}", True)
         messagebox.showinfo(self.t("msg.docker_admin"), self.t("msg.docker_chmod_ok"))
 
     def docker_compose_path_raw(self):

@@ -60,7 +60,7 @@ class AdminCommandTests(unittest.TestCase):
              patch("ugreen_app.mixin_scripts_docker_monitor.messagebox.showinfo"):
             ui.docker_fix_perms()
         actual = [shlex.split(call.args[0]) for call in ui.run_ssh_cmd.call_args_list[1:]]
-        self.assertEqual(actual, [["chmod", "-R", "777", "--", path] for path in sorted(PATHS)])
+        self.assertEqual(actual, [["chmod", "755", "--", path] for path in sorted(PATHS)])
 
     def test_invalid_mount_data_causes_no_permission_changes(self):
         ui = MixinScriptsDockerMonitor()

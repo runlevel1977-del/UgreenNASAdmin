@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Optional „eingeschränkter Modus“: Über den Kopf‑Button aktivieren („Einschränken“ nach Freigabe).
+"""Eingeschränkter Modus: gefährliche Aktionen standardmäßig gesperrt.
 
-Standard: keine Einschränkung beim Start — volle Nutzbarkeit ohne Hinweisdialoge.
+Beim Start sind Admin-/Root-Aktionen zu. Der User schaltet sie bewusst über
+„Volle Rechte“ / „Full access“ im Header frei (mit Bestätigungsdialog).
 """
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ from tkinter import messagebox
 
 class MixinSafetyLock:
     def _init_danger_lock_state(self) -> None:
-        self.danger_functions_unlocked = True
+        self.danger_functions_unlocked = False
         self._reset_danger_widget_registry()
 
     def _reset_danger_widget_registry(self) -> None:
@@ -38,7 +39,7 @@ class MixinSafetyLock:
             self._danger_tk_buttons.append(w)
 
     def _danger_gate(self) -> bool:
-        return bool(getattr(self, "danger_functions_unlocked", True))
+        return bool(getattr(self, "danger_functions_unlocked", False))
 
     def _update_danger_header_button(self) -> None:
         btn = getattr(self, "btn_danger_power", None)
