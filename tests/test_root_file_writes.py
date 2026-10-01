@@ -91,8 +91,7 @@ class RootFileWriteTests(unittest.TestCase):
         manager._exec_root_write_code.return_value = (False, "write failed")
         stream = sftp.file.return_value.__enter__.return_value
         def write(data):
-            sftp.chmod.assert_called_once()
-            self.assertEqual(sftp.chmod.call_args.args[1], 0o600)
+            stream.chmod.assert_called_once_with(0o600)
         stream.write.side_effect = write
         ok, _ = manager.write_remote_file_sudo("host", "user", "", b"synthetic", "/synthetic/dest")
         self.assertFalse(ok)
@@ -123,7 +122,7 @@ class RootFileWriteTests(unittest.TestCase):
 
     def test_failed_stage_permissions_remove_only_new_empty_files(self):
         manager, sftp = self.staged_manager("/synthetic")
-        sftp.chmod.side_effect = OSError("unsupported permissions")
+        sftp.file.return_value.__enter__.return_value.chmod.side_effect = OSError("unsupported permissions")
         manager._write_remote_file_sudo_base64 = Mock(return_value=(True, ""))
         manager.write_remote_file_sudo("host", "user", "", b"data", "/synthetic/dest")
         sftp.file.return_value.__enter__.return_value.write.assert_not_called()

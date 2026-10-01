@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import io
 import os
 import posixpath
@@ -509,7 +510,7 @@ class SSHManager:
                             # private permissions before writing any credentials.
                             with sftp.file(cand, "wx") as fh:
                                 created = True
-                                sftp.chmod(cand, 0o600)
+                                fh.chmod(0o600)
                                 fh.write(local_bytes)
                             if cand.startswith("/"):
                                 tmp_abs = cand
