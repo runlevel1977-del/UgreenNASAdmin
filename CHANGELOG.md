@@ -4,13 +4,13 @@
 
 ### Deutsch
 
-- **Repo-Struktur:** Handbücher/PDFs unter **`docs/`**; öffentliches Sync-Layout aufgeräumt (`docs/`, `tests/`, `.github/workflows/ci.yml`).
-- **CI:** GitHub Actions führt `unittest` auf Python 3.12 aus.
+- **Repo-Struktur:** Handbücher/PDFs unter **`docs/`**; öffentliches Sync-Layout aufgeräumt (`docs/`, `tests/`).
+- **CI:** Workflow-Datei unter `.github/workflows/ci.yml` vorbereitet (Push braucht GitHub-Token mit `workflow`-Scope).
 
 ### English (short)
 
-- **Repo layout:** Handbooks/PDFs under **`docs/`**; cleaner public sync (`docs/`, `tests/`, `.github/workflows/ci.yml`).
-- **CI:** GitHub Actions runs `unittest` on Python 3.12.
+- **Repo layout:** Handbooks/PDFs under **`docs/`**; cleaner public sync (`docs/`, `tests/`).
+- **CI:** Workflow prepared at `.github/workflows/ci.yml` (push needs a GitHub token with `workflow` scope).
 
 ## 23.8.53 — 2026-10-01
 

@@ -200,20 +200,18 @@ def _sync_content() -> None:
         if src.is_dir():
             _copy_tree(src, WORKTREE / folder)
 
-    gh_src = ROOT / ".github"
-    gh_dst = WORKTREE / ".github"
-    if gh_dst.exists():
-        shutil.rmtree(gh_dst)
-    if gh_src.is_dir():
-        for path in gh_src.rglob("*"):
-            if not path.is_file():
-                continue
-            if any(part in SKIP_DIR_NAMES for part in path.parts):
-                continue
-            rel = path.relative_to(gh_src)
-            out = gh_dst / rel
+    funding = ROOT / ".github" / "FUNDING.yml"
+    if funding.is_file():
+        out = WORKTREE / ".github" / "FUNDING.yml"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(funding, out)
+    # CI workflow: only with --include-workflows (GitHub PAT needs `workflow` scope to push).
+    if getattr(_sync_content, "_include_workflows", False):
+        ci = ROOT / ".github" / "workflows" / "ci.yml"
+        if ci.is_file():
+            out = WORKTREE / ".github" / "workflows" / "ci.yml"
             out.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(path, out)
+            shutil.copy2(ci, out)
 
     tools_src = ROOT / "tools"
     tools_dst = WORKTREE / "tools"
@@ -299,9 +297,15 @@ def main() -> int:
     parser.add_argument("--message", default="Release sync: public tree only (build + docs)")
     parser.add_argument("--push", action="store_true", help="Nach Commit nach public/main pushen")
     parser.add_argument("--no-prune", action="store_true")
+    parser.add_argument(
+        "--include-workflows",
+        action="store_true",
+        help="Auch .github/workflows/ci.yml spiegeln (PAT braucht workflow-Scope)",
+    )
     args = parser.parse_args()
 
     _ensure_worktree()
+    _sync_content._include_workflows = bool(args.include_workflows)
     _sync_content()
     removed = [] if args.no_prune else _prune_foreign()
     if removed:
