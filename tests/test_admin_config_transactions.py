@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 from tests import test_ssh_profile_guard as fixtures
-from tests import test_upload_stream as uploads
+from tests.posix_file_fixture import filesystem
 from ugreen_app.admin_config import share_block, recycle_command, RECYCLE_CODE, config_transaction
 from ugreen_app.resources import ssh_profile_guard as guard
 from ugreen_app.mixin_nas_admin import MixinNasAdmin
@@ -54,18 +54,7 @@ class AdminConfigTests(unittest.TestCase):
             root=Path(directory); share=root/'volume1/share'; trash=share/'@recycle'
             trash.mkdir(parents=True); (trash/'nested').mkdir(); (trash/'nested/deleted').write_bytes(b'test')
             (share/'keep').write_bytes(b'keep')
-            with uploads.UploadStreamTests().filesystem(root) as fake:
-                # os.listdir(fd) is unavailable on Windows; resolve only the
-                # fixture's handles through the open directory's fstat hook.
-                opened={}; original_open=fake.open; original_close=fake.close
-                def open_at(path, flags, mode=0o777, *, dir_fd=None):
-                    fd=original_open(path,flags,mode,dir_fd=dir_fd)
-                    if flags & fake.O_DIRECTORY:
-                        opened[fd]=root/str(path).lstrip('/') if str(path).startswith('/') else opened[dir_fd]/path
-                    return fd
-                fake.open=open_at
-                fake.close=lambda fd:(opened.pop(fd,None),original_close(fd))[-1]
-                fake.listdir=lambda fd:[p.name for p in opened[fd].iterdir()]
+            with filesystem(root) as fake, patch.dict(sys.modules, {'os': fake}):
                 with patch.object(sys,'argv',['cleanup','/volume1/share']),patch('builtins.open',return_value=io.StringIO('mnt_id:\t10\n')) as read,patch('builtins.print'):
                     read.side_effect=lambda *args,**kw:io.StringIO('mnt_id:\t10\n')
                     exec(RECYCLE_CODE,{})
