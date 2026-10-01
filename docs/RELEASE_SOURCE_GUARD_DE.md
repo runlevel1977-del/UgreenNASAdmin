@@ -22,6 +22,9 @@ Der bestehende falsch zugeordnete Tag wird durch diesen PR nicht verschoben.
 Das Buildskript beendet keine laufende Anwendung mehr per pauschalem taskkill.
 Bei gesperrten Dateien muss der Benutzer die betreffende App selbst schließen.
 Die pauschale Empfehlung einer Defender-Ausnahme entfällt.
+Das vorhandene `tools/split_ugreen_manager.py` war als UTF-16 gespeichert und
+deshalb für Python nicht parsebar. Es wird ohne Änderung des dekodierten
+Quelltexts als UTF-8 gespeichert; das Werkzeug wird dabei nicht ausgeführt.
 
 Sieben Offline-Tests prüfen Tagzuordnung, geänderte Quellen, bekannte private
 Dateien, Git-Export, Hashmanifest und das Verhalten bei gesperrter EXE. Kein
