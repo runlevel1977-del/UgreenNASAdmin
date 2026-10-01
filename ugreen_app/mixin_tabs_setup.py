@@ -32,6 +32,7 @@ import nas_ssh
 import nas_utils
 from ugreen_app.root_runtime import BACKUP_STATE, ROOT_RUNTIME_DIR
 from ugreen_app.backup_commands import inline_backup_command
+from ugreen_app.archive_commands import safe_extract_command
 from ugreen_app.scheduled_backup_cron import build_backup_cron_lines
 from ugreen_app.scroll_helpers import (
     should_ignore_smooth_mousewheel_target,
@@ -2323,19 +2324,8 @@ class MixinTabsSetup:
                 else:
                     remote_src = src
 
-                inner = (
-                    "set -e; "
-                    f"SRC={shlex.quote(remote_src)}; "
-                    f"DST={shlex.quote(dst)}; "
-                    'if [ ! -f "$SRC" ]; then echo "__UG_RESTORE_NOFILE__"; exit 2; fi; '
-                    'mkdir -p "$DST"; '
-                    # tar detects the compression from the archive. A failed
-                    # extraction must not be retried over a partially changed tree.
-                    'tar -xf "$SRC" -C "$DST"; '
-                    'echo "__UG_RESTORE_DONE__"'
-                )
                 result = self.run_ssh_cmd_ex(
-                    "/bin/bash -lc " + shlex.quote(inner), True, update_status=False, long_running=True
+                    safe_extract_command(remote_src, dst, "tar"), True, update_status=False, long_running=True
                 )
                 out = str(result.output or "")
                 if not result.ok or "__UG_RESTORE_DONE__" not in out:

@@ -30,6 +30,7 @@ import nas_ssh
 import nas_utils
 from ugreen_app._paramiko import _paramiko
 from ugreen_app.transfer_log import append_transfer_log
+from ugreen_app.archive_commands import safe_extract_command
 
 class MixinTransfer:
     def _fmt_bytes(self, n):
@@ -376,37 +377,8 @@ class MixinTransfer:
         self._ssh_sudo_exec_standalone(self._upload_directory_prepare_script(remote_path, self.entry_user.get()))
 
     def _ssh_unzip_bundle_on_nas(self, remote_zip, dest_dir):
-        """ZIP per sudo entpacken: unzip → busybox → python3/python (UGREEN hat oft kein unzip)."""
-        rz = shlex.quote(posixpath.normpath(remote_zip))
-        dd = shlex.quote(posixpath.normpath(dest_dir))
-        py_src = (
-            "import zipfile,sys,os;"
-            "d=sys.argv[2];"
-            "os.makedirs(d,exist_ok=True);"
-            "z=zipfile.ZipFile(sys.argv[1]);"
-            "z.extractall(d);"
-            "z.close()"
-        )
-        py_q = shlex.quote(py_src)
-        chains = [
-            f"unzip -o -q {rz} -d {dd} && rm -f {rz}",
-            f"busybox unzip -o -q {rz} -d {dd} && rm -f {rz}",
-            f"python3 -c {py_q} {rz} {dd} && rm -f {rz}",
-            f"python -c {py_q} {rz} {dd} && rm -f {rz}",
-        ]
-        last = None
-        for inner in chains:
-            try:
-                self._ssh_sudo_exec_standalone(inner)
-                return
-            except Exception as e:
-                last = e
-                continue
-        raise OSError(
-            "Auf dem NAS fehlt unzip und es konnte weder busybox unzip noch "
-            "python3/python zum Entpacken genutzt werden. "
-            "Bitte per App-Store/SSH nachinstallieren (z. B. Paket „unzip“ oder python3)."
-        ) from last
+        """One validated extraction; never retry over an already changed tree."""
+        self._ssh_sudo_exec_standalone(safe_extract_command(remote_zip, dest_dir, "zip"))
 
     def _prepare_remote_file_for_ugreen_sftp(self, remote_file_path):
         """UGREEN: SFTP-Schicht nutzt PHP file_put_contents — Zieldatei muss existieren + chown SSH-User."""

@@ -22,6 +22,7 @@ _DATAS = [
     (PNG, "."),
     (NAS_WATCH, "ugreen_app/resources"),
     (NAS_DAILY, "ugreen_app/resources"),
+    (os.path.join(PROJECT, "ugreen_app", "resources", "ugreen_safe_extract.py"), "ugreen_app/resources"),
 ]
 if os.path.isfile(NAS_SB_RUNNER):
     _DATAS.append((NAS_SB_RUNNER, "ugreen_app/resources"))
