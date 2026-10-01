@@ -166,6 +166,8 @@ def _release_from_api_payload(data: dict) -> dict | None:
         "asset_digest": digest or "",
         "asset_sig_name": sig_name,
         "asset_sig_download_url": sig_url,
+        "asset_manifest_download_url": next((str(other.get("browser_download_url") or "").strip()
+            for other in assets if other.get("name") == asset_name + ".release.json"), ""),
     }
 
 

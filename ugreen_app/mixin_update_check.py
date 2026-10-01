@@ -249,7 +249,27 @@ class MixinUpdateCheck:
                                 sig_dest.unlink()
                             except OSError:
                                 pass
-                # 2) Optional GitHub asset digest (extra check, not a trust root alone)
+                # A legacy file signature alone cannot authenticate the advertised version.
+                if verify_ok:
+                    from ugreen_app.release_signing import MANIFEST_LIMIT, verify_release_manifest
+                    manifest_url = str(release.get("asset_manifest_download_url") or "")
+                    manifest_dest = dest.with_suffix(dest.suffix + ".release.json")
+                    metadata_ok, _ = update_check.download_release_asset(
+                        manifest_url, manifest_dest, max_bytes=MANIFEST_LIMIT)
+                    if not metadata_ok:
+                        verify_ok, verify_detail = False, "bad_metadata_missing"
+                    else:
+                        try:
+                            verify_ok, verify_detail = verify_release_manifest(
+                                dest, manifest_dest.read_bytes(), current_version=self._app_version,
+                                expected_tag=str(release.get("tag_name") or ""))
+                        except Exception:
+                            verify_ok, verify_detail = False, "bad_metadata_read"
+                    try:
+                        manifest_dest.unlink(missing_ok=True)
+                    except OSError:
+                        pass
+                # Optional GitHub asset digest (extra check, not a trust root alone)
                 if verify_ok and expected_digest:
                     hash_ok, hash_detail = update_check.verify_file_sha256(dest, expected_digest)
                     if not hash_ok:
