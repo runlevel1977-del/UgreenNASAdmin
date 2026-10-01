@@ -32,6 +32,7 @@ from email.mime.text import MIMEText
 import nas_ssh
 import nas_utils
 from ugreen_app.private_json import write_private_json
+from ugreen_app.private_file import write_private_bytes
 from ugreen_app.secret_settings import read_settings_json, write_settings_json
 from ugreen_app._paramiko import _paramiko
 from ugreen_app import keyring_helper
@@ -650,13 +651,10 @@ class MixinConfigTelegram:
                     key = pk_mod.Ed25519Key.generate()
                 except Exception:
                     key = pk_mod.RSAKey.generate(bits=4096)
-            pwd_bytes: bytes | None = passphrase.encode("utf-8") if passphrase else None
-            with open(priv_path, "wb") as f:
-                key.write_private_key(f, password=pwd_bytes)
-            try:
-                os.chmod(priv_path, stat.S_IRUSR | stat.S_IWUSR)
-            except OSError:
-                pass
+            import io
+            private_text = io.StringIO()
+            key.write_private_key(private_text, password=passphrase or None)
+            write_private_bytes(priv_path, private_text.getvalue().encode("utf-8"))
             comment = "ugreen-nas-admin"
             pub_line = f"{key.get_name()} {key.get_base64()} {comment}"
             with open(pub_path, "w", encoding="utf-8", newline="\n") as f:

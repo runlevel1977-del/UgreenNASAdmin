@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import Mock, patch
 import urllib.error
 
-from ugreen_app import private_json
+from ugreen_app import private_json, private_file
 from ugreen_app.mixin_config_telegram import MixinConfigTelegram
 from ugreen_app.resources import nas_central_watch, nas_daily_report, script_notify_runner
 
@@ -33,13 +33,13 @@ class PrivateSettingsTests(unittest.TestCase):
         for operation in ('fsync','replace'):
             with self.subTest(operation=operation), tempfile.TemporaryDirectory() as folder:
                 path=Path(folder)/'settings.json';path.write_bytes(b'previous')
-                with patch.object(private_json.os,operation,side_effect=OSError('synthetic failure')),self.assertRaises(OSError):
+                with patch.object(private_file.os,operation,side_effect=OSError('synthetic failure')),self.assertRaises(OSError):
                     private_json.write_private_json(path,{'new':True})
                 self.assertEqual(path.read_bytes(),b'previous')
                 self.assertEqual(len(list(Path(folder).iterdir())),1)
 
     def test_symlink_configuration_rejected_before_staging(self):
-        with patch.object(Path,'is_symlink',return_value=True),patch.object(private_json.tempfile,'mkstemp') as create:
+        with patch.object(Path,'is_symlink',return_value=True),patch.object(private_file,'private_temporary') as create:
             with self.assertRaises(ValueError):
                 private_json.write_private_json('synthetic.json',{})
             create.assert_not_called()

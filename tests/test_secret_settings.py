@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
-from ugreen_app import secret_settings as settings, private_json
+from ugreen_app import secret_settings as settings, private_json, private_file
 from ugreen_app.mixin_config_telegram import MixinConfigTelegram
 from ugreen_app.mixin_scripts_docker_monitor import MixinScriptsDockerMonitor
 
@@ -82,7 +82,7 @@ class SecretSettingsTests(unittest.TestCase):
         before_file = self.path.read_bytes()
         before_vault = dict(self.vault.values)
         replacement = {"email": {"smtp_pass": "replacement-secret"}}
-        with patch.object(private_json.os, "replace", side_effect=OSError("fixture")):
+        with patch.object(private_file.os, "replace", side_effect=OSError("fixture")):
             with self.assertRaises(OSError):
                 settings.write_settings_json(self.path, replacement)
         self.assertEqual(before_file, self.path.read_bytes())
