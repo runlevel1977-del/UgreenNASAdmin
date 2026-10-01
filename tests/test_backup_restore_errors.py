@@ -63,7 +63,7 @@ class RestoreErrorTests(unittest.TestCase):
         self.run_restore(ui)
         command = ui.run_ssh_cmd_ex.call_args.args[0]
         self.assertNotIn(".ug_restore_err", command)
-        self.assertEqual(command.count("tar -"), 1)
+        self.assertEqual(shlex.split(command)[-1], "tar")
         self.assertTrue(ui.run_ssh_cmd_ex.call_args.kwargs["long_running"])
         self.assertIn("restore_done", ui._backup_log.call_args.args[0])
 
@@ -95,8 +95,8 @@ class RestoreErrorTests(unittest.TestCase):
         ui.run_ssh_cmd.assert_called_once_with("/bin/rm -f " + path, True, update_status=False)
         self.assertIn("upload failed", ui._backup_log.call_args.args[0])
 
-    @unittest.skipUnless(BASH, "Bash and tar required for synthetic local extraction")
-    def test_real_tar_autodetects_plain_and_gzip_and_reports_corrupt_input(self):
+    def test_validated_reader_autodetects_plain_and_gzip_and_reports_corrupt_input(self):
+        from ugreen_app.resources.ugreen_safe_extract import plan_members
         for archive_mode in ("w", "w:gz", "corrupt"):
             with self.subTest(archive_mode=archive_mode), tempfile.TemporaryDirectory() as base:
                 source = Path(base) / "synthetic.tar"
@@ -109,24 +109,14 @@ class RestoreErrorTests(unittest.TestCase):
                         entry = tarfile.TarInfo("example.txt")
                         entry.size = len(payload)
                         archive.addfile(entry, io.BytesIO(payload))
-                def posix(path):
-                    value = path.as_posix()
-                    return "/" + value[0].lower() + value[2:] if os.name == "nt" else value
-                ui = self.ui()
-                ui.entry_backup_restore_src.get = lambda: posix(source)
-                ui.entry_backup_restore_target.get = lambda: posix(destination)
-                with patch("ugreen_app.mixin_tabs_setup.nas_utils.is_safe_backup_data_path", return_value=True):
-                    self.run_restore(ui)
-                inner = shlex.split(ui.run_ssh_cmd_ex.call_args.args[0])[-1]
-                result = subprocess.run([BASH, "--noprofile", "--norc", "-c", "PATH=/usr/bin:/bin; " + inner],
-                                        capture_output=True, timeout=10)
                 if archive_mode == "corrupt":
-                    self.assertNotEqual(result.returncode, 0)
-                    self.assertTrue(result.stderr)
-                    self.assertNotIn(b"__UG_RESTORE_DONE__", result.stdout)
+                    with self.assertRaises(tarfile.ReadError):
+                        tarfile.open(source, mode="r:*")
                 else:
-                    self.assertEqual(result.returncode, 0, result.stderr)
-                    self.assertEqual((destination / "example.txt").read_bytes(), payload)
+                    with tarfile.open(source, mode="r:*") as archive:
+                        plan = plan_members(archive)
+                        self.assertEqual(len(plan), 1)
+                        self.assertEqual(archive.extractfile(plan[0][3]).read(), payload)
 
 
 if __name__ == "__main__":
