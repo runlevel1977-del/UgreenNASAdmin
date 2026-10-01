@@ -17,6 +17,10 @@ _store_path: Path | None = None
 _confirm_cb: Callable[[str, int, str], bool] | None = None
 
 
+class HostKeyStoreError(Exception):
+    """The trust store cannot be used safely; never fall back to first contact."""
+
+
 class HostKeyChangedError(Exception):
     """Raised when the remote SSH host key differs from the trusted one."""
 
@@ -124,17 +128,16 @@ def get_store_path() -> Path:
 
 def _load_raw() -> dict[str, Any]:
     path = get_store_path()
-    if not path.is_file():
-        return {"hosts": {}}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except FileNotFoundError:
+        if path.is_symlink():
+            raise HostKeyStoreError("SSH trust store points to a missing file.") from None
         return {"hosts": {}}
-    if not isinstance(data, dict):
-        return {"hosts": {}}
-    hosts = data.get("hosts")
-    if not isinstance(hosts, dict):
-        data["hosts"] = {}
+    except (OSError, ValueError, UnicodeError) as exc:
+        raise HostKeyStoreError("Cannot read SSH trust store; restore or repair it before connecting.") from exc
+    if not isinstance(data, dict) or not isinstance(data.get("hosts"), dict):
+        raise HostKeyStoreError("Invalid SSH trust store; existing trust was not reset.")
     return data
 
 
@@ -150,18 +153,29 @@ def _save_raw(data: dict[str, Any]) -> None:
 def get_entry(host: str, port: int) -> HostKeyEntry | None:
     with _lock:
         raw = _load_raw()
-        item = (raw.get("hosts") or {}).get(host_port_key(host, port))
-        if not isinstance(item, dict):
+        hosts = raw["hosts"]
+        key = host_port_key(host, port)
+        if key not in hosts:
             return None
+        item = hosts[key]
         try:
+            if not isinstance(item, dict) or not all(
+                isinstance(item.get(field), str) and item[field]
+                for field in ("key_type", "key_base64", "fingerprint")
+            ):
+                raise ValueError("invalid key entry")
+            key_bytes = base64.b64decode(item["key_base64"], validate=True)
+            fp = "SHA256:" + base64.b64encode(hashlib.sha256(key_bytes).digest()).decode("ascii").rstrip("=")
+            if not key_bytes or fp != item["fingerprint"]:
+                raise ValueError("key fingerprint mismatch")
             return HostKeyEntry(
-                key_type=str(item["key_type"]),
-                key_base64=str(item["key_base64"]),
-                fingerprint=str(item["fingerprint"]),
+                key_type=item["key_type"],
+                key_base64=item["key_base64"],
+                fingerprint=fp,
                 first_seen=str(item.get("first_seen") or ""),
             )
-        except (KeyError, TypeError, ValueError):
-            return None
+        except (KeyError, TypeError, ValueError) as exc:
+            raise HostKeyStoreError("Invalid saved SSH key; existing trust was not reset.") from exc
 
 
 def trust_key(host: str, port: int, key: Any) -> HostKeyEntry:
@@ -188,6 +202,7 @@ def trust_key(host: str, port: int, key: Any) -> HostKeyEntry:
 def forget_host(host: str, port: int) -> bool:
     """Remove trusted key for host:port. Returns True if an entry was removed."""
     with _lock:
+        get_entry(host, port)  # Validate existing trust before modifying the file.
         raw = _load_raw()
         hosts = raw.get("hosts") or {}
         key = host_port_key(host, port)
@@ -207,11 +222,13 @@ class TofuHostKeyPolicy:
         self.port = int(port or 22)
 
     def missing_host_key(self, client: Any, hostname: str, key: Any) -> None:
-        recorded = get_entry(self.host, self.port)
         got_fp = fingerprint_sha256(key)
+        with _lock:
+            recorded = get_entry(self.host, self.port)
+            cb = _confirm_cb
         if recorded is None:
-            with _lock:
-                cb = _confirm_cb
+            # UI callbacks may need the main thread; never hold the store lock
+            # while waiting for confirmation. Recheck after the user responds.
             accepted = False
             if cb is not None:
                 try:
@@ -220,13 +237,16 @@ class TofuHostKeyPolicy:
                     accepted = False
             if not accepted:
                 raise HostKeyRejectedError(self.host, self.port, got_fp)
-            trust_key(self.host, self.port, key)
+        with _lock:
+            current = get_entry(self.host, self.port)
+            # A known entry disappearing during this call is not fresh consent.
+            if current is None and recorded is not None:
+                raise HostKeyStoreError("Trusted SSH key disappeared during connection.")
+            if current is None:
+                trust_key(self.host, self.port, key)
+            elif current.fingerprint != got_fp:
+                raise HostKeyChangedError(self.host, self.port, current.fingerprint, got_fp)
             _add_to_client_host_keys(client, self.host, self.port, key)
-            return
-        if recorded.fingerprint == got_fp:
-            _add_to_client_host_keys(client, self.host, self.port, key)
-            return
-        raise HostKeyChangedError(self.host, self.port, recorded.fingerprint, got_fp)
 
 
 def _add_to_client_host_keys(client: Any, host: str, port: int, key: Any) -> None:
@@ -252,13 +272,13 @@ def prepare_ssh_client(client: Any, hostname: str, port: int = 22) -> None:
             client.get_host_keys().add(name, entry.key_type, pkey)
             if p == 22 and name != host:
                 client.get_host_keys().add(host, entry.key_type, pkey)
-        except Exception:
-            pass
+        except Exception as exc:
+            raise HostKeyStoreError("Saved SSH key could not be loaded; connection aborted.") from exc
     client.set_missing_host_key_policy(TofuHostKeyPolicy(host, p))
 
 
 def is_host_key_error(exc: BaseException) -> bool:
-    if isinstance(exc, (HostKeyChangedError, HostKeyRejectedError)):
+    if isinstance(exc, (HostKeyChangedError, HostKeyRejectedError, HostKeyStoreError)):
         return True
     name = type(exc).__name__
     if name in ("BadHostKeyException", "HostKeyRejectedError", "HostKeyChangedError"):
