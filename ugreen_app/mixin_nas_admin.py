@@ -14,6 +14,7 @@ import tkinter as tk
 from tkinter import messagebox, scrolledtext, simpledialog, ttk
 
 import nas_utils
+from ugreen_app.admin_config import config_transaction, share_block, recycle_command
 
 from ugreen_app.scroll_helpers import (
     smooth_bind_mousewheel_tree,
@@ -1603,9 +1604,10 @@ class MixinNasAdmin:
         def work():
             cmd = (
                 "set -e; nginxlib=/var/lib/nginx; nginxlog=/var/log/nginx; "
+                "[ -d /rom/etc/nginx ] && [ -d /etc/nginx ] && [ -d /ugreen/ssl ] && "
+                "[ -x /usr/sbin/ugcert-generator ] && [ -x /usr/sbin/ugnginx-reload ] || { echo 'Recovery prerequisites missing'; exit 1; }; "
                 "mkdir -p \"$nginxlib\" \"$nginxlog\"; "
-                "if ! findmnt -M \"$nginxlib\" >/dev/null 2>&1; then rm -rf \"$nginxlib\"/*; mount -t tmpfs -o size=1g tmpfs \"$nginxlib\"; fi; "
-                "[ -d /rom/etc/nginx ] || { echo '/rom/etc/nginx fehlt — Abbruch'; exit 1; }; "
+                "if ! findmnt -M \"$nginxlib\" >/dev/null 2>&1; then mount -t tmpfs -o size=1g tmpfs \"$nginxlib\"; fi; "
                 "set -o pipefail; tar -cf - -C /rom/etc/nginx/ . | tar -xf - -C /etc/nginx/; "
                 "chmod -R 0700 /ugreen/ssl 2>/dev/null || true; "
                 "[ -x /usr/sbin/ugcert-generator ] && /usr/sbin/ugcert-generator 2>&1; "
@@ -1620,36 +1622,39 @@ class MixinNasAdmin:
     # --- earlyOOM ---
     def nas_admin_earlyoom_read(self) -> None:
         def work():
-            out = self._nas_admin_run(
-                "cat /etc/default/earlyoom 2>/dev/null || echo '# /etc/default/earlyoom fehlt'",
-                update_status=False,
-            )
-
+            result = self.run_ssh_cmd_ex("cat /etc/default/earlyoom", True, update_status=False)
             def ui():
+                if not result.ok:
+                    self._nas_admin_log(result.output)
+                    return
+                self._nas_admin_earlyoom_previous = result.output
                 self.txt_nas_earlyoom.delete("1.0", tk.END)
-                self.txt_nas_earlyoom.insert("1.0", out)
-
+                self.txt_nas_earlyoom.insert("1.0", result.output)
             self.root.after(0, ui)
-
         self._nas_admin_worker(work)
+
+    def _nas_admin_write_config(self, kind, previous, content):
+        code = config_transaction(kind, previous, content)
+        return self._ssh_mgr.run_root_transaction(
+            self.entry_ip.get(), self.entry_user.get(), self._get_effective_ssh_password(), code,
+            **self._ssh_auth_payload(),
+        )
 
     def nas_admin_earlyoom_save(self) -> None:
         if not self._danger_gate():
             return
+        previous = getattr(self, "_nas_admin_earlyoom_previous", None)
+        if previous is None:
+            self._nas_admin_log("Read earlyoom configuration before editing and saving.")
+            return
         content = self.txt_nas_earlyoom.get("1.0", tk.END)
         if not messagebox.askyesno(self.t("nas_admin.confirm_earlyoom_t"), self.t("nas_admin.confirm_earlyoom_b")):
             return
-
         def work():
-            b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
-            qb = shlex.quote(b64)
-            cmd = (
-                f"echo {qb} | base64 -d > /etc/default/earlyoom.tmp && mv /etc/default/earlyoom.tmp /etc/default/earlyoom && "
-                "systemctl restart earlyoom.service 2>&1; echo '---'; systemctl status earlyoom --no-pager 2>&1 | head -20"
-            )
-            out = self._nas_admin_run(cmd, update_status=True)
-            self.root.after(0, lambda: self._nas_admin_log(out))
-
+            ok, detail = self._nas_admin_write_config("earlyoom", previous, content)
+            if ok:
+                self._nas_admin_earlyoom_previous = content
+            self.root.after(0, lambda: self._nas_admin_log("earlyoom configuration saved." if ok else detail))
         self._nas_admin_worker(work)
 
     # --- Samba ---
@@ -1682,6 +1687,8 @@ class MixinNasAdmin:
         return path[0].strip() if path else ""
 
     def nas_admin_smb_empty_recycle(self) -> None:
+        if not self._danger_gate():
+            return
         share = (self.combo_nas_smb_share.get() or "").strip()
         if not share or share == "global":
             messagebox.showwarning(self.t("nas_admin.msg_invalid"), self.t("nas_admin.msg_smb_share"))
@@ -1691,17 +1698,11 @@ class MixinNasAdmin:
 
         def work():
             sp = self._nas_admin_smb_share_path(share)
-            if not sp.startswith("/"):
+            try:
+                cmd = recycle_command(sp)
+            except ValueError:
                 self.root.after(0, lambda: self._nas_admin_log(self.t("nas_admin.log_smb_path_missing")))
                 return
-            qs = shlex.quote(share)
-            qp = shlex.quote(sp)
-            cmd = (
-                f"echo 'Share path: {sp}'; "
-                f"for sub in '@recycle' '#recycle' '.Trash-1000' 'recycle'; do "
-                f"  d={qp}/\"$sub\"; [ -d \"$d\" ] && echo \"--- leere $d\" && find \"$d\" -mindepth 1 -delete 2>&1 | head -5; "
-                "done; echo fertig"
-            )
             out = self._nas_admin_run(cmd, update_status=True)
             self.root.after(0, lambda: self._nas_admin_log(out))
 
@@ -1714,28 +1715,24 @@ class MixinNasAdmin:
         if not name or not re.fullmatch(r"[A-Za-z0-9._-]{1,80}", name):
             return
         path = simpledialog.askstring(self.t("nas_admin.smb_wizard_path"), self.t("nas_admin.smb_wizard_path_p"), parent=self.root)
-        if not path or not re.match(r"^/volume[0-9]/", path.strip()):
-            messagebox.showwarning(self.t("nas_admin.msg_invalid"), self.t("nas_admin.msg_smb_path"))
+        try:
+            path = (path or "").strip()
+            block = share_block(name, path)
+        except ValueError as exc:
+            messagebox.showwarning(self.t("nas_admin.msg_invalid"), str(exc))
             return
-        path = path.strip()
         if not messagebox.askyesno(self.t("nas_admin.confirm_smb_wizard_t"), self.t("nas_admin.confirm_smb_wizard_b", name=name, path=path)):
             return
 
         def work():
-            block = (
-                f"\n# --- Added by Ugreen NAS Admin ---\n[{name}]\n   path = {path}\n"
-                "   browseable = yes\n   read only = no\n"
-            )
-            bb = base64.b64encode(block.encode("utf-8")).decode("ascii")
-            qb = shlex.quote(bb)
-            cmd = (
-                "set -e; "
-                "cp -a /etc/samba/smb.conf /etc/samba/smb.conf.bak.ugadmin 2>/dev/null || cp /etc/samba/smb.conf /etc/samba/smb.conf.bak.ugadmin; "
-                f"echo {qb} | base64 -d >> /etc/samba/smb.conf; "
-                "testparm -s >/dev/null 2>&1; "
-                "systemctl reload smbd 2>&1; echo 'Share angelegt / neu geladen.'"
-            )
-            out = self._nas_admin_run(cmd, update_status=True)
+            current = self.run_ssh_cmd_ex("cat /etc/samba/smb.conf", True, update_status=False)
+            if not current.ok:
+                out = current.output
+            elif re.search(r"(?im)^\s*\[" + re.escape(name) + r"\]\s*$", current.output):
+                out = "Share already exists; configuration unchanged."
+            else:
+                ok, detail = self._nas_admin_write_config("samba", current.output, current.output + block)
+                out = "Share saved and Samba reloaded." if ok else detail
             self.root.after(0, lambda: self._nas_admin_log(out))
             self.root.after(500, self.nas_admin_smb_refresh_shares)
 

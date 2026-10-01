@@ -36,5 +36,32 @@ nicht: während der Bestätigungsfrist nicht neu starten. Der private Zustand bl
 für manuelles Rollback erhalten. Ein Stromausfall oder externe Änderungen an anderen
 sshd-Dateien verlangen weiterhin einen unabhängigen administrativen Zugangsweg.
 
-Das Drop-in erhält root-Eigentum und Modus 0644; individuelle ACLs/xattrs dieses
-von der App verwalteten Drop-ins werden nicht als Wiederherstellungsformat unterstützt.
+Das Drop-in erhält root-Eigentum und Modus 0644. Vorhandene ACLs/xattrs an
+verwalteten Konfigurationsdateien werden abgelehnt, da sie noch kein unterstütztes
+Wiederherstellungsformat sind. Bestehende SSH-Drop-ins sind auf 32 KiB begrenzt,
+damit auch der Wiederherstellungszustand sicher innerhalb seiner Lesegrenze bleibt.
+
+## Weitere Verwaltungsaktionen
+
+earlyoom und der Samba-Freigabeassistent schreiben ebenfalls über stdin und
+rootprivate Kandidaten. `bash -n` bzw. `testparm` prüft den Kandidaten vor dem
+Ersetzen. Ein Versionsvergleich verhindert das Überschreiben zwischenzeitlicher
+Änderungen; ein Dienstfehler stellt den vorherigen Dateiinhalt wieder her. Eine
+nach Abbruch offene Konfigurationstransaktion wird nicht durch die nächste
+Änderung überschrieben. Ihr Backup bleibt als `config-earlyoom.json` bzw.
+`config-samba.json` rootprivat für eine geprüfte manuelle Wiederherstellung erhalten.
+Ein Prozessabsturz/Stromausfall während der Dienstaktivierung ist weiterhin kein
+vollständig automatisch wiederhergestellter Servicezustand.
+
+Samba-Freigaben verbieten zusätzliche Konfigurationszeilen, `global`,
+Pfadtraversierung und Variablenersetzungen. Das Leeren des Papierkorbs beachtet
+die Gefahrensperre und arbeitet ausschließlich unter festgehaltenen Verzeichnis-
+deskriptoren: keine Symlinkverfolgung, keine andere Mount-ID und nur die bekannten
+Papierkorb-Unterverzeichnisse. Die Aktion bleibt absichtlich endgültiges Löschen
+nach Benutzerbestätigung; sie wurde nur mit künstlichen lokalen Dateien geprüft.
+
+NGINX-ROM-Recovery prüft seine Voraussetzungen vor Mutationen und löscht den
+bisherigen Cache nicht mehr vor dem Mount. Dieser ausdrücklich bestätigte
+Expertenweg bleibt firmwareabhängig und ohne Gesamtrollback; insbesondere
+Zertifikatsneuerzeugung und das Zurückspielen kompletter Systemverzeichnisse sind
+kein freigegebener Standard-Recoveryweg für produktive Daten.
