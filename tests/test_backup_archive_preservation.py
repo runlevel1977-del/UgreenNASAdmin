@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 from ugreen_app.mixin_tabs_setup import MixinTabsSetup
 from ugreen_app.resources import ugreen_scheduled_backup_runner as runner
+from backup_fixtures import execute_inline, preflight_stub
 
 
 BASH = shutil.which("bash") or (
@@ -51,7 +52,7 @@ class ArchivePreservationTests(unittest.TestCase):
             directory, source, originals = self.seed(base)
             exists = os.path.exists
             output = io.StringIO()
-            with patch.object(runner.os.path, "exists", side_effect=lambda p: p == "/synthetic/source" or exists(p)), \
+            with patch.object(runner, "_preflight", side_effect=preflight_stub), \
                  patch.object(runner.subprocess, "run", side_effect=self.tar_stub), contextlib.redirect_stdout(output):
                 for _ in range(4):
                     self.assertTrue(runner._run_tar("docker_scripts", ["/synthetic/source"], "/volume1", [], archive_parent=base))
@@ -59,23 +60,17 @@ class ArchivePreservationTests(unittest.TestCase):
             self.assertEqual(len(list(directory.iterdir())), 8)
             self.assertIn("No automatic archive deletion", output.getvalue())
 
-    @unittest.skipUnless(BASH, "Bash required for local tar-stub tests")
     def test_concurrent_manual_backups_preserve_foreign_and_each_others_archives(self):
         with tempfile.TemporaryDirectory() as base:
             directory, source, originals = self.seed(base)
             command = MixinTabsSetup()._backup_build_tar_cmd(
                 "docker_scripts", [source.as_posix()], "/volume1", archive_parent_override=Path(base).as_posix())
-            inner = shlex.split(command)[-1]
-            stub = 'PATH=/usr/bin:/bin:$PATH; tar() { printf "synthetic archive" > "$2"; }; '
-            def run():
-                return subprocess.run([BASH, "--noprofile", "--norc", "-c", stub + inner],
-                                      capture_output=True, text=True, timeout=10)
-            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
-                results = list(pool.map(lambda _: run(), range(4)))
-            for result in results:
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn("__UG_BACKUP_FILE__", result.stdout)
-                self.assertIn("No automatic archive deletion", result.stdout)
+            with patch.object(subprocess, "run", side_effect=self.tar_stub), concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+                results = list(pool.map(lambda _: execute_inline(command), range(4)))
+            for code, output in results:
+                self.assertEqual(code, 0, output)
+                self.assertIn("__UG_BACKUP_FILE__", output)
+                self.assertIn("No automatic archive deletion", output)
             self.assert_originals(directory, originals)
             self.assertEqual(len(list(directory.iterdir())), 8)
 

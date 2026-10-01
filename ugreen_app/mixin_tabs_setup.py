@@ -30,6 +30,7 @@ import urllib.parse
 
 import nas_ssh
 import nas_utils
+from ugreen_app.backup_commands import inline_backup_command
 from ugreen_app.scroll_helpers import (
     should_ignore_smooth_mousewheel_target,
     smooth_bind_mousewheel_tree,
@@ -2064,34 +2065,25 @@ class MixinTabsSetup:
         exclude_globs: tuple[str, ...] = (),
         archive_parent_override: str | None = None,
     ) -> str:
-        q_sources = " ".join(shlex.quote(p) for p in self._backup_unique_ordered_paths(sources))
-        ex_args = " ".join(f"--exclude={shlex.quote(x)}" for x in exclude_globs if str(x or "").strip())
-        arc_root = str(archive_parent_override or "").strip().rstrip("/")
-        arch_base = arc_root if arc_root else ((target_volume.rstrip("/") or "/volume1"))
-        inner = (
-            "set -e;"
-            f"SOURCES=({q_sources});"
-            "SRC_OK=();"
-            "for p in \"${SOURCES[@]}\"; do [ -e \"$p\" ] && SRC_OK+=(\"$p\"); done;"
-            "if [ ${#SRC_OK[@]} -eq 0 ]; then echo '__UG_BACKUP_NO_SOURCE__'; exit 1; fi;"
-            f"DEST_DIR={shlex.quote(arch_base + '/backup/ugreen_admin')};"
-            f"TAG={shlex.quote(tag)};"
-            "mkdir -p \"$DEST_DIR\";"
-            "TEMP_FILE=$(mktemp \"$DEST_DIR/.ugreen-backup-XXXXXXXXXXXX.partial\");"
-            "trap 'rm -f -- \"$TEMP_FILE\"' EXIT;"
-            "RUN_ID=${TEMP_FILE##*/}; RUN_ID=${RUN_ID#.ugreen-backup-}; RUN_ID=${RUN_ID%.partial};"
-            "DEST_FILE=\"$DEST_DIR/${TAG}_$(date +%Y%m%d_%H%M%S)_${RUN_ID}.tar.gz\";"
-            f"tar -czf \"$TEMP_FILE\" --exclude=\"$DEST_DIR\" {ex_args} -- \"${{SRC_OK[@]}}\";"
-            "test -s \"$TEMP_FILE\";"
-            "mv -- \"$TEMP_FILE\" \"$DEST_FILE\"; trap - EXIT;"
-            "echo \"__UG_BACKUP_FILE__:$DEST_FILE\";"
-            "du -h \"$DEST_FILE\" 2>/dev/null | awk '{print \"__UG_BACKUP_SIZE__:\"$1}' || true;"
-            # A shared filename prefix does not establish archive ownership.
-            "echo 'Aufbewahrung / Retention: Keine automatische Archivlöschung. "
-            "Speicherplatz und alte Sicherungen manuell verwalten. / "
-            "No automatic archive deletion; manage free space and old backups manually.';"
-        )
-        return f"/bin/bash -lc {shlex.quote(inner)}"
+        return inline_backup_command(self._scheduled_backup_runner_template_text(), "_run_tar", {
+            "tag": tag, "sources": self._backup_unique_ordered_paths(sources),
+            "target_volume": target_volume, "excludes": list(exclude_globs),
+            "archive_parent": archive_parent_override,
+            # Home roots are candidates at initial discovery, not all mandatory.
+            "discover_sources": tag.startswith("user_data_"),
+        })
+
+    def _backup_capture_job_sources(self, jobs):
+        if not jobs:
+            return []
+        command = inline_backup_command(self._scheduled_backup_runner_template_text(), "_capture_jobs", {"jobs": jobs})
+        result = self.run_ssh_cmd_ex(command, True, update_status=False)
+        if not result.ok:
+            raise RuntimeError(result.output or "Backup source/mount verification failed")
+        captured = json.loads(result.output)
+        if not isinstance(captured, list) or len(captured) != len(jobs):
+            raise ValueError("Invalid backup source snapshot")
+        return captured
 
     def _backup_on_scope_change(self) -> None:
         mode = str(getattr(self, "var_backup_volume_scope", tk.StringVar(value="all")).get() or "all")
@@ -2743,7 +2735,7 @@ class MixinTabsSetup:
         mode = str(getattr(self, "var_backup_volume_scope", tk.StringVar(value="all")).get() or "all")
         if mode == "single":
             pick = str(getattr(self, "var_backup_volume", tk.StringVar(value="")).get() or "").strip()
-            src_vols = [pick] if pick in volumes else volumes[:1]
+            src_vols = [pick] if pick in volumes else []
         else:
             src_vols = volumes
         src_vols = self._backup_unique_ordered_paths(src_vols)
@@ -3052,13 +3044,15 @@ class MixinTabsSetup:
                 jp_show = posixpath.normpath(jp)
                 runner_show = posixpath.normpath(runner_remote)
                 jp_dir = posixpath.dirname(jp)
-                self.run_ssh_cmd("/bin/bash -lc " + shlex.quote(f"mkdir -p {jp_dir}"), True, update_status=False)
-                jobs = getattr(self, "scheduled_backup_jobs", []) or []
+                jobs = self._backup_capture_job_sources(getattr(self, "scheduled_backup_jobs", []) or [])
+                created = self.run_ssh_cmd_ex(f"mkdir -p -- {shlex.quote(jp_dir)}", True, update_status=False)
+                if not created.ok:
+                    raise RuntimeError(created.output or "Cannot create backup directory")
                 if not getattr(self, "write_root_file", None):
                     raise RuntimeError(self.t("backup.sched.writer_missing"))
                 if not self.write_root_file(runner_remote, body):
                     raise RuntimeError(self.t("backup.sched.runner_write_fail"))
-                payload = json.dumps({"version": 1, "jobs": jobs}, indent=2, ensure_ascii=False)
+                payload = json.dumps({"version": 2, "jobs": jobs}, indent=2, ensure_ascii=False)
                 if not self.write_root_file(jp, payload):
                     raise RuntimeError(self.t("backup.sched.json_write_fail"))
                 cron_path = str(getattr(self, "stable_cron_path", "/etc/cron.d/papa_jobs") or "/etc/cron.d/papa_jobs")
@@ -3107,6 +3101,7 @@ class MixinTabsSetup:
                 if err_final:
                     self._backup_log(self.t("backup.sched.sync_fail", err=err_final))
                 else:
+                    self.scheduled_backup_jobs = jobs
                     self._backup_log(self.t("backup.sched.sync_done"))
                     self._backup_log(self.t("backup.sched.sync_hint", jp=jp_final or "—", runner=rn_final or "—"))
 

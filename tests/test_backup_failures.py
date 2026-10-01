@@ -13,6 +13,7 @@ from unittest.mock import Mock, patch
 
 from ugreen_app.mixin_tabs_setup import MixinTabsSetup
 from ugreen_app.resources import ugreen_scheduled_backup_runner as runner
+from backup_fixtures import execute_inline, preflight_stub
 
 
 BASH = shutil.which("bash") or (
@@ -35,7 +36,7 @@ class BackupFailureTests(unittest.TestCase):
                 return SimpleNamespace(returncode=code)
             return SimpleNamespace(returncode=0, stdout="1K synthetic")
         output = io.StringIO()
-        with patch.object(runner.os.path, "exists", side_effect=lambda p: p == "/volume1/source" or exists(p)), \
+        with patch.object(runner, "_preflight", side_effect=preflight_stub), \
              patch.object(runner.subprocess, "run", side_effect=tar_stub), contextlib.redirect_stdout(output):
             ok = runner._run_tar("docker_scripts", ["/volume1/source"], "/volume1", [], archive_parent=base)
         return ok, output.getvalue()
@@ -83,6 +84,7 @@ class BackupFailureTests(unittest.TestCase):
 
     def test_main_propagates_backup_failure_to_cron(self):
         job = {"id": "synthetic", "kind": "docker_scripts"}
+        job["backup_guard"] = {"fingerprint": runner._job_fingerprint(job), "snapshot": {"sources": ["/volume1/source"], "mounts": []}}
         with patch.object(runner, "_load_jobs", return_value=({}, [job])), \
              patch.object(runner, "_discover_volumes", return_value=["/volume1"]), \
              patch.object(runner, "_run_tar", return_value=False):
@@ -96,7 +98,6 @@ class BackupFailureTests(unittest.TestCase):
             self.assertTrue(sources)
         self.assertEqual(runner._uniq_sort(["/volume10", "/volume2", "/tmp", "/volume2"]), ["/volume2", "/volume10"])
 
-    @unittest.skipUnless(BASH, "bash needed for local tar-stub integration")
     def test_manual_tar_failure_preserves_archives_and_cleans_partial_file(self):
         for status in (1, 2):
             with self.subTest(status=status), tempfile.TemporaryDirectory() as base:
@@ -104,12 +105,14 @@ class BackupFailureTests(unittest.TestCase):
                 source = Path(base) / "source"
                 source.mkdir()
                 command = MixinTabsSetup()._backup_build_tar_cmd("docker_scripts", [source.as_posix()], "/volume1", archive_parent_override=Path(base).as_posix())
-                inner = shlex.split(command)[-1]
-                self.assertNotIn("--ignore-failed-read", inner)
-                stub = "PATH=/usr/bin:/bin:$PATH; tar() { printf 'partial' > \"$2\"; return " + str(status) + "; }; "
-                result = subprocess.run([BASH, "--noprofile", "--norc", "-c", stub + inner], capture_output=True, timeout=10)
-                self.assertEqual(result.returncode, status, result.stderr)
-                self.assertNotIn(b"__UG_BACKUP_FILE__", result.stdout)
+                def tar_stub(cmd, **kwargs):
+                    self.assertNotIn("--ignore-failed-read", cmd)
+                    Path(cmd[2]).write_bytes(b"partial")
+                    return SimpleNamespace(returncode=status)
+                with patch.object(subprocess, "run", side_effect=tar_stub):
+                    code, output = execute_inline(command)
+                self.assertEqual(code, 5)
+                self.assertNotIn("__UG_BACKUP_FILE__", output)
                 self.assertEqual({p.name: p.read_bytes() for p in directory.iterdir()}, old)
 
 
