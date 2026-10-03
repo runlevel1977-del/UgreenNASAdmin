@@ -52,6 +52,7 @@ DOC_FILES = frozenset(
         "HANDBOOK_EN.pdf",
         "handbook_page_index.json",
         "OFFLINE_TESTS_DE.md",
+        "ISOLATED_RESTORE_DE.md",
         "RELEASE_SECURITY_REVIEW_DE.md",
     }
 )
@@ -182,6 +183,7 @@ PUBLIC_TEST_FILES = frozenset(
         "test_private_backup_state.py",
         "test_archive_limits.py",
         "test_archive_safety.py",
+        "test_isolated_restore.py",
         "test_admin_commands.py",
         "test_admin_config_transactions.py",
         "test_ssh_profile_guard.py",

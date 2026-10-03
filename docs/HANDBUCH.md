@@ -2099,7 +2099,7 @@ Buttons:
 - Datei wählen
 - Wiederherstellen starten
 
-**Sicherheit (ab 23.8.69):** Archiv-Restore mit Ressourcengrenzen und Metadatenprüfung; Mitglieder atomar. Vorhandene **UGOS-ACLs/xattrs** am Ziel **stoppen** den Restore nicht — sie werden aber **nicht** aus dem Archiv wiederhergestellt (Inhalte/Rechte ohne vollständige ACL-Runde).
+**Sicherheit:** TAR-Restore benötigt einen **neuen, noch nicht vorhandenen Zielordner** unter einem bestehenden Verzeichnis. Erst die vollständig extrahierten Dateien werden unter diesem Namen sichtbar. Bestehende Daten werden nicht ersetzt. Der neue Ordner ist zunächst privat; vor der Übernahme Inhalte und Zugriffsrechte prüfen. ACLs/xattrs aus dem Archiv, Links und Spezialdateien werden nicht unterstützt. Details und Grenzen: [Isolierter Restore](ISOLATED_RESTORE_DE.md).
 
 ### 35.4 Scheduled Backup
 

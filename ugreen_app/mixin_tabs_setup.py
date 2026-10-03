@@ -1739,7 +1739,7 @@ class MixinTabsSetup:
             insertbackground=self.color_input_fg,
         )
         self.entry_backup_restore_target.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=4)
-        self.entry_backup_restore_target.insert(0, "/volume1")
+        self.entry_backup_restore_target.insert(0, "/volume1/restore_recovered")
         self._register_danger_rounded(
             self.create_modern_btn(
                 rr,
