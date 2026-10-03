@@ -6,9 +6,9 @@ Erzeugt ein Release-ZIP mit zwei Unterordnern:
   <Name>/source/    — Quellen + Build-Skripte + fertige EXE unter dist/
   <Name>/installer/ — Inno-Setup-Installer (*.exe aus installer/output/)
 
-Voraussetzungen:
-  - dist/UgreenNASAdmin.exe muss existieren (z. B. nach ``python builder.py``).
-  - installer/output/*.exe optional; fehlt eine Setup-EXE, liegt eine README im Ordner.
+Voraussetzungen: --build-dir mit geprüftem BUILD_MANIFEST, Portable-EXE und
+Installer aus dem öffentlichen, sauber getaggten Quellstand. Siehe
+docs/PUBLIC_RELEASE_BINDING_DE.md. Lokale dist/-Dateien genügen nicht.
 
 Ausgabe: release/UgreenNASAdmin_v<Version>_release.zip (Version aus ugreen_app/nas_manager.py).
 """
@@ -27,7 +27,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-from tools.release_source_guard import release_source_state, reject_runtime_files, export_committed_sources
+from tools.release_source_guard import public_release_state, reject_runtime_files, export_committed_sources
 from tools.reproducible_release import verify_record
 NAS_MANAGER = ROOT / "ugreen_app" / "nas_manager.py"
 DIST_DIR = ROOT / "dist" / "UgreenNASAdmin"
@@ -49,8 +49,10 @@ def _pack_bundle(
     source_state: dict,
     dist_dir: Path,
     installer_out: Path,
-    manifest_src: Path | None,
+    manifest_src: Path,
 ) -> int:
+    if manifest_src is None or not manifest_src.is_file():
+        raise ValueError('A verified BUILD_MANIFEST is required for release packaging')
     RELEASE_DIR.mkdir(parents=True, exist_ok=True)
     bundle_name = f"UgreenNASAdmin_v{ver}_release"
 
@@ -66,6 +68,9 @@ def _pack_bundle(
         export_committed_sources(ROOT, src_root, source_state)
         if manifest_src is not None and manifest_src.is_file():
             shutil.copy2(manifest_src, base / "BUILD_MANIFEST.json")
+            inventory = manifest_src.with_name('NATIVE_INVENTORY.json')
+            if inventory.is_file():
+                shutil.copy2(inventory, base / inventory.name)
 
         # dist: kompletter One-Dir-Ordner (EXE + DLLs)
         dist_dst = src_root / "dist" / "UgreenNASAdmin"
@@ -137,12 +142,14 @@ def main_from_build_dir(build_dir: Path) -> int:
     dist_dir = build_dir / "portable"
     installer_out = build_dir / "installer"
     try:
-        source_state = release_source_state(ROOT, ver)
+        source_state = public_release_state(ROOT, ver)
         record = verify_record(build_dir)
+        if not (dist_dir / 'UgreenNASAdmin.exe').is_file() or not (installer_out / f'UgreenNASAdmin_setup_{ver}.exe').is_file():
+            raise ValueError('Recorded release build must contain portable EXE and matching installer')
         if record["source"]["source_commit"] != source_state["source_commit"]:
             raise ValueError("Build manifest belongs to a different source commit")
         reject_runtime_files(dist_dir)
-    except (KeyError, ValueError, OSError, subprocess.CalledProcessError) as exc:
+    except (KeyError, ValueError, OSError, subprocess.SubprocessError) as exc:
         print(f"FEHLER: {exc}", file=sys.stderr)
         return 2
 
@@ -164,24 +171,11 @@ def main_from_build_dir(build_dir: Path) -> int:
 
 
 def main_from_local_dist() -> int:
-    """Pack the already-built dist/ + installer/output/ with committed sources."""
-    ver = _read_version()
-    if not DIST_EXE.is_file():
-        print(f"FEHLER: {DIST_EXE} fehlt — zuerst packaging/builder.py", file=sys.stderr)
-        return 2
-    try:
-        source_state = release_source_state(ROOT, ver)
-        reject_runtime_files(DIST_DIR)
-    except (KeyError, ValueError, OSError, subprocess.CalledProcessError) as exc:
-        print(f"FEHLER: {exc}", file=sys.stderr)
-        return 2
-    return _pack_bundle(
-        ver=ver,
-        source_state=source_state,
-        dist_dir=DIST_DIR,
-        installer_out=INSTALLER_OUT,
-        manifest_src=None,
-    )
+    """Keep an actionable error for old automation instead of bypassing verification."""
+    print('FEHLER: --local-dist hat keinen Build-Nachweis. Aus dem öffentlichen Commit mit '
+          'tools/reproducible_release.py build bauen; dann --build-dir verwenden. '
+          'Ein sauberer Quellbaum belegt nicht die Herkunft einer alten lokalen EXE.', file=sys.stderr)
+    return 2
 
 
 if __name__ == "__main__":
@@ -191,7 +185,7 @@ if __name__ == "__main__":
     mode.add_argument(
         "--local-dist",
         action="store_true",
-        help="Pack current dist/ and installer/output/ with committed sources",
+        help="Removed unsafe release shortcut; prints migration guidance",
     )
     args = parser.parse_args()
     if args.local_dist:

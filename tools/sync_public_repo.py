@@ -52,6 +52,7 @@ DOC_FILES = frozenset(
         "HANDBOOK_EN.pdf",
         "handbook_page_index.json",
         "OFFLINE_TESTS_DE.md",
+        "PUBLIC_RELEASE_BINDING_DE.md",
         "RELEASE_SECURITY_REVIEW_DE.md",
     }
 )
@@ -145,6 +146,7 @@ SENSITIVE_UGREEN_FILES = frozenset(
 PUBLIC_TEST_FILES = frozenset(
     {
         "run_offline_suite.py",
+        "test_public_release_binding.py",
         "test_private_runtime.py",
         "test_shell_safety.py",
         "test_ssh_host_keys.py",
