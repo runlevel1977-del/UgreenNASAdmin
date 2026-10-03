@@ -1,8 +1,11 @@
 """Read-only release checks and export of committed public sources."""
 import hashlib
 import json
+import re
 from pathlib import Path, PurePosixPath
 import subprocess
+
+PUBLIC_REPOSITORY = 'https://github.com/runlevel1977-del/UgreenNASAdmin.git'
 
 RUNTIME_NAMES = frozenset({
     'app_settings.json','nas_admin_connection.json','telegram_notify.json',
@@ -37,6 +40,35 @@ def release_source_state(root, version):
         if target != commit:
             raise ValueError('Release tag does not point to the source commit')
     return {'source_commit':commit,'version':version,'tag':tag,'tag_exists':exists.returncode==0}
+
+
+def public_release_state(root, version):
+    """Require the actual public tag, including peeled annotated tags, before publishing."""
+    if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version):
+        raise ValueError('Invalid release version')
+    state = release_source_state(root, version)
+    if not state['tag_exists']:
+        raise ValueError('Create and publish the reviewed release tag before packaging/signing')
+    ref = 'refs/tags/' + state['tag']
+    result = subprocess.run(['git', 'ls-remote', PUBLIC_REPOSITORY, ref, ref + '^{}'],
+                            capture_output=True, check=True, timeout=30)
+    refs = {}
+    for line in result.stdout.decode('ascii').splitlines():
+        sha, name = line.split()
+        if name not in (ref, ref + '^{}') or name in refs or not re.fullmatch(r'[0-9a-f]{40}|[0-9a-f]{64}', sha):
+            raise ValueError('Invalid public tag response')
+        refs[name] = sha
+    if ref not in refs or refs.get(ref + '^{}', refs[ref]) != state['source_commit']:
+        raise ValueError('Public release tag does not identify this source commit; private-only commits cannot be release provenance')
+    return state
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description='Read-only check of local source and public release tag; no fetch or tag changes')
+    parser.add_argument('version')
+    arguments = parser.parse_args()
+    print(json.dumps(public_release_state(Path(__file__).resolve().parents[1], arguments.version), indent=2))
 
 
 def reject_runtime_files(directory):
