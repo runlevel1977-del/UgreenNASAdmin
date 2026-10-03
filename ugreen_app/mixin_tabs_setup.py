@@ -2618,6 +2618,8 @@ class MixinTabsSetup:
     def _backup_run_async(self, *, title_key: str, tag: str, sources: list[str], exclude_globs: tuple[str, ...] = ()) -> None:
         if not self._danger_gate():
             return
+        if not messagebox.askyesno(self.t('backup.title'), self.t('backup.consistency_confirm')):
+            return
         src = self._backup_unique_ordered_paths(sources)
         if not src:
             self._backup_log(self.t("backup.no_source"), reset=True)
@@ -3046,6 +3048,9 @@ class MixinTabsSetup:
 
     def scheduled_backup_sync_to_nas(self):
         if not self._danger_gate():
+            return
+        if getattr(self, 'scheduled_backup_jobs', []) and not messagebox.askyesno(
+                self.t('backup.title'), self.t('backup.consistency_schedule_confirm')):
             return
         self._backup_log(self.t("backup.sched.sync_start"))
         self._backup_log(self.t("backup.retention_notice"))

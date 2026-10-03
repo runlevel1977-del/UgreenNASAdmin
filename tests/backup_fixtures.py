@@ -17,6 +17,7 @@ def execute_inline(command):
     def load(source, namespace):
         builtins.exec(source, namespace)
         namespace["_preflight"] = preflight_stub
+        namespace['_check_live_writers'] = lambda sources: None
         namespace["print"] = lambda *args, **kwargs: output.append(" ".join(map(str, args)))
     try:
         builtins.exec(shlex.split(command)[-1], {"exec": load})
