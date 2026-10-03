@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 from ugreen_app.mixin_tabs_setup import MixinTabsSetup
 from ugreen_app.resources import ugreen_scheduled_backup_runner as runner
-from tests.backup_fixtures import execute_inline, preflight_stub
+from tests.backup_fixtures import execute_inline, preflight_stub, write_archive
 
 
 BASH = shutil.which("bash") or (
@@ -44,7 +44,7 @@ class ArchivePreservationTests(unittest.TestCase):
 
     def tar_stub(self, cmd, **kwargs):
         if cmd[0] == "tar":
-            Path(cmd[2]).write_bytes(b"synthetic complete archive")
+            write_archive(cmd[2])
         return SimpleNamespace(returncode=0, stdout="1K synthetic")
 
     def test_repeated_scheduled_jobs_with_same_tag_preserve_all_archives(self):
