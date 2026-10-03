@@ -15,12 +15,46 @@ import posixpath
 import re
 import subprocess
 import sys
+import tarfile
 import tempfile
 import time
 import uuid
 from typing import Any, Sequence
 
 _VOL_RE = re.compile(r"^/volume\d+$", re.I)
+ARCHIVE_VALIDATOR_SOURCE = None
+
+
+def _validate_restore_archive(path: str) -> None:
+    """Validate index, actual payload lengths and compression trailer, without extracting."""
+    if ARCHIVE_VALIDATOR_SOURCE is None:
+        # Development invocation only. Deployed runners always embed this source.
+        from ugreen_app.resources.ugreen_safe_extract import Limits, plan_members
+    else:
+        namespace = {'__name__': 'ugreen_backup_archive_policy'}
+        exec(compile(ARCHIVE_VALIDATOR_SOURCE, '<archive-policy>', 'exec'), namespace)
+        Limits, plan_members = namespace['Limits'], namespace['plan_members']
+    limits = Limits()
+    with tarfile.open(path, 'r:gz') as archive:
+        plan = plan_members(archive, limits)
+        for _, directory, size, member in plan:
+            if directory:
+                continue
+            count = 0
+            with archive.extractfile(member) as content:
+                while block := content.read(1024 * 1024):
+                    limits.check_time()
+                    count += len(block)
+                    if count > size:
+                        raise ValueError('Backup member exceeds declared size')
+            if count != size:
+                raise ValueError('Backup contains a truncated member')
+        trailing = 0
+        while block := archive.fileobj.read(1024 * 1024):
+            limits.check_time()
+            trailing += len(block)
+            if trailing > limits.max_bytes:
+                raise ValueError('Backup trailer exceeds resource limit')
 
 
 def _read_mounts() -> list[dict[str, str]]:
@@ -280,7 +314,8 @@ def _run_tar(
         dest_file = os.path.join(dest_dir, f"{tag}_{ts}_{uuid.uuid4().hex[:12]}.tar.gz")
         fd, partial = tempfile.mkstemp(prefix=".ugreen-backup-", suffix=".partial", dir=dest_dir)
         os.close(fd)
-        cmd = ["tar", "-czf", partial, f"--exclude={dest_dir}"]
+        # Duplicate hardlinked file CONTENTS; never dereference symbolic links.
+        cmd = ["tar", "-czf", partial, "--hard-dereference", f"--exclude={dest_dir}"]
         cmd.extend(f"--exclude={str(g).strip()}" for g in excludes if str(g).strip())
         cmd.extend(["--", *selected])
         proc = subprocess.run(cmd, capture_output=False, timeout=86400, check=False)
@@ -293,6 +328,9 @@ def _run_tar(
         _, _, after_ids = _preflight(selected, root_base, expected=snapshot)
         if after_ids != mount_ids:
             raise ValueError("A source or destination was remounted during the backup")
+        _validate_restore_archive(partial)
+        with open(partial, 'r+b') as archive:
+            os.fsync(archive.fileno())
         os.replace(partial, dest_file)
     except Exception as e:
         print(f"tar failed: {e}", flush=True)

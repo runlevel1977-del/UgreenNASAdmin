@@ -32,7 +32,7 @@ import nas_ssh
 import nas_utils
 from ugreen_app.root_runtime import BACKUP_STATE, ROOT_RUNTIME_DIR
 from ugreen_app.backup_generation import MARKER, active_state_path, generation_paths, transaction_code
-from ugreen_app.backup_commands import inline_backup_command
+from ugreen_app.backup_commands import bundle_backup_runner, inline_backup_command
 from ugreen_app.archive_commands import safe_extract_command
 from ugreen_app.scheduled_backup_cron import build_backup_cron_lines
 from ugreen_app.scroll_helpers import (
@@ -2767,7 +2767,7 @@ class MixinTabsSetup:
         for p in cand:
             try:
                 if p.is_file():
-                    return p.read_text(encoding="utf-8").rstrip() + "\n"
+                    return bundle_backup_runner(p.read_text(encoding="utf-8").rstrip() + "\n")
             except OSError:
                 continue
         return ""
