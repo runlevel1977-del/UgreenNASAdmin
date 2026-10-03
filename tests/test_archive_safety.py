@@ -110,6 +110,13 @@ class ArchiveSafetyTests(unittest.TestCase):
         original_unlink, original_replace = os.unlink, os.replace
         original_mkdir, original_rmdir, original_close = os.mkdir, os.rmdir, os.close
         original_fstat = os.fstat
+        def stable_stat(value):
+            # Windows creation/change timestamps differ between stat/fstat.
+            # The fixture models Linux ctime; inode, size, mode and mtime remain real.
+            if os.name != 'nt':
+                return value
+            fields = {key:getattr(value,key) for key in dir(value) if key.startswith('st_')}
+            return SimpleNamespace(**dict(fields, st_ctime_ns=0))
         directories = {10:root}
         counter = [10000]
         def resolve(name, dir_fd):
@@ -124,7 +131,7 @@ class ArchiveSafetyTests(unittest.TestCase):
                 return counter[0]
             return original_open(path, flags & ~0x20000000, mode)
         def stat_at(name, *, dir_fd=None, follow_symlinks=True):
-            return original_stat(resolve(name,dir_fd), follow_symlinks=follow_symlinks)
+            return stable_stat(original_stat(resolve(name,dir_fd), follow_symlinks=follow_symlinks))
         with contextlib.ExitStack() as stack:
             fake=SimpleNamespace(**{name:getattr(os,name) for name in dir(os)})
             fake.path=posixpath
@@ -137,7 +144,7 @@ class ArchiveSafetyTests(unittest.TestCase):
                     mkdir=lambda name,mode=0o777,dir_fd=None: original_mkdir(resolve(name,dir_fd),mode),
                     rmdir=lambda name,dir_fd=None: original_rmdir(resolve(name,dir_fd)),
                     close=lambda fd: directories.pop(fd) if fd in directories else original_close(fd),
-                    fstat=lambda fd: SimpleNamespace(st_uid=0,st_mode=stat.S_IFDIR|0o700) if fd in directories else original_fstat(fd),
+                    fstat=lambda fd: SimpleNamespace(st_uid=0,st_mode=stat.S_IFDIR|0o700) if fd in directories else stable_stat(original_fstat(fd)),
                     geteuid=lambda:0,O_DIRECTORY=0x40000000,
                     dup=duplicate,utime=lambda *args:None,O_NONBLOCK=0,
                     fstatvfs=lambda fd: SimpleNamespace(f_bavail=2**50, f_frsize=4096),

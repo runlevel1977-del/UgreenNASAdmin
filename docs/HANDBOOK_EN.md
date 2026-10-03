@@ -1148,7 +1148,7 @@ Loads local files to NAS.
 
 Actively select the target folder on the left beforehand.
 
-**Security (from 23.8.69):** Upload is **atomic** — the destination appears only after a fully verified transfer. Supported ACLs/xattrs are preserved; **UGOS-unsupported** security xattrs are skipped (upload continues). Symlinks and unsafe metadata abort the transfer.
+**Security:** Upload replaces each file only after a verified transfer. Both single-file and ZIP uploads preserve supported ACLs/xattrs. Unknown security attributes abort replacement and keep the original; use a new filename and review permissions. ZIP is atomic per file, not for the entire batch. See [metadata policy (German)](UPLOAD_METADATA_DE.md).
 
 ### 45.3 `Perms 755`
 
