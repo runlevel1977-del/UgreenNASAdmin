@@ -52,6 +52,7 @@ DOC_FILES = frozenset(
         "HANDBOOK_EN.pdf",
         "handbook_page_index.json",
         "OFFLINE_TESTS_DE.md",
+        "UPLOAD_METADATA_DE.md",
         "RELEASE_SECURITY_REVIEW_DE.md",
     }
 )
@@ -168,6 +169,7 @@ PUBLIC_TEST_FILES = frozenset(
         "test_runlevel_apps_scan.py",
         "test_upload_directory_permissions.py",
         "test_upload_stream.py",
+        "test_zip_upload_metadata.py",
         "test_atomic_root_write.py",
         "test_root_write_stdin.py",
         "test_root_write_path_binding.py",

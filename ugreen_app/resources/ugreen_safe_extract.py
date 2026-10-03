@@ -45,6 +45,24 @@ def check_metadata(fd):
     os.listxattr(fd)
 
 
+def upload_metadata(fd):
+    """ZIP overwrites follow the same preservation policy as SSH file uploads."""
+    attributes = {}
+    for key in os.listxattr(fd):
+        if not (key.startswith('user.') or key in ('system.posix_acl_access', 'security.selinux')):
+            raise ValueError('Cannot safely preserve metadata ' + repr(key) +
+                             '; original kept. Upload under a new filename and review permissions.')
+        attributes[key] = os.getxattr(fd, key)
+        if sum(map(len, attributes.values())) > 1024 * 1024:
+            raise ValueError('Upload destination metadata exceeds limit')
+    return attributes
+
+
+def file_identity(info):
+    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns,
+            info.st_ctime_ns, info.st_mode, info.st_uid, info.st_gid)
+
+
 def configure_process_limits():
     """Bound parser allocations and stalled work before opening any archive."""
     import resource
@@ -182,7 +200,7 @@ def check_leaf(parent, name, directory):
         raise ValueError("Destination contains a link, special file or conflicting type")
 
 
-def check_existing_destinations(root, plan):
+def check_existing_destinations(root, plan, *, zip_upload=False):
     check_metadata(root)
     for parts, directory, _, _ in plan:
         try:
@@ -200,6 +218,8 @@ def check_existing_destinations(root, plan):
             if leaf is not None:
                 try:
                     check_metadata(leaf)
+                    if zip_upload and not directory:
+                        upload_metadata(leaf)
                 finally:
                     os.close(leaf)
         finally:
@@ -212,12 +232,23 @@ def write_member(parent, name, source, size, metadata=None, limits=None):
     if limits is not None:
         limits.check_time()
         check_space(parent, size, limits)
-    if metadata is None:
+    zip_upload = metadata is None
+    previous = None
+    attributes = {}
+    if zip_upload:
         try:
             previous = os.stat(name, dir_fd=parent, follow_symlinks=False)
-            metadata = (previous.st_mode & 0o777, previous.st_uid, previous.st_gid, None)
         except FileNotFoundError:
             metadata = (0o644, -1, -1, None)
+        else:
+            metadata = (previous.st_mode & 0o777, previous.st_uid, previous.st_gid, None)
+            original = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+            try:
+                if file_identity(os.fstat(original)) != file_identity(previous):
+                    raise ValueError('ZIP upload destination changed before metadata capture')
+                attributes = upload_metadata(original)
+            finally:
+                os.close(original)
     temporary = ".ugreen-extract-" + uuid.uuid4().hex
     os.mkdir(temporary, 0o700, dir_fd=parent)
     staging = None
@@ -248,10 +279,29 @@ def write_member(parent, name, source, size, metadata=None, limits=None):
             mode, uid, gid, mtime = metadata
             os.fchown(output.fileno(), uid, gid)
             os.fchmod(output.fileno(), mode & 0o777)
+            for key, value in attributes.items():
+                os.setxattr(output.fileno(), key, value)
             if mtime is not None:
                 os.utime(output.fileno(), (mtime, mtime))
             os.fsync(output.fileno())
         check_leaf(parent, name, False)
+        if zip_upload:
+            try:
+                current = os.stat(name, dir_fd=parent, follow_symlinks=False)
+            except FileNotFoundError:
+                current = None
+            if previous is None:
+                if current is not None:
+                    raise ValueError('ZIP upload target appeared during transfer')
+            else:
+                if current is None or file_identity(previous) != file_identity(current):
+                    raise ValueError('ZIP upload destination changed during transfer')
+                original = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+                try:
+                    if file_identity(os.fstat(original)) != file_identity(previous) or upload_metadata(original) != attributes:
+                        raise ValueError('ZIP upload metadata changed during transfer')
+                finally:
+                    os.close(original)
         os.replace("payload", name, src_dir_fd=staging, dst_dir_fd=parent)
     finally:
         if staging is not None:
@@ -281,7 +331,7 @@ def extract_archive(source_path, destination, kind, limits=None):
         root = open_directory(destination, create_mode)
         stack.callback(os.close, root)
         check_space(root, sum(entry[2] for entry in plan), limits)
-        check_existing_destinations(root, plan)
+        check_existing_destinations(root, plan, zip_upload=(kind == 'zip'))
         directories = []
         for parts, directory, size, item in plan:
             limits.check_time()

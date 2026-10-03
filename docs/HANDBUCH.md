@@ -1148,7 +1148,7 @@ Lädt lokale Dateien auf NAS.
 
 Vorher Zielordner links aktiv auswählen.
 
-**Sicherheit (ab 23.8.69):** Upload ist **atomar** — das Ziel erscheint erst nach vollständig verifiziertem Transfer. Unterstützte ACLs/xattrs werden mitgenommen; **UGOS-fremde** Security-xattrs werden übersprungen (Upload läuft weiter). Symlinks und unsichere Metadaten → Abbruch.
+**Sicherheit:** Jede Datei wird erst nach geprüftem Transfer ersetzt. Einzeldatei- und ZIP-Upload erhalten unterstützte ACLs/xattrs. Bei unbekannten Sicherheitsattributen bleibt das Original erhalten; unter neuem Namen hochladen und Rechte prüfen. ZIP ist pro Datei atomar, nicht für den gesamten Auftrag. Details: [Metadatenregeln](UPLOAD_METADATA_DE.md).
 
 ### 45.3 `Perms 755`
 

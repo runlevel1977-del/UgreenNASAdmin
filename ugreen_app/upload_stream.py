@@ -4,6 +4,16 @@ import shlex
 
 REMOTE_UPLOAD_CODE = r'''
 import hashlib,os,pwd,stat,sys,uuid
+def read_metadata(fd):
+    attributes = {}
+    for key in os.listxattr(fd):
+        if not (key.startswith('user.') or key in ('system.posix_acl_access', 'security.selinux')):
+            raise ValueError('Cannot safely preserve metadata ' + repr(key) +
+                             '; original kept. Upload under a new filename and review permissions.')
+        attributes[key] = os.getxattr(fd, key)
+        if sum(map(len, attributes.values())) > 1024 * 1024:
+            raise ValueError('Upload destination metadata exceeds limit')
+    return attributes
 target,user,marker,size = sys.argv[1:]
 size = int(size)
 if size < 0 or not target.startswith('/') or target == '/' or os.path.normpath(target) != target:
@@ -45,15 +55,7 @@ try:
             opened = os.fstat(original)
             if (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino):
                 raise ValueError('Upload destination changed before metadata capture')
-            for attribute in os.listxattr(original):
-                # Copy only safe metadata. Capabilities/IMA/unknown attrs are
-                # omitted (not applied to the new inode); UGOS user files often
-                # carry extra xattrs that must not block a normal overwrite.
-                if not (attribute.startswith('user.') or attribute in ('system.posix_acl_access', 'security.selinux')):
-                    continue
-                attributes[attribute] = os.getxattr(original, attribute)
-                if sum(len(value) for value in attributes.values()) > 1024 * 1024:
-                    raise ValueError('Upload destination metadata exceeds limit')
+            attributes = read_metadata(original)
         finally:
             os.close(original)
     staging = '.ugreen-upload-' + uuid.uuid4().hex
@@ -90,11 +92,7 @@ try:
         if before is not None:
             original = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
             try:
-                current_attrs = {
-                    key: os.getxattr(original, key)
-                    for key in os.listxattr(original)
-                    if key.startswith('user.') or key in ('system.posix_acl_access', 'security.selinux')
-                }
+                current_attrs = read_metadata(original)
                 if identity(os.fstat(original)) != identity(before) or current_attrs != attributes:
                     raise ValueError('Upload destination metadata changed during transfer')
             finally:
