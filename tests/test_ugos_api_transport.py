@@ -96,6 +96,20 @@ class ApiTransportTests(unittest.TestCase):
         self.assertEqual(ctx.verify_mode, ssl.CERT_REQUIRED)
         self.assertFalse(hasattr(ctx, "_ugreen_pinned_fingerprint"))
 
+    def test_self_signed_end_entity_without_san_or_matching_hostname_is_pinned(self):
+        # Factory-style certificate: no public CA, no SAN, and a different CN.
+        # The pin authenticates this exact certificate in the default mode.
+        key, cert = make_cert("factory-certificate-name", ca=False)
+        pem = cert.public_bytes(serialization.Encoding.PEM).decode()
+        certs.trust_pem("nas.example", 9443, pem)
+        ctx = self.client()._ctx()
+        self.assertEqual(ctx.verify_mode, ssl.CERT_REQUIRED)
+        self.assertFalse(ctx.check_hostname)
+        der = self.handshake(ctx, key, cert)
+        self.assertEqual(certs.fingerprint_der(der), ctx._ugreen_pinned_fingerprint)
+        self.assertEqual(ctx._ugreen_pinned_fingerprint, certs.fingerprint_pem(pem))
+
+
     def test_changed_self_signed_certificate_fails_real_in_memory_handshake(self):
         ctx = self.pinned_context()
         with self.assertRaises(ssl.SSLCertVerificationError):
