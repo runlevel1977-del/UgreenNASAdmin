@@ -17,6 +17,12 @@ from ugreen_app.resources import ugreen_scheduled_backup_runner as runner
 
 
 class BackupRestoreContractTests(unittest.TestCase):
+    def setUp(self):
+        # If integrated with writer detection, keep this archive-format test
+        # independent of the host's Docker installation. That guard has its own tests.
+        check = patch.object(runner, '_check_live_writers', create=True)
+        check.start(); self.addCleanup(check.stop)
+
     def test_bundled_runner_uses_same_policy_without_application_imports(self):
         namespace = {'__name__': 'synthetic_backup'}
         exec(MixinTabsSetup()._scheduled_backup_runner_template_text(), namespace)
