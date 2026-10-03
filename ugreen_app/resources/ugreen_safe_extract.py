@@ -169,7 +169,7 @@ def open_existing_directory(path):
         raise
 
 
-def rename_new_directory(parent, source, destination):
+def rename_new_directory(source_parent, source, destination_parent, destination):
     """Linux atomic rename without replacing even an empty concurrent directory."""
     libc = ctypes.CDLL(None, use_errno=True)
     rename = getattr(libc, 'renameat2', None)
@@ -177,7 +177,7 @@ def rename_new_directory(parent, source, destination):
         raise OSError(errno.ENOSYS, 'Atomic no-replace recovery is unavailable')
     rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
     rename.restype = ctypes.c_int
-    if rename(parent, os.fsencode(source), parent, os.fsencode(destination), 1) != 0:
+    if rename(source_parent, os.fsencode(source), destination_parent, os.fsencode(destination), 1) != 0:
         error = ctypes.get_errno()
         raise OSError(error, os.strerror(error), destination)
 
@@ -210,7 +210,7 @@ def isolated_destination(destination):
     parent_path, name = os.path.split(destination)
     parent = open_existing_directory(parent_path)
     staging = '.ugreen-recovery-' + uuid.uuid4().hex
-    root = None
+    root = staging_fd = None
     created = published = False
     try:
         try:
@@ -221,13 +221,17 @@ def isolated_destination(destination):
             raise FileExistsError('Recovery requires a NEW target folder; existing data is never overwritten')
         os.mkdir(staging, 0o700, dir_fd=parent)
         created = True
-        root = os.open(staging, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
-        info = os.fstat(root)
+        staging_fd = os.open(staging, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+        info = os.fstat(staging_fd)
         if info.st_uid != os.geteuid() or info.st_mode & 0o077:
             raise ValueError('Unsafe recovery staging directory')
+        # A shared parent allows renaming even someone else's private directory.
+        # Keep the rename SOURCE below our pinned private fd, never in that parent.
+        os.mkdir('payload', 0o700, dir_fd=staging_fd)
+        root = os.open('payload', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=staging_fd)
         yield root
         os.fsync(root)
-        rename_new_directory(parent, staging, name)
+        rename_new_directory(staging_fd, 'payload', parent, name)
         published = True
         try:
             os.fsync(parent)
@@ -235,16 +239,19 @@ def isolated_destination(destination):
             raise OSError('Complete recovery folder published, but durability not confirmed: ' + destination) from exc
     finally:
         try:
-            if created and not published and root is not None:
+            if created and staging_fd is not None:
+                if not published:
+                    remove_private_tree(staging_fd)
                 observed = os.stat(staging, dir_fd=parent, follow_symlinks=False)
-                opened = os.fstat(root)
+                opened = os.fstat(staging_fd)
                 if (observed.st_dev, observed.st_ino) != (opened.st_dev, opened.st_ino):
-                    raise ValueError('Recovery staging path changed; manual cleanup required')
-                remove_private_tree(root)
+                    raise ValueError('Recovery staging path changed; manual cleanup required; published=' + str(published))
                 os.rmdir(staging, dir_fd=parent)
         finally:
             if root is not None:
                 os.close(root)
+            if staging_fd is not None:
+                os.close(staging_fd)
             os.close(parent)
 
 

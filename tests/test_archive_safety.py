@@ -149,8 +149,8 @@ class ArchiveSafetyTests(unittest.TestCase):
                     O_NOFOLLOW=0x20000000).items():
                 setattr(fake,name,value)
             stack.enter_context(patch.object(safe,'os',fake))
-            def rename_new(parent, src, dst):
-                source, destination = resolve(src,parent), resolve(dst,parent)
+            def rename_new(source_parent, src, destination_parent, dst):
+                source, destination = resolve(src,source_parent), resolve(dst,destination_parent)
                 if destination.exists():
                     raise FileExistsError(str(destination))
                 os.rename(source,destination)

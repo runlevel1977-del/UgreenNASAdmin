@@ -75,10 +75,25 @@ class IsolatedRestoreTests(unittest.TestCase):
             root=Path(directory); (root/'staging').mkdir(); (root/'target').mkdir()
             fd=os.open(root,os.O_RDONLY|os.O_DIRECTORY)
             try:
-                with self.assertRaises(FileExistsError): safe.rename_new_directory(fd,'staging','target')
-                safe.rename_new_directory(fd,'staging','new-target')
+                with self.assertRaises(FileExistsError): safe.rename_new_directory(fd,'staging',fd,'target')
+                safe.rename_new_directory(fd,'staging',fd,'new-target')
                 self.assertTrue((root/'new-target').is_dir())
             finally: os.close(fd)
+
+    @unittest.skipUnless(sys.platform.startswith('linux'),'Linux pinned directory descriptors')
+    def test_native_source_is_pinned_when_shared_parent_entry_is_replaced(self):
+        with tempfile.TemporaryDirectory() as directory:
+            parent=Path(directory); target=parent/'target'
+            with self.assertRaisesRegex(ValueError,'published=True'):
+                with safe.isolated_destination(str(target)) as fd:
+                    data=os.open('data',os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600,dir_fd=fd)
+                    os.write(data,b'our data'); os.close(data)
+                    staging=next(parent.glob('.ugreen-recovery-*'))
+                    staging.rename(parent/'moved-private')
+                    staging.mkdir(); (staging/'foreign').write_bytes(b'foreign data')
+            self.assertEqual((target/'data').read_bytes(),b'our data')
+            self.assertEqual((staging/'foreign').read_bytes(),b'foreign data')
+            self.assertEqual(sorted(p.name for p in target.iterdir()),['data'])
 
     def test_corrupt_gzip_trailer_does_not_publish_recovery(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -13,6 +13,13 @@ Linux `renameat2(RENAME_NOREPLACE)` verhindert auch das Ersetzen eines inzwische
 von anderer Seite angelegten leeren Ordners. Fehlt diese Fähigkeit, bricht der
 Vorgang ab; es gibt keinen unsicheren Rename-Fallback.
 
+Die Nutzdaten liegen innerhalb einer weiteren privaten Zwischenablage. Der
+Rename liest seine Quelle über deren gebundenen Deskriptor: Ein anderer Nutzer
+mit Schreibrecht im gemeinsamen Elternordner kann durch Umbenennen/Austauschen
+des äußeren Namens keine fremden Inhalte als fertiges Ergebnis unterschieben.
+Ein solcher Austausch wird bei der Bereinigung gemeldet, ohne den fremden
+Ersatzordner zu löschen; die Meldung nennt, ob das Ergebnis bereits publiziert ist.
+
 Bei einem gewöhnlichen Fehler wird nur die eigene Zwischenablage über gebundene
 Verzeichnisdeskriptoren bereinigt. Bei SIGKILL/Stromausfall kann sie als privater
 `.ugreen-recovery-*`-Ordner zurückbleiben. Nicht pauschal löschen: zuerst prüfen,
