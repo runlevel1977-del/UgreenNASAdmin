@@ -3,9 +3,12 @@
 Standalone NAS helper. Never call extractall or follow destination links.
 TAR numeric owners, ordinary modes and mtimes are restored; ACLs, xattrs and
 special mode bits are not. ZIP replacement retains existing owner/mode.
-Publication is atomic per file, not transactional across an archive.
+TAR recovery publishes a complete private directory under a NEW target name.
+ZIP upload remains atomic per file; it is not a complete-system restore.
 """
 import contextlib
+import ctypes
+import errno
 import os
 import stat
 import sys
@@ -149,6 +152,102 @@ def open_directory(path, create_mode=0o700):
         raise
 
 
+def open_existing_directory(path):
+    """Open the parent only: recovery must never create missing parent chains."""
+    if not path.startswith('/') or os.path.normpath(path) != path:
+        raise ValueError('A canonical existing recovery parent is required')
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    current = os.open('/', flags)
+    try:
+        for part in (() if path == '/' else path.lstrip('/').split('/')):
+            child = os.open(part, flags, dir_fd=current)
+            os.close(current)
+            current = child
+        return current
+    except BaseException:
+        os.close(current)
+        raise
+
+
+def rename_new_directory(parent, source, destination):
+    """Linux atomic rename without replacing even an empty concurrent directory."""
+    libc = ctypes.CDLL(None, use_errno=True)
+    rename = getattr(libc, 'renameat2', None)
+    if rename is None:
+        raise OSError(errno.ENOSYS, 'Atomic no-replace recovery is unavailable')
+    rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+    rename.restype = ctypes.c_int
+    if rename(parent, os.fsencode(source), parent, os.fsencode(destination), 1) != 0:
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error), destination)
+
+
+def remove_private_tree(root):
+    """Remove only entries reached through our own pinned staging descriptor."""
+    for name in os.listdir(root):
+        value = os.stat(name, dir_fd=root, follow_symlinks=False)
+        if stat.S_ISDIR(value.st_mode):
+            child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=root)
+            try:
+                opened = os.fstat(child)
+                if (opened.st_dev, opened.st_ino) != (value.st_dev, value.st_ino):
+                    raise ValueError('Recovery staging changed during cleanup')
+                if opened.st_dev != os.fstat(root).st_dev:
+                    raise ValueError('Recovery staging contains another mount')
+                remove_private_tree(child)
+            finally:
+                os.close(child)
+            os.rmdir(name, dir_fd=root)
+        else:
+            os.unlink(name, dir_fd=root)
+
+
+@contextlib.contextmanager
+def isolated_destination(destination):
+    if (not destination.startswith('/') or os.path.normpath(destination) != destination
+            or destination == '/' or any(ord(c) < 32 for c in destination)):
+        raise ValueError('A NEW canonical recovery folder is required')
+    parent_path, name = os.path.split(destination)
+    parent = open_existing_directory(parent_path)
+    staging = '.ugreen-recovery-' + uuid.uuid4().hex
+    root = None
+    created = published = False
+    try:
+        try:
+            os.stat(name, dir_fd=parent, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
+            raise FileExistsError('Recovery requires a NEW target folder; existing data is never overwritten')
+        os.mkdir(staging, 0o700, dir_fd=parent)
+        created = True
+        root = os.open(staging, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+        info = os.fstat(root)
+        if info.st_uid != os.geteuid() or info.st_mode & 0o077:
+            raise ValueError('Unsafe recovery staging directory')
+        yield root
+        os.fsync(root)
+        rename_new_directory(parent, staging, name)
+        published = True
+        try:
+            os.fsync(parent)
+        except OSError as exc:
+            raise OSError('Complete recovery folder published, but durability not confirmed: ' + destination) from exc
+    finally:
+        try:
+            if created and not published and root is not None:
+                observed = os.stat(staging, dir_fd=parent, follow_symlinks=False)
+                opened = os.fstat(root)
+                if (observed.st_dev, observed.st_ino) != (opened.st_dev, opened.st_ino):
+                    raise ValueError('Recovery staging path changed; manual cleanup required')
+                remove_private_tree(root)
+                os.rmdir(staging, dir_fd=parent)
+        finally:
+            if root is not None:
+                os.close(root)
+            os.close(parent)
+
+
 def open_child(root, parts, create=False, create_mode=0o700):
     current = os.dup(root)
     try:
@@ -158,6 +257,7 @@ def open_child(root, parts, create=False, create_mode=0o700):
             if create:
                 try:
                     os.mkdir(component, create_mode, dir_fd=current)
+                    os.fsync(current)
                 except FileExistsError:
                     pass
             child = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=current)
@@ -253,6 +353,7 @@ def write_member(parent, name, source, size, metadata=None, limits=None):
             os.fsync(output.fileno())
         check_leaf(parent, name, False)
         os.replace("payload", name, src_dir_fd=staging, dst_dir_fd=parent)
+        os.fsync(parent)
     finally:
         if staging is not None:
             if created:
@@ -278,8 +379,11 @@ def extract_archive(source_path, destination, kind, limits=None):
         archive = stack.enter_context(zipfile.ZipFile(source) if kind == "zip" else tarfile.open(fileobj=source, mode="r:*"))
         plan = plan_members(archive, limits)
         create_mode = 0o755 if kind == "zip" else 0o700
-        root = open_directory(destination, create_mode)
-        stack.callback(os.close, root)
+        if kind == 'tar':
+            root = stack.enter_context(isolated_destination(destination))
+        else:
+            root = open_directory(destination, create_mode)
+            stack.callback(os.close, root)
         check_space(root, sum(entry[2] for entry in plan), limits)
         check_existing_destinations(root, plan)
         directories = []
@@ -303,8 +407,18 @@ def extract_archive(source_path, destination, kind, limits=None):
                 os.fchown(directory, item.uid, item.gid)
                 os.fchmod(directory, item.mode & 0o777)
                 os.utime(directory, (item.mtime, item.mtime))
+                os.fsync(directory)
             finally:
                 os.close(directory)
+        if kind == 'tar':
+            # tar's end marker precedes the gzip trailer. Consume the remainder
+            # before publishing so late CRC/truncation failures also roll back.
+            remaining = 0
+            while archive.fileobj.read(1024 * 1024):
+                limits.check_time()
+                remaining += 1024 * 1024
+                if remaining > limits.max_bytes:
+                    raise ValueError('Archive trailer exceeds resource limit')
 
 
 if __name__ == "__main__":

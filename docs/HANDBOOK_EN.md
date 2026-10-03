@@ -2099,7 +2099,7 @@ Buttons:
 - Select file
 - Start restore
 
-**Security (from 23.8.69):** Archive restore uses resource bounds and metadata checks; members are applied atomically. Existing **UGOS ACLs/xattrs** on the destination no longer hard-fail restore — they are still **not** restored from the archive.
+**Security:** TAR recovery requires a **new, nonexistent target directory** under an existing parent. Only the fully extracted result is published under that name. Existing data is never replaced. The recovery directory is initially private; check its contents and permissions before adopting files. Archive ACLs/xattrs, links and special files are unsupported. See [isolated recovery and acceptance limits (German)](ISOLATED_RESTORE_DE.md).
 
 ### 35.4 Scheduled Backup
 

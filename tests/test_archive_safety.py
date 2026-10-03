@@ -137,15 +137,24 @@ class ArchiveSafetyTests(unittest.TestCase):
                     mkdir=lambda name,mode=0o777,dir_fd=None: original_mkdir(resolve(name,dir_fd),mode),
                     rmdir=lambda name,dir_fd=None: original_rmdir(resolve(name,dir_fd)),
                     close=lambda fd: directories.pop(fd) if fd in directories else original_close(fd),
-                    fstat=lambda fd: SimpleNamespace(st_uid=0,st_mode=stat.S_IFDIR|0o700) if fd in directories else original_fstat(fd),
+                    fstat=lambda fd: SimpleNamespace(st_uid=0,st_mode=stat.S_IFDIR|0o700,
+                        st_dev=original_stat(directories[fd]).st_dev,st_ino=original_stat(directories[fd]).st_ino) if fd in directories else original_fstat(fd),
                     geteuid=lambda:0,O_DIRECTORY=0x40000000,
                     dup=duplicate,utime=lambda *args:None,O_NONBLOCK=0,
                     fstatvfs=lambda fd: SimpleNamespace(f_bavail=2**50, f_frsize=4096),
                     listxattr=lambda fd: [],
+                    listdir=lambda fd: [p.name for p in directories[fd].iterdir()],
+                    fsync=lambda fd: None if fd in directories else os.fsync(fd),
                     fchown=lambda *a: None, fchmod=lambda *a: None,
                     O_NOFOLLOW=0x20000000).items():
                 setattr(fake,name,value)
             stack.enter_context(patch.object(safe,'os',fake))
+            def rename_new(parent, src, dst):
+                source, destination = resolve(src,parent), resolve(dst,parent)
+                if destination.exists():
+                    raise FileExistsError(str(destination))
+                os.rename(source,destination)
+            stack.enter_context(patch.object(safe,'rename_new_directory',rename_new))
             yield
         self.assertEqual(directories,{10:root})
 
