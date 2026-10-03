@@ -21,7 +21,7 @@ Sicherheits- und Release-Härtung aus den öffentlichen Review-PRs **#16–#26**
 **NAS-Verwaltung & Release**
 - **SSH-Profil-Rückfall (#26):** systemd-Timer **vor** Drop-in-Wechsel; Bestätigung nur nach neuer SSH-Verbindung; wirksame Algorithmen gegen `sshd -T`; Admin-Configs (earlyoom/Samba/Shutdown) abgesichert.
 - **Release-Gerüst (#23):** Source-Export ohne private Runtime-Dateien, Artefakt-Inventur, Offline-Sicherheits-CI — **ohne** Authenticode und ohne fertige Build-Lock-Dateien (Maintainer-Nacharbeit).
-- **CI-Nachzug:** `tests/run_offline_suite.py` und benötigte Offline-Fixtures im öffentlichen Sync; `deep-translator` aus dem Release-Lock entfernt (nur Handbuch-Übersetzung, unfixierte Advisory).
+- **CI-Nachzug:** `tests/run_offline_suite.py` und benötigte Offline-Fixtures im öffentlichen Sync; `deep-translator` aus dem Release-Lock entfernt (nur Handbuch-Übersetzung, unfixierte Advisory); Windows-CI: Kurzpfad-/SDDL-Alias-False-Positives in Backup- und ACL-Tests behoben.
 
 ### English
 
@@ -42,7 +42,7 @@ Security and release hardening from public review PRs **#16–#26** (integrated 
 **NAS admin & release**
 - **SSH profile recovery (#26):** arm systemd timer before drop-in change; confirm only after a new SSH connection; verify effective algorithms via `sshd -T`.
 - **Release scaffolding (#23):** clean source export, artifact inventory, security CI — **without** Authenticode or final build lock files.
-- **CI follow-up:** ship `tests/run_offline_suite.py` and required offline fixtures in the public sync; drop `deep-translator` from the release lock (handbook translation only; unfixed advisory).
+- **CI follow-up:** ship `tests/run_offline_suite.py` and required offline fixtures in the public sync; drop `deep-translator` from the release lock (handbook translation only; unfixed advisory); Windows CI: fix short-path / SDDL-alias false positives in backup and ACL checks.
 
 ## 23.8.57 — 2026-10-01
 

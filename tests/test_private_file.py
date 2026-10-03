@@ -37,7 +37,12 @@ class PrivateFileTests(unittest.TestCase):
                 self.assertIn('D:P',text.value)
                 self.assertEqual(text.value.count('(A;'),2)
                 self.assertIn('(A;;FA;;;SY)',text.value)
-                self.assertIn('(A;;FA;;;'+current_sid+')',text.value)
+                # ConvertSecurityDescriptorToString… may emit well-known aliases (LA).
+                ace='(A;;FA;;;'+current_sid+')'
+                self.assertTrue(
+                    ace in text.value or (current_sid.endswith('-500') and '(A;;FA;;;LA)' in text.value),
+                    text.value,
+                )
             finally:
                 if text: kernel.LocalFree(text)
                 kernel.LocalFree(descriptor)

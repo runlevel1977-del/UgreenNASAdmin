@@ -231,6 +231,24 @@ def _pick_sources(job: dict[str, Any], vols: list[str]) -> tuple[list[str], str,
     raise ValueError(f"unknown job kind {kind!r}")
 
 
+def _path_resolves_through_symlink(path: str) -> bool:
+    """Return True when ``path`` is reached via a symlink (not Windows 8.3 aliases)."""
+    abs_path = os.path.abspath(path)
+    real_path = os.path.realpath(path)
+    if os.path.normcase(real_path) == os.path.normcase(abs_path):
+        return False
+    if os.name == "nt" and os.path.normcase(os.path.realpath(abs_path)) == os.path.normcase(real_path):
+        current = abs_path
+        while True:
+            if os.path.islink(current):
+                return True
+            parent = os.path.dirname(current)
+            if parent == current:
+                return False
+            current = parent
+    return True
+
+
 def _run_tar(
     tag: str,
     sources: Sequence[str],
@@ -255,7 +273,7 @@ def _run_tar(
             raise ValueError("Invalid backup tag")
         selected, snapshot, mount_ids = _preflight(sources, root_base, discover_sources=discover_sources, expected=expected)
         dest_dir = os.path.join(root_base, "backup", "ugreen_admin")
-        if os.path.normcase(os.path.realpath(dest_dir)) != os.path.normcase(os.path.abspath(dest_dir)):
+        if _path_resolves_through_symlink(dest_dir):
             raise ValueError("Backup directory uses a symbolic-link path")
         os.makedirs(dest_dir, exist_ok=True)
         ts = time.strftime("%Y%m%d_%H%M%S")
