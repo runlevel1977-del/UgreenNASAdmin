@@ -22,6 +22,10 @@ BASH = shutil.which("bash") or (
 
 
 class BackupFailureTests(unittest.TestCase):
+    def setUp(self):
+        check = patch.object(runner, '_check_live_writers')
+        check.start(); self.addCleanup(check.stop)
+
     def run_scheduled(self, base, code=0, error=None, write_data=True):
         exists = os.path.exists
         def tar_stub(cmd, **kwargs):

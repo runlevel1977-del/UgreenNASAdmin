@@ -13,6 +13,7 @@ import json
 import os
 import posixpath
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -21,6 +22,59 @@ import uuid
 from typing import Any, Sequence
 
 _VOL_RE = re.compile(r"^/volume\d+$", re.I)
+
+
+def _check_live_writers(sources: Sequence[str]) -> None:
+    """Read-only Docker guard. This is NOT an application-consistency proof."""
+    docker = shutil.which('docker')
+    if docker is None:
+        print('Docker CLI absent; non-Docker/application consistency is not verified.', flush=True)
+        return
+    def query(arguments):
+        result = subprocess.run([docker, '--host', 'unix:///var/run/docker.sock', *arguments],
+                                capture_output=True, text=True, timeout=30, check=False)
+        if result.returncode:
+            raise ValueError('Cannot inspect running Docker writers; no backup created. Check Docker access/state.')
+        return result.stdout or ''
+    ids = query(['ps', '--quiet', '--no-trunc']).split()
+    if any(not re.fullmatch(r'[a-f0-9]{64}', value) for value in ids) or len(ids) > 1000:
+        raise ValueError('Invalid or excessive Docker container list')
+    canonical = [os.path.realpath(path).rstrip('/') or '/' for path in sources]
+    for offset in range(0, len(ids), 50):
+        batch = ids[offset:offset+50]
+        # Do not request/log environment variables, which often contain secrets.
+        template = '{"Id":{{json .Id}},"State":{"Running":{{json .State.Running}}},"Mounts":{{json .Mounts}}}'
+        containers = [json.loads(line) for line in query(['inspect', '--format', template, *batch]).splitlines()]
+        if not isinstance(containers, list) or len(containers) != len(batch):
+            raise ValueError('Incomplete Docker writer inspection')
+        inspected = set()
+        for container in containers:
+            if not isinstance(container, dict) or container.get('Id') not in batch or container['Id'] in inspected:
+                raise ValueError('Invalid Docker writer identity')
+            inspected.add(container['Id'])
+            state = container.get('State')
+            mounts = container.get('Mounts')
+            if not isinstance(state, dict) or type(state.get('Running')) is not bool or not isinstance(mounts, list):
+                raise ValueError('Incomplete Docker writer state')
+            if not state['Running']:
+                continue
+            for mount in mounts:
+                if not isinstance(mount, dict) or type(mount.get('RW')) is not bool:
+                    raise ValueError('Unknown Docker mount access')
+                if mount.get('Type') == 'tmpfs':
+                    continue
+                if mount.get('Type') not in ('bind', 'volume'):
+                    raise ValueError('Unknown Docker mount type')
+                if not mount['RW']:
+                    continue
+                path = mount.get('Source')
+                if not isinstance(path, str) or not path.startswith('/'):
+                    raise ValueError('Unknown writable Docker mount source')
+                path = os.path.realpath(path).rstrip('/') or '/'
+                if any(path == source or path.startswith(source.rstrip('/') + '/') or
+                       source.startswith(path.rstrip('/') + '/') for source in canonical):
+                    raise ValueError('Running Docker container can write a backup source. '
+                                     'Use application exports or quiesced sources; no container was stopped.')
 
 
 def _read_mounts() -> list[dict[str, str]]:
@@ -272,6 +326,9 @@ def _run_tar(
         if not re.fullmatch(r"[A-Za-z0-9_-]+", tag):
             raise ValueError("Invalid backup tag")
         selected, snapshot, mount_ids = _preflight(sources, root_base, discover_sources=discover_sources, expected=expected)
+        print('Datenarchiv / data archive: no database consistency or application recovery guarantee. '
+              'Source/mount identity is not a filesystem snapshot.', flush=True)
+        _check_live_writers(selected)
         dest_dir = os.path.join(root_base, "backup", "ugreen_admin")
         if _path_resolves_through_symlink(dest_dir):
             raise ValueError("Backup directory uses a symbolic-link path")
@@ -293,6 +350,7 @@ def _run_tar(
         _, _, after_ids = _preflight(selected, root_base, expected=snapshot)
         if after_ids != mount_ids:
             raise ValueError("A source or destination was remounted during the backup")
+        _check_live_writers(selected)
         os.replace(partial, dest_file)
     except Exception as e:
         print(f"tar failed: {e}", flush=True)

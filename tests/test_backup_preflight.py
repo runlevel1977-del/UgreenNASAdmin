@@ -153,6 +153,7 @@ class BackupPublicationGuardTests(unittest.TestCase):
             before = (["/volume1/data"], snapshot, {"target": ("1", "8:1")})
             after = (["/volume1/data"], snapshot, {"target": ("2", "8:1")})
             with patch.object(runner, "_preflight", side_effect=[before, after]), \
+                 patch.object(runner, '_check_live_writers'), \
                  patch.object(runner.subprocess, "run", side_effect=tar), contextlib.redirect_stdout(io.StringIO()) as output:
                 self.assertFalse(runner._run_tar("test", ["/volume1/data"], base, []))
             self.assertEqual(list((Path(base) / "backup/ugreen_admin").iterdir()), [])

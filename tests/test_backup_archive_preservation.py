@@ -23,6 +23,10 @@ BASH = shutil.which("bash") or (
 
 
 class ArchivePreservationTests(unittest.TestCase):
+    def setUp(self):
+        check = patch.object(runner, '_check_live_writers')
+        check.start(); self.addCleanup(check.stop)
+
     def seed(self, base):
         directory = Path(base) / "backup/ugreen_admin"
         directory.mkdir(parents=True)

@@ -79,7 +79,8 @@ class ScheduledBackupCronTests(unittest.TestCase):
         return ui
 
     def sync(self, ui):
-        with patch("ugreen_app.mixin_tabs_setup.threading.Thread", side_effect=lambda target, **kw: SimpleNamespace(start=target)):
+        with patch('ugreen_app.mixin_tabs_setup.messagebox.askyesno', return_value=True), \
+             patch("ugreen_app.mixin_tabs_setup.threading.Thread", side_effect=lambda target, **kw: SimpleNamespace(start=target)):
             ui.scheduled_backup_sync_to_nas()
 
     def test_invalid_batch_is_rejected_before_any_remote_write_or_command(self):
