@@ -55,7 +55,7 @@ Toggles risk mode. Critical buttons in multiple tabs depend on this.
 Changes the color scheme of the interface.
 
 - `ℹ Info`
-Opens the info dialog with document buttons (`README`, `Manual`, `CHANGELOG`, YouTube) and below them **Check for updates**, plus contact area. After a few seconds the app may offer a **setup update** when a newer GitHub release exists (downloads to the screenshot folder from Settings, otherwise beside the EXE / LocalAppData). Before launching the installer, the app verifies the **SHA-256** digest against the GitHub asset; on mismatch the file is discarded.
+Opens the info dialog with document buttons (`README`, `Manual`, `CHANGELOG`, YouTube) and below them **Check for updates**, plus contact area. After a few seconds the app may offer a **setup update** when a newer GitHub release exists (downloads to the screenshot folder from Settings, otherwise beside the EXE / LocalAppData). Before launching the installer, the app verifies the **Ed25519 signature** (`.sig`), **signed update metadata** (installer identity + version), and the **SHA-256** digest; on mismatch the file is discarded.
 
 - `📸 Screenshot`
 Takes a screenshot of the app. Destination folder comes out`Settings -> Pfade -> Screenshot-Pfad`.
@@ -229,9 +229,9 @@ Both are very valuable before/after changes.
 - `Use SSH key`
 - `SSH key path`
 - `passphrase`
-- **UGOS API:** port, HTTPS, **Verify SSL (CA)** (dashboard button **UGOS API**). Default: CA verification **off** → **certificate pin (TOFU)** stores the NAS cert on first contact and checks it afterwards (no custom CA). If the cert changes: **Forget TLS certificate**.
+- **UGOS API:** port, **HTTPS required**, **Verify SSL (CA)** (dashboard button **UGOS API**). Default: CA verification **off** → **certificate pin (TOFU)**. On **first** contact (or after **Forget TLS certificate**) a dialog shows the **SHA-256 fingerprint** — the pin is stored and login allowed only after independent comparison and explicit confirmation (from **23.8.69**). If the cert changes: **Forget TLS certificate**.
 - **SSH host key:** fingerprint dialog on **first** contact; then pin. **Forget SSH host key** / **Forget TLS certificate**.
-- **Save connection:** password and key passphrase only in the OS vault (`keyring`); no plaintext secrets in JSON.
+- **Save connection:** password, key passphrase and further secrets (e.g. Telegram/SMTP) in the **OS vault** (`keyring`); settings are written **atomically**; config/key files on Windows use **private ACLs**. No plaintext secrets in JSON.
 - **SSH command:** **Default (s)** and **Long (s)** — see **§79**
 
 ### 23.3.1 SSH command timeouts (overview)
@@ -258,6 +258,12 @@ Click **Save** after changes. Full guide: **§79**.
 ### 23.4.0 SSH host key (TOFU)
 
 On first successful SSH contact the app stores the host key in `ssh_known_hosts.json` (with other app data). If the key changes later, the connection is **rejected** (MITM protection). After a legitimate key change: **Forget SSH host key**, then reconnect.
+
+### 23.4.0a UGOS TLS first contact and transport (from 23.8.69)
+
+- **Confirm fingerprint:** The first TLS fetch only retrieves the certificate (no login). Dialog defaults to **No**; without confirmation there is no API access.
+- **HTTPS only:** `use_https: false` is rejected before any network call — enable HTTPS and the correct port in Settings.
+- **SMTP:** Credentials require **SSL** or **STARTTLS**; on TLS failure there is no plaintext retry. A relay without user+password may still send unencrypted (content visible on the network).
 
 ### 23.4.1 Why this SSH key workflow matters
 
@@ -1142,6 +1148,8 @@ Loads local files to NAS.
 
 Actively select the target folder on the left beforehand.
 
+**Security (from 23.8.69):** Upload is **atomic** — the destination appears only after a fully verified transfer. Supported ACLs/xattrs are preserved; **UGOS-unsupported** security xattrs are skipped (upload continues). Symlinks and unsafe metadata abort the transfer.
+
 ### 45.3 `Perms 755`
 
 Sets rights to target path.
@@ -1772,12 +1780,12 @@ Same idea as the UGOS UI: scheduled **power off** and **wake** (rtcwake) per wee
 
 ### 15.11 SSH hardening (drop-in)
 
-- **Profile** (*high* / *middle* / *low*): Writes a **drop-in** under `sshd_config.d`, runs **`sshd -t`** and **`systemctl reload ssh`** (or restart).
-- **Auto-rollback:** If `at` exists on the NAS, schedules **delayed rollback** unless you confirm in time.
-- **Confirm SSH OK:** Creates a **flag file** on the NAS and **removes** the planned `at` job — only click after a **second** SSH session succeeds.
-- **Rollback:** Restores the **backup** of the old file or removes the drop-in if you get locked out.
+- **Profile** (*high* / *middle* / *low*): Writes a **drop-in** under `sshd_config.d`. From **23.8.69** a **systemd timer (~4 min)** is started and verified **before** the drop-in is replaced atomically; effective algorithms are checked with **`sshd -T`**. Syntax/reload failures restore the previous state — **no** restart fallback.
+- **Auto-rollback:** Uses the **systemd timer** (`at` not required). Do **not reboot** the NAS during the confirmation window (transient timers do not survive reboot).
+- **Confirm SSH OK:** Closes the current SSH connection and confirms only after a **new** successful connection for the matching, non-expired transaction — then the timer is cancelled.
+- **Rollback:** Restores the last confirmed drop-in state or removes the file.
 
-**Important:** For *high*, verify all clients support the chosen algorithms.
+**Important:** For *high*, verify all clients support the chosen algorithms. Prefer **low** or **middle** for a first test.
 
 ### 15.12 UGOS core services
 
@@ -2091,6 +2099,8 @@ Buttons:
 - Select file
 - Start restore
 
+**Security (from 23.8.69):** Archive restore uses resource bounds and metadata checks; members are applied atomically. Existing **UGOS ACLs/xattrs** on the destination no longer hard-fail restore — they are still **not** restored from the archive.
+
 ### 35.4 Scheduled Backup
 
 Buttons:
@@ -2107,7 +2117,7 @@ Fields:
 - Cron fields
 - Additional options
 
-**Security (from 23.8.57):** Saving to the NAS preflights sources/mounts and validates cron lines **before** any root write. State/runner live under **`/var/lib/ugreen-nas-admin/`**. There is **no** automatic archive deletion — manage free space manually.
+**Security (from 23.8.57 / extended 23.8.69):** Saving to the NAS preflights sources/mounts and validates cron lines **before** any root write. State/runner live under **`/var/lib/ugreen-nas-admin/`**. **Backup generations** activate privately under a NAS-side lock (atomic cron enable). There is **no** automatic archive deletion — manage free space manually.
 
 ---
 

@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from ugreen_app.mixin_tabs_setup import MixinTabsSetup
+from tests.test_backup_generation import payload_from_code
 from ugreen_app.root_runtime import BACKUP_STATE, ROOT_RUNTIME_DIR
 from ugreen_app.scheduled_backup_cron import build_backup_cron_lines
 
@@ -68,6 +69,11 @@ class ScheduledBackupCronTests(unittest.TestCase):
         ui._sanitize_stable_cron_text = lambda text: text
         ui.root = SimpleNamespace(after=lambda delay, callback: callback())
         ui.write_root_file = Mock(return_value=True)
+        ui._ssh_mgr = Mock()
+        ui._ssh_mgr.run_root_transaction.return_value = (True, "")
+        ui.entry_ip = Mock(); ui.entry_user = Mock()
+        ui._get_effective_ssh_password = lambda: "synthetic"
+        ui._ssh_auth_payload = lambda: {}
         ui.run_ssh_cmd = Mock()
         ui.run_ssh_cmd_ex = Mock(return_value=SimpleNamespace(ok=True, output=""))
         return ui
@@ -99,26 +105,27 @@ class ScheduledBackupCronTests(unittest.TestCase):
         ui.write_root_file.assert_not_called()
         self.assertEqual(ui.run_ssh_cmd_ex.call_count, 1)
 
-    def test_valid_sync_preserves_other_jobs_and_quotes_mkdir_path(self):
+    def test_valid_sync_preserves_other_jobs_and_uses_checked_writer(self):
         ui = self.ui([job()])
         ui.run_ssh_cmd_ex.side_effect = [
             SimpleNamespace(ok=True, output="0 2 * * * root /trusted/other-job\n"),
             SimpleNamespace(ok=True, output=""),
         ]
         self.sync(ui)
-        self.assertEqual(ui.write_root_file.call_count, 3)
-        cron = ui.write_root_file.call_args.args[1]
-        self.assertIn("0 2 * * * root /trusted/other-job\n", cron)
-        self.assertEqual(
-            shlex.split(ui.run_ssh_cmd_ex.call_args.args[0]),
-            ["mkdir", "-p", "--", ROOT_RUNTIME_DIR],
-        )
-
-    def test_directory_failure_stops_before_file_writes(self):
-        ui = self.ui([job()])
-        ui.run_ssh_cmd_ex.side_effect = [SimpleNamespace(ok=True, output=""), SimpleNamespace(ok=False, output="mkdir failed")]
-        self.sync(ui)
         ui.write_root_file.assert_not_called()
+        source = ui._ssh_mgr.run_root_transaction.call_args.args[3]
+        payload = payload_from_code(source)
+        self.assertIn("0 2 * * * root /trusted/other-job\n", payload["cron_text"])
+        self.assertEqual(ui.run_ssh_cmd_ex.call_count, 1)
+        self.assertTrue(payload["runner"].startswith("backup-"))
+
+    def test_checked_helper_write_failure_preserves_state_and_cron(self):
+        ui = self.ui([job()])
+        ui._ssh_mgr.run_root_transaction.return_value = (False, "synthetic failure")
+        self.sync(ui)
+        self.assertEqual(ui._ssh_mgr.run_root_transaction.call_count, 1)
+        ui.write_root_file.assert_not_called()
+        self.assertIn("sync_fail", ui._backup_log.call_args.args[0])
 
 
 if __name__ == "__main__":

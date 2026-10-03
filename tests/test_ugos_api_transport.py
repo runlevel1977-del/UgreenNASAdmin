@@ -139,6 +139,8 @@ class ApiTransportTests(unittest.TestCase):
         sock.sendall.assert_not_called()
 
     def test_first_contact_fetches_once_and_preserves_pin(self):
+        certs.set_cert_confirm_callback(lambda *args: True)
+        self.addCleanup(certs.set_cert_confirm_callback, None)
         with patch.object(certs, "fetch_server_cert_pem", return_value=self.pem) as fetch:
             self.client()._ctx()
             stored = self.path.read_bytes()

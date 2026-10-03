@@ -50,7 +50,7 @@ from ugreen_app.mixin_runlevel_apps import MixinRunlevelApps
 from ugreen_app.mixin_pro_drawer import MixinProDrawer
 from ugreen_app.i18n import cron_mappings_for_lang, translate
 
-__version__ = "23.8.57"
+__version__ = "23.8.69"
 
 class NASManager(
     MixinSafetyLock,
@@ -125,6 +125,7 @@ class NASManager(
             ugos_tls_certs.set_store_path(
                 os.path.join(self._app_data_dir(), "ugos_tls_certs.json")
             )
+            ugos_tls_certs.set_cert_confirm_callback(self._confirm_tls_cert_sync)
         except Exception:
             pass
         try:
@@ -136,6 +137,14 @@ class NASManager(
 
         self._init_danger_lock_state()
         self.setup_ui()
+        from ugreen_app.secret_settings import migrate_settings_directory
+        failed_settings = migrate_settings_directory(self._app_data_dir())
+        if failed_settings:
+            messagebox.showwarning(
+                self.t("settings.title"),
+                self.t("settings.vault_migration_failed", files=", ".join(failed_settings)),
+                parent=self.root,
+            )
         self._load_connection_config()
         self._apply_main_window_geometry(initial=True)
         self._finalize_installer_ui_lang_hint()
@@ -148,6 +157,12 @@ class NASManager(
         return translate(self.ui_lang, key, **kwargs)
 
     def _confirm_ssh_host_key_sync(self, host: str, port: int, fingerprint: str) -> bool:
+        return self._confirm_peer_identity_sync("ssh.host_key", host, port, fingerprint)
+
+    def _confirm_tls_cert_sync(self, host: str, port: int, fingerprint: str) -> bool:
+        return self._confirm_peer_identity_sync("tls.cert", host, port, fingerprint)
+
+    def _confirm_peer_identity_sync(self, kind: str, host: str, port: int, fingerprint: str) -> bool:
         """Block until the user accepts/rejects an unknown SSH host key (thread-safe)."""
         import threading
         from tkinter import messagebox
@@ -156,17 +171,20 @@ class NASManager(
         done = threading.Event()
 
         def ask() -> None:
+            if done.is_set():
+                return
             try:
                 result["ok"] = bool(
                     messagebox.askyesno(
-                        self.t("ssh.host_key_title"),
+                        self.t(kind + "_title"),
                         self.t(
-                            "ssh.host_key_confirm",
+                            kind + "_confirm",
                             host=host,
                             port=port,
                             fp=fingerprint,
                         ),
                         parent=getattr(self, "root", None),
+                        default="no",
                     )
                 )
             except Exception:
@@ -179,7 +197,9 @@ class NASManager(
                 ask()
             else:
                 self.root.after(0, ask)
-                done.wait(timeout=300)
+                if not done.wait(timeout=300):
+                    done.set()
+                    return False
         except Exception:
             return False
         return bool(result.get("ok"))

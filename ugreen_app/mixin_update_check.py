@@ -6,6 +6,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -191,18 +192,27 @@ class MixinUpdateCheck:
     def _run_update_download(self, release: dict) -> None:
         if self._update_busy:
             return
+        try:
+            asset_name = update_check.safe_installer_name(str(release.get("asset_name") or ""))
+            expected_size = int(release.get("asset_size") or 0)
+            if expected_size <= 0:
+                raise ValueError("Missing installer size")
+            self._update_download_dir().mkdir(parents=True, exist_ok=True)
+            download_dir = Path(tempfile.mkdtemp(prefix="ugreen-update-", dir=self._update_download_dir()))
+        except (OSError, ValueError) as exc:
+            messagebox.showerror(self.t("update.title"), self.t("update.err_download", err=str(exc)), parent=self.root)
+            return
         self._update_busy = True
         self.set_status(self.t("update.downloading", pct="0%"))
 
         def worker() -> None:
-            asset_name = str(release.get("asset_name") or "UgreenNASAdmin_setup.exe")
             download_url = str(release.get("asset_download_url") or "")
-            dest = self._update_download_dir() / asset_name
+            dest = download_dir / asset_name
 
             def log_pct(pct: str) -> None:
                 self.root.after(0, lambda p=pct: self.set_status(self.t("update.downloading", pct=f"{p}%")))
 
-            ok, msg = update_check.download_release_asset(download_url, dest, log=log_pct)
+            ok, msg = update_check.download_release_asset(download_url, dest, log=log_pct, expected_size=expected_size)
             expected_digest = str(release.get("asset_digest") or "").strip()
             sig_url = str(release.get("asset_sig_download_url") or "").strip()
             verify_ok = False
@@ -214,7 +224,7 @@ class MixinUpdateCheck:
                     verify_ok, verify_detail = False, "missing_signature"
                 else:
                     sig_dest = dest.with_suffix(dest.suffix + ".sig")
-                    sig_ok, sig_msg = update_check.download_release_asset(sig_url, sig_dest)
+                    sig_ok, sig_msg = update_check.download_release_asset(sig_url, sig_dest, max_bytes=4096)
                     if not sig_ok:
                         verify_ok, verify_detail = False, f"sig_download:{sig_msg}"
                     else:
@@ -239,7 +249,27 @@ class MixinUpdateCheck:
                                 sig_dest.unlink()
                             except OSError:
                                 pass
-                # 2) Optional GitHub asset digest (extra check, not a trust root alone)
+                # A legacy file signature alone cannot authenticate the advertised version.
+                if verify_ok:
+                    from ugreen_app.release_signing import MANIFEST_LIMIT, verify_release_manifest
+                    manifest_url = str(release.get("asset_manifest_download_url") or "")
+                    manifest_dest = dest.with_suffix(dest.suffix + ".release.json")
+                    metadata_ok, _ = update_check.download_release_asset(
+                        manifest_url, manifest_dest, max_bytes=MANIFEST_LIMIT)
+                    if not metadata_ok:
+                        verify_ok, verify_detail = False, "bad_metadata_missing"
+                    else:
+                        try:
+                            verify_ok, verify_detail = verify_release_manifest(
+                                dest, manifest_dest.read_bytes(), current_version=self._app_version,
+                                expected_tag=str(release.get("tag_name") or ""))
+                        except Exception:
+                            verify_ok, verify_detail = False, "bad_metadata_read"
+                    try:
+                        manifest_dest.unlink(missing_ok=True)
+                    except OSError:
+                        pass
+                # Optional GitHub asset digest (extra check, not a trust root alone)
                 if verify_ok and expected_digest:
                     hash_ok, hash_detail = update_check.verify_file_sha256(dest, expected_digest)
                     if not hash_ok:

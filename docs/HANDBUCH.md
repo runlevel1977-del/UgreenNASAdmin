@@ -55,7 +55,7 @@ Wichtig zur Einordnung: In der aktuellen UI liegen die umfangreichen Verbindungs
   Wechselt das Farbschema der Oberfläche.
 
 - `ℹ Info`  
-  Öffnet den Info-Dialog mit Dokumentenbuttons (`README`, `Handbuch`, `CHANGELOG`, YouTube) und darunter dem Button **Nach Updates suchen**, plus Kontaktbereich. Bei neuer GitHub-Version fragt die App nach einigen Sekunden automatisch, ob das **Setup-Update** jetzt heruntergeladen werden soll (Download in den Screenshot-Zielordner aus Settings, sonst neben der EXE / LocalAppData). Vor dem Start des Installers prüft die App die **SHA-256**-Prüfsumme gegen den GitHub-Asset-Digest; bei Fehler wird die Datei verworfen.
+  Öffnet den Info-Dialog mit Dokumentenbuttons (`README`, `Handbuch`, `CHANGELOG`, YouTube) und darunter dem Button **Nach Updates suchen**, plus Kontaktbereich. Bei neuer GitHub-Version fragt die App nach einigen Sekunden automatisch, ob das **Setup-Update** jetzt heruntergeladen werden soll (Download in den Screenshot-Zielordner aus Settings, sonst neben der EXE / LocalAppData). Vor dem Start des Installers prüft die App die **Ed25519-Signatur** (`.sig`), die **signierte Update-Metadaten** (Installer-Identität + Version) und die **SHA-256**-Prüfsumme; bei Fehler wird die Datei verworfen.
 
 - `📸 Screenshot`  
   Erstellt einen Screenshot der App. Zielordner kommt aus `Settings -> Pfade -> Screenshot-Pfad`.
@@ -229,9 +229,9 @@ Beide sind vor/nach Änderungen sehr wertvoll.
 - `SSH-Key nutzen`
 - `SSH-Key-Pfad`
 - `Passphrase`
-- **UGOS API:** Port, HTTPS, **SSL prüfen (CA)** (Dashboard-Button „UGOS API“). Standard: CA-Prüfung **aus** → **Zertifikat-Pin (TOFU)** speichert das NAS-Zertifikat beim ersten Kontakt und prüft es danach (ohne eigenes CA). Bei Zertifikatwechsel: **TLS-Zertifikat vergessen**.
+- **UGOS API:** Port, **HTTPS Pflicht**, **SSL prüfen (CA)** (Dashboard-Button „UGOS API“). Standard: CA-Prüfung **aus** → **Zertifikat-Pin (TOFU)**. Beim **ersten** Kontakt (oder nach **TLS-Zertifikat vergessen**) erscheint ein Dialog mit **SHA-256-Fingerprint** — erst nach unabhängigem Vergleich und ausdrücklicher Bestätigung wird der Pin gespeichert und der Login freigegeben (ab **23.8.69**). Bei Zertifikatwechsel: **TLS-Zertifikat vergessen**.
 - **SSH-Host-Key:** Beim **ersten** Kontakt Fingerprint-Dialog; danach Pin. **SSH-Host-Key vergessen** / **TLS-Zertifikat vergessen**.
-- **Verbindung speichern:** Passwort und Key-Passphrase nur im System-Tresor (`keyring`); keine Klartext-Secrets in der JSON.
+- **Verbindung speichern:** Passwort, Key-Passphrase und weitere Geheimnisse (u. a. Telegram/SMTP) im **System-Tresor** (`keyring`); Settings werden **atomar** geschrieben; Konfig-/Schlüsseldateien unter Windows mit **privaten ACLs**. Keine Klartext-Secrets in der JSON.
 - **SSH-Befehl:** **Standard (s)** und **Lang (s)** — siehe **§79**
 
 ### 23.3.1 SSH-Befehl-Timeouts (Kurzüberblick)
@@ -258,6 +258,12 @@ Nach Änderung **Speichern** klicken. Ausführliche Anleitung: **§79**.
 ### 23.4.0 SSH-Host-Key (TOFU)
 
 Beim ersten erfolgreichen SSH-Kontakt speichert die App den Host-Key in `ssh_known_hosts.json` (neben den anderen App-Daten). Ändert sich der Schlüssel später, wird die Verbindung **abgelehnt** (Schutz vor Man-in-the-Middle). Nach legitimem Schlüsselwechsel: **SSH-Host-Key vergessen**, dann erneut verbinden.
+
+### 23.4.0a UGOS-TLS-Erstkontakt und Transport (ab 23.8.69)
+
+- **Fingerprint bestätigen:** Der erste TLS-Abruf holt nur das Zertifikat (ohne Login). Dialog standardmäßig auf **Nein**; ohne Bestätigung kein API-Zugang.
+- **HTTPS only:** `use_https: false` wird vor dem Netzwerkzugriff abgelehnt — in Settings HTTPS und den richtigen Port setzen.
+- **SMTP:** Zugangsdaten nur mit **SSL** oder **STARTTLS**; bei TLS-Fehler kein Klartext-Retry. Relay ohne User+Passwort kann unverschlüsselt bleiben (Inhalt im Netz sichtbar).
 
 ### 23.4.1 Warum der SSH-Key-Workflow wichtig ist
 
@@ -1142,6 +1148,8 @@ Lädt lokale Dateien auf NAS.
 
 Vorher Zielordner links aktiv auswählen.
 
+**Sicherheit (ab 23.8.69):** Upload ist **atomar** — das Ziel erscheint erst nach vollständig verifiziertem Transfer. Unterstützte ACLs/xattrs werden mitgenommen; **UGOS-fremde** Security-xattrs werden übersprungen (Upload läuft weiter). Symlinks und unsichere Metadaten → Abbruch.
+
 ### 45.3 `Perms 755`
 
 Setzt Rechte auf Zielpfad.
@@ -1772,12 +1780,12 @@ Analog zur UGOS-Oberfläche: geplantes **Ausschalten** und **Wieder-Einschalten*
 
 ### 15.11 SSH-Härtung (Drop-in)
 
-- **Profil wählen** (*high* / *middle* / *low*): Schreibt eine **Zusatzdatei** unter `sshd_config.d`, ruft **`sshd -t`** und **`systemctl reload ssh`** (bzw. Restart) auf.
-- **Auto-Rollback:** Wenn `at` auf dem NAS verfügbar ist, wird ein **verzögertes Rollback** geplant (nur wenn du **nicht** rechtzeitig bestätigst).
-- **SSH ok bestätigen:** Legt eine **Kennmarkierung** auf dem NAS an und **entfernt** die geplante Rollback-**at**-Job-ID — nur klicken, wenn eine **zweite** SSH-Sitzung erfolgreich war.
-- **Rollback:** Stellt die **Backup-Kopie** der alten Drop-in-Datei wieder her bzw. entfernt die Datei — bei Verbindungsproblemen.
+- **Profil wählen** (*high* / *middle* / *low*): Schreibt eine **Zusatzdatei** unter `sshd_config.d`. Ab **23.8.69** wird zuerst ein **systemd-Timer (~4 Min.)** gestartet und geprüft, **dann** das Drop-in atomar ersetzt; die wirksamen Algorithmen werden mit **`sshd -T`** gegengeprüft. Syntax-/Reloadfehler stellen den vorherigen Zustand wieder her — **kein** Restart als Ausweichweg.
+- **Auto-Rollback:** Läuft über den **systemd-Timer** (kein `at` nötig). In der Bestätigungsfrist **NAS nicht neu starten** (transiente Timer überleben keinen Reboot).
+- **SSH ok bestätigen:** Schließt die bisherige SSH-Verbindung und bestätigt erst nach einer **neuen** erfolgreichen Verbindung die passende, noch nicht abgelaufene Transaktion — Timer entfällt dann.
+- **Rollback:** Stellt den letzten bestätigten Drop-in-Zustand wieder her bzw. entfernt die Datei.
 
-**Wichtig:** Vor *high* immer prüfen, ob alle Clients (SSH-Versionen) mit den Algorithmen klarkommen.
+**Wichtig:** Vor *high* immer prüfen, ob alle Clients (SSH-Versionen) mit den Algorithmen klarkommen. Für den ersten Test eher **low** oder **middle**.
 
 ### 15.12 UGOS-Core-Dienste
 
@@ -2091,6 +2099,8 @@ Buttons:
 - Datei wählen
 - Wiederherstellen starten
 
+**Sicherheit (ab 23.8.69):** Archiv-Restore mit Ressourcengrenzen und Metadatenprüfung; Mitglieder atomar. Vorhandene **UGOS-ACLs/xattrs** am Ziel **stoppen** den Restore nicht — sie werden aber **nicht** aus dem Archiv wiederhergestellt (Inhalte/Rechte ohne vollständige ACL-Runde).
+
 ### 35.4 Scheduled Backup
 
 Buttons:
@@ -2107,7 +2117,7 @@ Felder:
 - Cron-Felder
 - Zusatzoptionen
 
-**Sicherheit (ab 23.8.57):** Beim Speichern auf die NAS werden Quellen/Mounts vorgeprüft und Cron-Zeilen **vor** Root-Schreiben validiert. State/Runner liegen unter **`/var/lib/ugreen-nas-admin/`**. Es gibt **keine** automatische Archivlöschung — Speicherplatz manuell verwalten.
+**Sicherheit (ab 23.8.57 / ergänzt 23.8.69):** Beim Speichern auf die NAS werden Quellen/Mounts vorgeprüft und Cron-Zeilen **vor** Root-Schreiben validiert. State/Runner liegen unter **`/var/lib/ugreen-nas-admin/`**. **Backup-Generationen** werden privat und unter NAS-seitiger Sperre aktiviert (atomare Cron-Freigabe). Es gibt **keine** automatische Archivlöschung — Speicherplatz manuell verwalten.
 
 ---
 

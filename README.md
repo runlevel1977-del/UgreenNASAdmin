@@ -22,12 +22,18 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 
 **Portable (One-Dir):** Settings and connection JSON files live beside `UgreenNASAdmin.exe` inside the `UgreenNASAdmin/` folder. After upgrading from an older one-file EXE, the app migrates existing config from the parent folder or `%LOCALAPPDATA%\UgreenNASAdmin\` on first start. **Window geometry** (size/position, taskbar-aware) is stored in `app_settings.json` → `window` (v23.8.42+).
 
-**Auto-update:** When a newer release is on GitHub, the app downloads `UgreenNASAdmin_setup_*.exe`, verifies an **Ed25519 signature** (`.sig` asset, key embedded in the app) and the **SHA-256** digest, then runs the installer (ℹ Info → **Check for updates**).
+**Auto-update:** When a newer release is on GitHub, the app downloads `UgreenNASAdmin_setup_*.exe`, verifies an **Ed25519 signature** (`.sig` asset, key embedded in the app), **signed update metadata** (installer identity + version), and the **SHA-256** digest, then runs the installer (ℹ Info → **Check for updates**).
 
 ### Unreleased / upcoming
 
 - **Transfer Hub / Wake & Sync (UGOS):** Folder picker includes **Home** (`/home/…/Photos`) without an SMB share; only `@…` system folders stay hidden. Transfer Hub **0.6.28** also supports **multi-select source folders** (one transfer per folder). Wake & Sync **0.1.32**.
 - **Deutsch:** Transfer Hub / Wake & Sync — Ordnerwahl inkl. Home/Photos und Mehrfach-Quellordner — siehe [`CHANGELOG.md`](CHANGELOG.md).
+
+### What's new in v23.8.69
+
+- **Security train (#16–#26):** UGOS TLS first-contact confirmation, HTTPS/SMTP transport policy, OS vault + private Windows ACLs, signed update metadata, root stdin writes, private backup generations, atomic upload/restore, SSH profile rollback via systemd timer before apply, release source guard + security CI scaffolding.
+- **Deutsch:** Sicherheits- und Release-Härtung aus Review-PRs **#16–#26** — TLS-Erstkontakt, Transport-Policy, OS-Tresor, signierte Updates, Root-stdin, Backup-Generationen, atomarer Upload/Restore, SSH-Rückfall mit Timer vorab, Release-Gerüst — Details in [`CHANGELOG.md`](CHANGELOG.md).
+- **Installer:** `UgreenNASAdmin_setup_23.8.69.exe` under [Releases](https://github.com/runlevel1977-del/UgreenNASAdmin/releases).
 
 ### What's new in v23.8.43
 
@@ -109,7 +115,7 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 - **Settings SSH workflow:** create SSH key pair and install public key to UGREEN or second NAS/QNAP directly from the app. **TOFU host keys** (`ssh_known_hosts.json`) — first connect trusts the key; later changes are rejected (Settings → **Forget SSH host key**).
 - **Health improvements:** Scheduler inventory and expanded UGOS/service visibility.
 - **Updated screenshots:** `images/` now reflects the newest app state (latest captures provided by the maintainer).
-- **Version** **23.8.57** — see full details in [`CHANGELOG.md`](CHANGELOG.md).
+- **Version** **23.8.69** — see full details in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Repository layout
 
@@ -869,3 +875,10 @@ Laufzeit-JSON neben der EXE — **nicht** committen.
 This project is licensed under the MIT License. See the `LICENSE` file in this folder for details.
 
 **Deutsch:** Dieses Projekt steht unter der MIT-Lizenz; Details in der Datei `LICENSE` in diesem Ordner.
+
+### Verified release builds / Geprüfte Release-Builds
+
+For published releases, use the committed-source build and comparison workflow
+in [docs/RELEASE_SOURCE_GUARD_DE.md](docs/RELEASE_SOURCE_GUARD_DE.md).
+The release ZIP packer requires `--build-dir` pointing to a verified build record.
+A source manifest alone does not prove binary reproducibility.

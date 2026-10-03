@@ -166,11 +166,15 @@ class UgosApiClient:
         verify_ssl: bool = False,
         token: str = "",
     ) -> None:
+        if not use_https:
+            raise UgosApiError(
+                "UGOS-API erfordert HTTPS. In den Settings HTTPS einschalten und den API-Port prüfen."
+            )
         self.host = (host or "").strip()
         self.port = int(port)
         self.username = (username or "").strip()
         self.password = password or ""
-        self.scheme = "https" if use_https else "http"
+        self.scheme = "https"
         self.base_url = f"{self.scheme}://{self.host}:{self.port}"
         self.verify_ssl = bool(verify_ssl)
         self.token = (token or "").strip()
@@ -199,7 +203,7 @@ class UgosApiClient:
         return opener.open(req, timeout=timeout)
 
     def _request(self, method: str, path: str, payload: dict | None = None) -> dict[str, Any]:
-        from ugreen_app.ugos_tls_certs import TlsCertChangedError, TlsCertStoreError
+        from ugreen_app.ugos_tls_certs import TlsCertChangedError, TlsCertRejectedError, TlsCertStoreError
 
         if not self.token and not self.login():
             raise UgosApiError("UGOS-API-Login fehlgeschlagen.")
@@ -215,7 +219,7 @@ class UgosApiClient:
             with self._open(req, timeout=20) as resp:
                 body = resp.read().decode("utf-8", errors="replace")
                 out = json.loads(body) if body.strip() else {}
-        except (TlsCertChangedError, TlsCertStoreError) as e:
+        except (TlsCertChangedError, TlsCertRejectedError, TlsCertStoreError) as e:
             raise UgosApiError(str(e)) from e
         except urllib.error.HTTPError as e:
             raw = e.read().decode("utf-8", errors="replace") if e.fp else str(e)
@@ -239,7 +243,7 @@ class UgosApiClient:
         return out if isinstance(out, dict) else {}
 
     def login(self) -> bool:
-        from ugreen_app.ugos_tls_certs import TlsCertChangedError, TlsCertStoreError
+        from ugreen_app.ugos_tls_certs import TlsCertChangedError, TlsCertRejectedError, TlsCertStoreError
 
         if not self.host or not self.username or not self.password:
             raise UgosApiError("Host, Benutzer und Passwort werden für die UGOS-API benötigt.")
@@ -264,7 +268,7 @@ class UgosApiClient:
                 ).decode("ascii")
         except UgosApiError:
             raise
-        except (TlsCertChangedError, TlsCertStoreError) as e:
+        except (TlsCertChangedError, TlsCertRejectedError, TlsCertStoreError) as e:
             raise UgosApiError(str(e)) from e
         except urllib.error.URLError as e:
             reason = e.reason
@@ -293,7 +297,7 @@ class UgosApiClient:
         try:
             with self._open(req2, timeout=15) as resp:
                 data = json.loads(resp.read().decode("utf-8", errors="replace"))
-        except (TlsCertChangedError, TlsCertStoreError) as e:
+        except (TlsCertChangedError, TlsCertRejectedError, TlsCertStoreError) as e:
             raise UgosApiError(str(e)) from e
         except urllib.error.URLError as e:
             reason = e.reason

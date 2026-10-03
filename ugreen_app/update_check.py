@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import ssl
+import tempfile
 import urllib.error
 import urllib.request
+import urllib.parse
 from pathlib import Path
 from typing import Callable
 
@@ -23,6 +26,29 @@ ASSET_PREFIX = "UgreenNASAdmin_setup_"
 ASSET_SUFFIX = ".exe"
 
 LogFn = Callable[[str], None]
+
+
+def safe_installer_name(name: str) -> str:
+    if not re.fullmatch(r"UgreenNASAdmin_setup_[0-9]+(?:\.[0-9]+)*\.exe", name):
+        raise ValueError("Invalid installer asset name")
+    return name
+
+
+def _validate_download_url(url: str, *, initial=False) -> None:
+    parsed = urllib.parse.urlsplit(url)
+    allowed = {"github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com", "github-releases.githubusercontent.com"}
+    if (parsed.scheme != "https" or parsed.hostname not in allowed or parsed.username is not None
+            or parsed.password is not None or parsed.port not in (None, 443) or parsed.fragment):
+        raise ValueError("Untrusted release download URL")
+    if initial and (parsed.hostname != "github.com" or not parsed.path.startswith(
+            f"/{GITHUB_OWNER}/{GITHUB_REPO}/releases/download/")):
+        raise ValueError("Release download does not belong to the configured repository")
+
+
+class _ReleaseRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        _validate_download_url(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
 def _github_headers() -> dict[str, str]:
@@ -120,7 +146,10 @@ def _release_from_api_payload(data: dict) -> dict | None:
     if not download_url:
         return None
     digest = parse_github_asset_digest(str(asset.get("digest") or ""))
-    asset_name = str(asset.get("name") or "")
+    try:
+        asset_name = safe_installer_name(str(asset.get("name") or ""))
+    except ValueError:
+        return None
     sig_url = ""
     sig_name = f"{asset_name}.sig" if asset_name else ""
     if sig_name:
@@ -137,6 +166,8 @@ def _release_from_api_payload(data: dict) -> dict | None:
         "asset_digest": digest or "",
         "asset_sig_name": sig_name,
         "asset_sig_download_url": sig_url,
+        "asset_manifest_download_url": next((str(other.get("browser_download_url") or "").strip()
+            for other in assets if other.get("name") == asset_name + ".release.json"), ""),
     }
 
 
@@ -168,6 +199,8 @@ def download_release_asset(
     *,
     timeout: float = 600.0,
     log: LogFn | None = None,
+    expected_size: int | None = None,
+    max_bytes: int = 512 * 1024 * 1024,
 ) -> tuple[bool, str]:
     """Lädt Setup-EXE von GitHub Releases (öffentlicher Download-Link)."""
     if not download_url:
@@ -177,36 +210,50 @@ def download_release_asset(
         if log:
             log(msg)
 
-    dest_path.parent.mkdir(parents=True, exist_ok=True)
-    req = urllib.request.Request(
-        download_url,
-        headers={"User-Agent": "UgreenNASAdmin-update-download"},
-        method="GET",
-    )
-    ctx = ssl.create_default_context()
+    temporary = None
     try:
-        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as response:
-            total = int(response.headers.get("Content-Length") or 0)
+        _validate_download_url(download_url, initial=True)
+        if max_bytes <= 0 or (expected_size is not None and not 0 < expected_size <= max_bytes):
+            raise ValueError("Invalid release asset size")
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        req = urllib.request.Request(download_url, headers={"User-Agent": "UgreenNASAdmin-update-download"}, method="GET")
+        opener = urllib.request.build_opener(_ReleaseRedirectHandler(), urllib.request.HTTPSHandler(context=ssl.create_default_context()))
+        with opener.open(req, timeout=timeout) as response:
+            _validate_download_url(response.geturl())
+            raw_length = response.headers.get("Content-Length")
+            total = int(raw_length) if raw_length is not None else 0
+            if total < 0 or total > max_bytes or (expected_size is not None and total and total != expected_size):
+                raise ValueError("Unexpected release Content-Length")
             chunk_size = 256 * 1024
             read = 0
-            with dest_path.open("wb") as handle:
+            fd, temporary = tempfile.mkstemp(prefix=".ugreen-download-", suffix=".part", dir=dest_path.parent)
+            with os.fdopen(fd, "wb") as handle:
                 while True:
                     chunk = response.read(chunk_size)
                     if not chunk:
                         break
-                    handle.write(chunk)
                     read += len(chunk)
+                    if read > max_bytes or (expected_size is not None and read > expected_size):
+                        raise ValueError("Release download exceeds expected size")
+                    handle.write(chunk)
                     if total > 0:
                         pct = min(100, int(read * 100 / total))
                         _log(f"{pct}")
+                if (raw_length is not None and read != total) or (expected_size is not None and read != expected_size) or read == 0:
+                    raise ValueError("Incomplete release download")
+                handle.flush()
+                os.fsync(handle.fileno())
+        os.replace(temporary, dest_path)
+        temporary = None
         return True, str(dest_path)
-    except (OSError, urllib.error.HTTPError, urllib.error.URLError) as exc:
-        if dest_path.is_file():
+    except Exception as exc:
+        return False, str(exc)
+    finally:
+        if temporary is not None:
             try:
-                dest_path.unlink()
+                os.unlink(temporary)
             except OSError:
                 pass
-        return False, str(exc)
 
 
 def fetch_latest_from_tags(*, timeout: float = 12.0) -> dict | None:

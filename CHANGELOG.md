@@ -1,5 +1,47 @@
 # Changelog — Ugreen NAS Admin
 
+## 23.8.69 — 2026-10-03
+
+Sicherheits- und Release-Härtung aus den öffentlichen Review-PRs **#16–#26** (lokal integriert und getestet). Installer: `UgreenNASAdmin_setup_23.8.69.exe`.
+
+### Deutsch
+
+**Vertrauen & Transport**
+- **UGOS-TLS-Erstkontakt (#24):** Unbekanntes Zertifikat nur nach Fingerprint-Vergleich und ausdrücklicher Bestätigung pinnen; Ablehnung/Timeout → Abbruch.
+- **Transport-Policy (#25):** UGOS-API nur per HTTPS; SMTP-Zugangsdaten nur mit SSL/STARTTLS (kein Klartext-Fallback).
+- **OS-Tresor (#22):** weitere Geheimnisse im System-Keyring; Settings atomar; private Windows-ACLs auf Konfig-/Schlüsseldateien.
+- **Update-Download (#21):** Ziel/Redirect/Größe geprüft; Installer und Version in **signierter Metadaten** gebunden (neben SHA-256 und `.sig`).
+
+**NAS-Schreiben & Backup**
+- **Root-Dateien (#18):** Payload über stdin, feste Verzeichnisdeskriptoren, SSH-Ausgabebegrenzung.
+- **Backup-Generationen (#16):** private Generationen unter Sperre, atomare Cron-Aktivierung.
+- **Atomic Upload (#20):** Ziel erst nach vollständig verifiziertem Transfer; UGOS-fremde xattrs werden übersprungen statt den Upload zu blockieren.
+- **Archiv-Restore (#19):** Ressourcengrenzen, Metadatenprüfung, atomare Einzeldateien; vorhandene UGOS-ACLs/xattrs am Ziel **blockieren den Restore nicht** (werden weiterhin nicht wiederhergestellt).
+
+**NAS-Verwaltung & Release**
+- **SSH-Profil-Rückfall (#26):** systemd-Timer **vor** Drop-in-Wechsel; Bestätigung nur nach neuer SSH-Verbindung; wirksame Algorithmen gegen `sshd -T`; Admin-Configs (earlyoom/Samba/Shutdown) abgesichert.
+- **Release-Gerüst (#23):** Source-Export ohne private Runtime-Dateien, Artefakt-Inventur, Offline-Sicherheits-CI — **ohne** Authenticode und ohne fertige Build-Lock-Dateien (Maintainer-Nacharbeit).
+
+### English
+
+Security and release hardening from public review PRs **#16–#26** (integrated and tested locally). Installer: `UgreenNASAdmin_setup_23.8.69.exe`.
+
+**Trust & transport**
+- **UGOS TLS first contact (#24):** pin unknown certs only after fingerprint check and explicit confirmation.
+- **Transport policy (#25):** UGOS API HTTPS-only; SMTP credentials require SSL/STARTTLS.
+- **OS vault (#22):** more secrets in the OS keyring; atomic settings; private Windows ACLs.
+- **Update download (#21):** destination/redirect/size checks; installer and version bound in **signed metadata**.
+
+**NAS writes & backup**
+- **Root files (#18):** stdin payloads, directory-descriptor binding, SSH output limits.
+- **Backup generations (#16):** private generations under a lock; atomic cron activation.
+- **Atomic upload (#20):** publish only after verified transfer; skip unsupported UGOS xattrs instead of failing.
+- **Archive restore (#19):** resource bounds and metadata checks; existing UGOS ACLs/xattrs no longer hard-fail restore (still not restored).
+
+**NAS admin & release**
+- **SSH profile recovery (#26):** arm systemd timer before drop-in change; confirm only after a new SSH connection; verify effective algorithms via `sshd -T`.
+- **Release scaffolding (#23):** clean source export, artifact inventory, security CI — **without** Authenticode or final build lock files.
+
 ## 23.8.57 — 2026-10-01
 
 Großes Sicherheits-Update. Wer von **≤ 23.8.48** kommt, bekommt mit dieser Version den gesamten heutigen Stand (23.8.49–57): Vertrauensprüfung für SSH und UGOS, Keyring, Danger-Lock, atomare Root-Dateien, private Runner-Pfade und die Review-Punkte zu Backup/Restore und Shell.

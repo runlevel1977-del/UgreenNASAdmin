@@ -29,29 +29,73 @@ _paramiko_mod = None
 
 
 def _atomic_root_write_code(path: str, mode: int, data_code: str) -> str:
-    """Remote Python: publish a new root-owned inode only after a complete write."""
-    if path.startswith(ROOT_RUNTIME_DIR + "/") and posixpath.dirname(path) != ROOT_RUNTIME_DIR:
+    """Publish through pinned parent/staging handles; never reopen checked paths."""
+    if not path.startswith("/") or path == "/" or posixpath.normpath(path) != path:
+        raise ValueError("Canonical absolute root file path required")
+    private = path.startswith(ROOT_RUNTIME_DIR + "/")
+    if private and posixpath.dirname(path) != ROOT_RUNTIME_DIR:
         raise ValueError("Bundled helper files must be direct children of the private runtime directory")
-    return (
-        "import base64,hashlib,os,stat,tempfile\n"
-        + (private_runtime_directory_code() if path.startswith(ROOT_RUNTIME_DIR + "/") else "")
-        + data_code
-        + "\n"
-        + f"target = {path!r}\n"
-        "if os.path.islink(target):\n"
-        "    raise ValueError('Refusing symbolic-link destination')\n"
-        "fd, temporary = tempfile.mkstemp(prefix='.ugreen-root-', dir=os.path.dirname(target))\n"
-        "try:\n"
+    if private:
+        prepare = private_runtime_directory_code(keep_open=True) + "parent = _ugreen_runtime_fd\n"
+    else:
+        prepare = (
+            "def check_root_parent(fd):\n"
+            "    info = os.fstat(fd)\n"
+            + ("    if info.st_uid != 0 or info.st_mode & 0o022:\n"
+               "        raise PermissionError('Untrusted system configuration directory')\n" if path.startswith('/etc/') else "    pass\n")
+            +
+            "flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW\n"
+            "parent = os.open('/', flags)\n"
+            "try:\n"
+            "    check_root_parent(parent)\n"
+            + f"    for component in {tuple(posixpath.dirname(path).strip('/').split('/')) if posixpath.dirname(path) != '/' else ()!r}:\n"
+            "        child = os.open(component, flags, dir_fd=parent)\n"
+            "        os.close(parent)\n"
+            "        parent = child\n"
+            "        check_root_parent(parent)\n"
+            "except BaseException:\n"
+            "    os.close(parent)\n"
+            "    raise\n"
+        )
+    return "import base64,hashlib,os,stat,uuid\n" + prepare + (
+        "staging = None\nstaging_fd = None\ncreated = False\ntry:\n"
+        + "".join("    " + line + "\n" for line in data_code.splitlines())
+        + f"    name = {posixpath.basename(path)!r}\n"
+        "    try:\n"
+        "        info = os.stat(name, dir_fd=parent, follow_symlinks=False)\n"
+        "        if not stat.S_ISREG(info.st_mode):\n"
+        "            raise ValueError('Refusing non-regular root destination')\n"
+        "    except FileNotFoundError:\n"
+        "        pass\n"
+        "    staging = '.ugreen-root-' + uuid.uuid4().hex\n"
+        "    os.mkdir(staging, 0o700, dir_fd=parent)\n"
+        "    staging_fd = os.open(staging, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)\n"
+        "    info = os.fstat(staging_fd)\n"
+        "    if info.st_uid != 0 or info.st_mode & 0o077:\n"
+        "        raise PermissionError('Unsafe root staging directory')\n"
+        "    fd = os.open('payload', os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=staging_fd)\n"
+        "    created = True\n"
         "    with os.fdopen(fd, 'wb') as output:\n"
         "        output.write(data)\n"
         "        output.flush()\n"
-        "        os.fsync(output.fileno())\n"
         "        os.fchown(output.fileno(), 0, 0)\n"
         + f"        os.fchmod(output.fileno(), {mode})\n"
-        "    os.replace(temporary, target)\n"
+        "        os.fsync(output.fileno())\n"
+        "    os.replace('payload', name, src_dir_fd=staging_fd, dst_dir_fd=parent)\n"
         "finally:\n"
-        "    if os.path.exists(temporary):\n"
-        "        os.unlink(temporary)\n"
+        "    if staging_fd is not None:\n"
+        "        if created:\n"
+        "            try:\n"
+        "                os.unlink('payload', dir_fd=staging_fd)\n"
+        "            except FileNotFoundError:\n"
+        "                pass\n"
+        "        os.close(staging_fd)\n"
+        "    if staging is not None:\n"
+        "        try:\n"
+        "            os.rmdir(staging, dir_fd=parent)\n"
+        "        except FileNotFoundError:\n"
+        "            pass\n"
+        "    os.close(parent)\n"
     )
 
 
@@ -84,10 +128,27 @@ class SSHRunResult:
     connection_error: bool = False
 
 
-def _read_stdout_stderr_with_timeout(stdout, stderr, *, deadline: float | None) -> tuple[str, str]:
+class SSHOutputLimitError(ValueError):
+    """A short SSH command must not exhaust desktop memory."""
+
+
+def _read_stdout_stderr_with_timeout(stdout, stderr, *, deadline: float | None, max_bytes=8*1024*1024) -> tuple[str, str]:
     ch = stdout.channel
+    if not isinstance(max_bytes, int) or max_bytes <= 0:
+        raise ValueError("Positive SSH output limit required")
     out_chunks: list[bytes] = []
     err_chunks: list[bytes] = []
+    total = 0
+
+    def receive(reader, chunks):
+        nonlocal total
+        chunk = reader(min(65536, max_bytes - total + 1))
+        total += len(chunk)
+        if total > max_bytes:
+            ch.close()
+            raise SSHOutputLimitError(f"SSH output exceeded {max_bytes} bytes; command channel closed")
+        chunks.append(chunk)
+
     while True:
         if deadline is not None and time.monotonic() > deadline:
             try:
@@ -96,14 +157,10 @@ def _read_stdout_stderr_with_timeout(stdout, stderr, *, deadline: float | None) 
                 pass
             raise TimeoutError("SSH command timed out")
         if ch.recv_ready():
-            out_chunks.append(ch.recv(65536))
+            receive(ch.recv, out_chunks)
         if ch.recv_stderr_ready():
-            err_chunks.append(ch.recv_stderr(65536))
-        if ch.exit_status_ready():
-            while ch.recv_ready():
-                out_chunks.append(ch.recv(65536))
-            while ch.recv_stderr_ready():
-                err_chunks.append(ch.recv_stderr(65536))
+            receive(ch.recv_stderr, err_chunks)
+        if ch.exit_status_ready() and not ch.recv_ready() and not ch.recv_stderr_ready():
             break
         if not ch.recv_ready() and not ch.recv_stderr_ready():
             time.sleep(0.05)
@@ -273,6 +330,8 @@ class SSHManager:
                         pass
                 try:
                     decoded_out, decoded_err = _read_stdout_stderr_with_timeout(stdout, stderr, deadline=deadline)
+                except SSHOutputLimitError as exc:
+                    return SSHRunResult(output=str(exc), exit_code=-1, ok=False)
                 except TimeoutError:
                     return SSHRunResult(
                         output=to_msg,
@@ -457,18 +516,51 @@ class SSHManager:
         return self._exec_root_write_code(password, py_code)
 
     def _exec_root_write_code(self, password: str, py_code: str) -> tuple[bool, str]:
-        cmd = f"sudo -S /usr/bin/python3 -c {shlex.quote(py_code)}"
+        max_source = 16 * 1024 * 1024
+        if len(py_code.encode("utf-8")) > max_source:
+            return False, "Root transaction exceeds input limit"
+        # Neither helper source nor configuration values belong in argv (ps,
+        # /proc/*/cmdline and ordinary sudo command logs can expose them).
+        # sudo may consume the password line, or leave it on stdin when a
+        # timestamp/NOPASSWD rule is active. A fresh marker handles both cases.
+        marker = "UGREEN_STDIN_" + uuid.uuid4().hex
+        bootstrap = (
+            "import base64,hashlib,sys\n"
+            f"marker = {marker.encode('ascii')!r} + b'\\n'\n"
+            "stream = sys.stdin.buffer\n"
+            "for attempt in range(2):\n"
+            "    line = stream.readline(65537)\n"
+            "    if not line:\n"
+            "        raise SystemExit('Missing root-write input')\n"
+            "    if line == marker:\n"
+            "        break\n"
+            "else:\n"
+            "    raise SystemExit('Missing root-write marker')\n"
+            f"encoded = stream.read({((max_source + 2)//3)*4 + 1})\n"
+            f"if len(encoded) > {((max_source + 2)//3)*4}:\n"
+            "    raise SystemExit('Root-write input exceeds limit')\n"
+            "source = base64.b64decode(encoded, validate=True)\n"
+            f"if hashlib.sha256(source).hexdigest() != {hashlib.sha256(py_code.encode('utf-8')).hexdigest()!r}:\n"
+            "    raise SystemExit('Incomplete root-write input')\n"
+            "exec(compile(source, '<ugreen-root-write>', 'exec'))\n"
+        )
+        cmd = f"sudo -S -p '' /usr/bin/python3 -c {shlex.quote(bootstrap)}"
         stdin, stdout, stderr = self._client.exec_command(cmd)
+        stdin.channel.settimeout(120)
         stdin.write((password or "") + "\n")
+        stdin.write(marker + "\n")
+        stdin.write(base64.b64encode(py_code.encode("utf-8")).decode("ascii"))
         stdin.flush()
         try:
             stdin.channel.shutdown_write()
         except Exception:
             pass
-        out_b = stdout.read() or b""
-        err_b = stderr.read() or b""
+        try:
+            decoded_out, decoded_err = _read_stdout_stderr_with_timeout(stdout, stderr, deadline=time.monotonic() + 120)
+        except (TimeoutError, SSHOutputLimitError) as exc:
+            return False, str(exc)
         code = stdout.channel.recv_exit_status()
-        msg = (_decode_out(out_b) + _decode_out(err_b)).strip()
+        msg = (decoded_out + decoded_err).strip()
         if code != 0:
             return False, msg or f"exit {code}"
         return True, ""
@@ -588,6 +680,16 @@ class SSHManager:
                 except Exception:
                     pass
                 return False, str(e)
+
+    def run_root_transaction(self, host, user, password, source, **auth) -> tuple[bool, str]:
+        """Send a reviewed root transaction through the bounded stdin bootstrap."""
+        with self._lock:
+            try:
+                self._ensure_client(host, user, password, **auth)
+                return self._exec_root_write_code(password, source)
+            except Exception as exc:
+                self.close()
+                return False, str(exc)
 
     def write_remote_file_user(
         self,

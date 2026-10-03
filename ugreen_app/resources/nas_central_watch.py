@@ -172,21 +172,21 @@ def _send_telegram(
         with urllib.request.urlopen(req, timeout=25) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
             if resp.status != 200:
-                return False, raw[:300]
+                return False, f"Telegram HTTP {resp.status}"
             try:
                 j = json.loads(raw)
                 if not j.get("ok"):
-                    return False, str(j.get("description", raw))[:300]
+                    return False, "Telegram API rejected the request"
             except json.JSONDecodeError:
                 pass
             return True, ""
     except urllib.error.HTTPError as e:
         try:
-            return False, e.read().decode("utf-8", errors="replace")[:300]
+            return False, f"Telegram HTTP {e.code}"
         except Exception:
-            return False, str(e)
+            return False, type(e).__name__
     except Exception as e:
-        return False, str(e)
+        return False, type(e).__name__
 
 
 def _sanitize_email_subject(text: str, max_len: int = 900) -> str:
@@ -204,6 +204,8 @@ def _send_email(cfg: dict[str, Any], subject: str, body: str) -> tuple[bool, str
     mail_to = (cfg.get("smtp_to") or "").strip()
     use_ssl = bool(cfg.get("smtp_ssl", False))
     use_tls = bool(cfg.get("smtp_tls", True))
+    if (user or password) and not (use_ssl or use_tls):
+        return False, "SMTP-Zugangsdaten erfordern SSL oder STARTTLS."
     if not host or not mail_from or not mail_to:
         return False, "smtp_host/from/to missing"
     msg = MIMEText(body, "plain", "utf-8")
@@ -242,7 +244,7 @@ def _send_email(cfg: dict[str, Any], subject: str, body: str) -> tuple[bool, str
                 s.sendmail(mail_from, [mail_to], msg.as_string())
         return True, ""
     except Exception as e:
-        return False, str(e)
+        return False, type(e).__name__
 
 
 def _notify(cfg: dict[str, Any], host: str, lines: list[str]) -> None:

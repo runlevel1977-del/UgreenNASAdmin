@@ -68,6 +68,8 @@ PACKAGING_FILES = frozenset(
         "create_icon.py",
         "UgreenNASAdmin.spec",
         "RUN_BUILDER.bat",
+        "build-environment.lock.json",
+        "requirements-build.lock.txt",
     }
 )
 
@@ -78,6 +80,10 @@ TOOL_FILES = frozenset(
         "build_handbook_en_pdf.py",
         "handbuch_pdf_from_md.py",
         "build_release_zip.py",
+        "release_source_guard.py",
+        "reproducible_release.py",
+        "artifact_inventory.py",
+        "secret_inventory.py",
         "sync_public_repo.py",
         "split_ugreen_manager.py",
         "secret_scan.py",
@@ -141,8 +147,15 @@ PUBLIC_TEST_FILES = frozenset(
         "test_ssh_host_keys_confirm.py",
         "test_ugos_ssl.py",
         "test_ugos_tls_certs.py",
+        "test_tls_first_contact.py",
+        "test_transport_policy.py",
         "test_keyring_helper.py",
+        "test_keyring_resave.py",
+        "test_private_settings_and_errors.py",
+        "test_private_file.py",
         "test_update_check.py",
+        "test_update_download_boundaries.py",
+        "test_signed_release_metadata.py",
         "test_fan_curve.py",
         "test_ugos_power_schedule.py",
         "test_ugos_api_dashboard.py",
@@ -150,18 +163,31 @@ PUBLIC_TEST_FILES = frozenset(
         "test_window_geometry.py",
         "test_runlevel_apps_scan.py",
         "test_upload_directory_permissions.py",
+        "test_upload_stream.py",
         "test_atomic_root_write.py",
+        "test_root_write_stdin.py",
+        "test_root_write_path_binding.py",
+        "test_ssh_output_limits.py",
         "test_script_commands.py",
         "test_scheduled_backup_cron.py",
-        "test_keyring_resave.py",
         "test_backup_preflight.py",
         "test_backup_failures.py",
         "test_backup_restore_errors.py",
         "test_backup_archive_preservation.py",
+        "test_backup_generation.py",
+        "test_private_backup_state.py",
+        "test_archive_limits.py",
+        "test_archive_safety.py",
         "test_admin_commands.py",
+        "test_admin_config_transactions.py",
+        "test_ssh_profile_guard.py",
         "test_ugos_api_transport.py",
         "test_ssh_host_verification.py",
+        "test_release_source_guard.py",
+        "test_reproducible_release.py",
+        "test_artifact_inventory.py",
         "backup_fixtures.py",
+        "posix_file_fixture.py",
     }
 )
 
@@ -242,11 +268,12 @@ def _sync_content() -> None:
         out.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(funding, out)
     if getattr(_sync_content, "_include_workflows", False):
-        ci = ROOT / ".github" / "workflows" / "ci.yml"
-        if ci.is_file():
-            out = WORKTREE / ".github" / "workflows" / "ci.yml"
-            out.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(ci, out)
+        for wf_name in ("ci.yml", "security.yml"):
+            wf = ROOT / ".github" / "workflows" / wf_name
+            if wf.is_file():
+                out = WORKTREE / ".github" / "workflows" / wf_name
+                out.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(wf, out)
 
     tools_src = ROOT / "tools"
     tools_dst = WORKTREE / "tools"

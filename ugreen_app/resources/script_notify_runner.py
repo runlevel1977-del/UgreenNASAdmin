@@ -42,7 +42,7 @@ def _send_telegram(cfg: dict, text: str) -> tuple[bool, str]:
                 return False, f"http {resp.status}"
             return True, ""
     except Exception as e:
-        return False, str(e)
+        return False, type(e).__name__
 
 
 def _send_email(cfg: dict, subject: str, body: str) -> tuple[bool, str]:
@@ -59,6 +59,8 @@ def _send_email(cfg: dict, subject: str, body: str) -> tuple[bool, str]:
     pwd = str(cfg.get("smtp_password") or "")
     use_ssl = bool(cfg.get("smtp_ssl", False))
     use_tls = bool(cfg.get("smtp_tls", True))
+    if (user or pwd) and not (use_ssl or use_tls):
+        return False, "SMTP-Zugangsdaten erfordern SSL oder STARTTLS."
     msg = MIMEText(body, "plain", "utf-8")
     msg["Subject"] = " ".join(subject.replace("\r", " ").replace("\n", " ").split())[:900]
     msg["From"] = mail_from
@@ -83,7 +85,7 @@ def _send_email(cfg: dict, subject: str, body: str) -> tuple[bool, str]:
                 s.sendmail(mail_from, [mail_to], msg.as_string())
         return True, ""
     except Exception as e:
-        return False, str(e)
+        return False, type(e).__name__
 
 
 def _matches(rule: dict, script_name: str, ok: bool) -> bool:

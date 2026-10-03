@@ -5,13 +5,15 @@ from __future__ import annotations
 
 import argparse
 import sys
+import re
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from ugreen_app.release_signing import sign_file, signature_b64  # noqa: E402
+from ugreen_app.release_signing import sign_file, signature_b64, sign_release_manifest  # noqa: E402
 
 
 def main() -> int:
@@ -43,9 +45,17 @@ def main() -> int:
     if len(priv) != 32:
         print(f"Private key must be 32 raw bytes (got {len(priv)})", file=sys.stderr)
         return 3
+    # Bind metadata to the clean source checkout used by the release operator.
+    if subprocess.check_output(["git", "-C", str(ROOT), "status", "--porcelain", "--untracked-files=no"]).strip():
+        raise SystemExit("Refusing to sign with uncommitted tracked source changes")
+    commit = subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD"]).decode().strip()
+    source = (ROOT / "ugreen_app" / "nas_manager.py").read_text(encoding="utf-8")
+    version = re.search(r'__version__\s*=\s*"([0-9.]+)"', source).group(1)
+    manifest = sign_release_manifest(src, version, commit, priv)
     sig = sign_file(src, priv)
     out = args.output or Path(str(src) + ".sig")
     out.write_text(signature_b64(sig) + "\n", encoding="ascii")
+    Path(str(src) + ".release.json").write_bytes(manifest)
     print(f"OK: {out}")
     return 0
 

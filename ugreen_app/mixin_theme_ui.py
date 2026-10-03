@@ -11,6 +11,7 @@ import sys
 import datetime
 import uuid
 import json
+from ugreen_app.secret_settings import write_settings_json
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, simpledialog, ttk
 import base64
@@ -233,8 +234,7 @@ class MixinThemeUI:
         try:
             cfg = self._load_app_settings()
             cfg["window"] = {"x": x, "y": y, "w": w, "h": h}
-            with open(self._app_settings_path(), "w", encoding="utf-8") as f:
-                json.dump(cfg, f, indent=2, ensure_ascii=False)
+            write_settings_json(self._app_settings_path(), cfg)
         except Exception:
             pass
 

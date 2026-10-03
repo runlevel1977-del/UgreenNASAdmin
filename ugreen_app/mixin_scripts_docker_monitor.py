@@ -10,6 +10,7 @@ import stat
 import sys
 import uuid
 import json
+from ugreen_app.secret_settings import write_settings_json
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, simpledialog, ttk
 import base64
@@ -156,8 +157,7 @@ class MixinScriptsDockerMonitor:
             section = dict(cfg.get("docker_update") or {})
             section["exclude_containers"] = sorted({str(x).strip() for x in names if str(x).strip()})
             cfg["docker_update"] = section
-            with open(self._app_settings_path(), "w", encoding="utf-8") as f:
-                json.dump(cfg, f, indent=2)
+            write_settings_json(self._app_settings_path(), cfg)
             return True
         except Exception:
             return False
@@ -1215,8 +1215,7 @@ class MixinScriptsDockerMonitor:
             for k, v in updates.items():
                 sec[k] = v
             cfg["dashboard"] = sec
-            with open(self._app_settings_path(), "w", encoding="utf-8") as f:
-                json.dump(cfg, f, indent=2, ensure_ascii=False)
+            write_settings_json(self._app_settings_path(), cfg)
         except Exception:
             pass
 
@@ -1559,8 +1558,7 @@ class MixinScriptsDockerMonitor:
                 if str(d.get("id") or "").strip()
             ]
             cfg["dashboard"] = sec
-            with open(self._app_settings_path(), "w", encoding="utf-8") as f:
-                json.dump(cfg, f, indent=2, ensure_ascii=False)
+            write_settings_json(self._app_settings_path(), cfg)
         except Exception:
             pass
 
@@ -2055,8 +2053,7 @@ class MixinScriptsDockerMonitor:
             if "fan_curve" in sec:
                 del sec["fan_curve"]
             cfg["dashboard"] = sec
-            with open(self._app_settings_path(), "w", encoding="utf-8") as f:
-                json.dump(cfg, f, indent=2, ensure_ascii=False)
+            write_settings_json(self._app_settings_path(), cfg)
         except Exception:
             pass
 
@@ -2069,8 +2066,7 @@ class MixinScriptsDockerMonitor:
                 curves[fan_id]["enabled"] = False
             sec["fan_curves"] = dict(curves)
             cfg["dashboard"] = sec
-            with open(self._app_settings_path(), "w", encoding="utf-8") as f:
-                json.dump(cfg, f, indent=2, ensure_ascii=False)
+            write_settings_json(self._app_settings_path(), cfg)
         except Exception:
             pass
 
@@ -2631,8 +2627,7 @@ class MixinScriptsDockerMonitor:
             if "fan_curve" in sec:
                 del sec["fan_curve"]
             cfg["dashboard"] = sec
-            with open(self._app_settings_path(), "w", encoding="utf-8") as f:
-                json.dump(cfg, f, indent=2, ensure_ascii=False)
+            write_settings_json(self._app_settings_path(), cfg)
         except Exception:
             pass
         first_id = ""

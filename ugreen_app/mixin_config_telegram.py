@@ -31,6 +31,9 @@ from email.mime.text import MIMEText
 
 import nas_ssh
 import nas_utils
+from ugreen_app.private_json import write_private_json
+from ugreen_app.private_file import write_private_bytes
+from ugreen_app.secret_settings import read_settings_json, write_settings_json
 from ugreen_app._paramiko import _paramiko
 from ugreen_app import keyring_helper
 
@@ -466,8 +469,7 @@ class MixinConfigTelegram:
             for k in ("ip", "port", "user", "password", "ssh_use_key", "ssh_key_path", "ssh_key_passphrase"):
                 data.pop(k, None)
         try:
-            with open(p, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
+            write_private_json(p, data)
         except Exception:
             pass
 
@@ -522,8 +524,7 @@ class MixinConfigTelegram:
             "active_profile": int(getattr(self, "_connection_active_index", 0) or 0),
             "ui_lang": getattr(self, "ui_lang", "de"),
         }
-        with open(p, "w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=2)
+        write_private_json(p, payload)
 
     def _profiles_sanitized_for_disk(self, profiles=None) -> list:
         """Copy profiles without secrets; failed vault writes abort before JSON."""
@@ -650,13 +651,10 @@ class MixinConfigTelegram:
                     key = pk_mod.Ed25519Key.generate()
                 except Exception:
                     key = pk_mod.RSAKey.generate(bits=4096)
-            pwd_bytes: bytes | None = passphrase.encode("utf-8") if passphrase else None
-            with open(priv_path, "wb") as f:
-                key.write_private_key(f, password=pwd_bytes)
-            try:
-                os.chmod(priv_path, stat.S_IRUSR | stat.S_IWUSR)
-            except OSError:
-                pass
+            import io
+            private_text = io.StringIO()
+            key.write_private_key(private_text, password=passphrase or None)
+            write_private_bytes(priv_path, private_text.getvalue().encode("utf-8"))
             comment = "ugreen-nas-admin"
             pub_line = f"{key.get_name()} {key.get_base64()} {comment}"
             with open(pub_path, "w", encoding="utf-8", newline="\n") as f:
@@ -1065,8 +1063,7 @@ class MixinConfigTelegram:
                 "active_profile": int(self._connection_active_index),
                 "ui_lang": getattr(self, "ui_lang", "de"),
             }
-            with open(p, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=2)
+            write_private_json(p, payload)
             self._connection_profiles = profiles
             for marker, value in markers.items():
                 setattr(self, marker, value)
@@ -1651,6 +1648,8 @@ class MixinConfigTelegram:
         password = str(em.get("smtp_pass") or "")
         use_ssl = bool(em.get("smtp_ssl", False))
         use_tls = bool(em.get("smtp_starttls", True))
+        if (user or password) and not (use_ssl or use_tls):
+            return False, "SMTP-Zugangsdaten erfordern SSL oder STARTTLS."
         msg = MIMEText(str(body or ""), "plain", "utf-8")
         msg["Subject"] = " ".join(str(subject or "").replace("\r", " ").replace("\n", " ").split())[:900]
         msg["From"] = mail_from
@@ -1658,7 +1657,7 @@ class MixinConfigTelegram:
         try:
             socket.getaddrinfo(host, port, type=socket.SOCK_STREAM, proto=socket.IPPROTO_TCP)
         except OSError as e:
-            return False, str(e)
+            return False, type(e).__name__
         try:
             ctx = ssl.create_default_context()
             if use_ssl:
@@ -1679,7 +1678,7 @@ class MixinConfigTelegram:
                     s.sendmail(mail_from, [mail_to], msg.as_string())
             return True, ""
         except Exception as e:
-            return False, str(e)
+            return False, type(e).__name__
 
     def script_notify_send_for_result(self, script_name: str, ok: bool, output_text: str = "") -> None:
         rules = self._script_notify_get_matching_rules(script_name, ok)
@@ -1764,7 +1763,7 @@ def _send_telegram(cfg, text):
         with urllib.request.urlopen(req, timeout=25) as resp:
             return (resp.status == 200), ("" if resp.status == 200 else f"http {resp.status}")
     except Exception as e:
-        return False, str(e)
+        return False, type(e).__name__
 def _send_email(cfg, subject, body):
     host = str(cfg.get("smtp_host") or "").strip(); mail_from = str(cfg.get("smtp_from") or "").strip(); mail_to = str(cfg.get("smtp_to") or "").strip()
     if not host or not mail_from or not mail_to: return False, "smtp host/from/to missing"
@@ -1772,6 +1771,8 @@ def _send_email(cfg, subject, body):
     except Exception: port = 587
     user = str(cfg.get("smtp_user") or "").strip(); pwd = str(cfg.get("smtp_password") or "")
     use_ssl = bool(cfg.get("smtp_ssl", False)); use_tls = bool(cfg.get("smtp_tls", True))
+    if (user or pwd) and not (use_ssl or use_tls):
+        return False, "SMTP-Zugangsdaten erfordern SSL oder STARTTLS."
     msg = MIMEText(body, "plain", "utf-8"); msg["Subject"] = " ".join(subject.replace("\\r"," ").replace("\\n"," ").split())[:900]; msg["From"] = mail_from; msg["To"] = mail_to
     try:
         ctx = ssl.create_default_context()
@@ -1790,7 +1791,7 @@ def _send_email(cfg, subject, body):
                 s.sendmail(mail_from, [mail_to], msg.as_string())
         return True, ""
     except Exception as e:
-        return False, str(e)
+        return False, type(e).__name__
 def _matches(rule, script_name, ok):
     rs = str(rule.get("script") or "").strip()
     if not rs: return False
@@ -1871,10 +1872,6 @@ if __name__ == "__main__":
             runner_b = self._script_notify_runner_fallback_bytes()
         cfg_obj = self._script_notify_nas_cfg_from_settings(cfg)
         cfg_b = (json.dumps(cfg_obj, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
-        try:
-            self.run_ssh_cmd("mkdir -p /volume1/scripts", True, update_status=False)
-        except Exception:
-            pass
         ok1, err1 = self._ssh_mgr.write_remote_file_sudo(
             host, user, pwd, runner_b, self._script_notify_runner_remote_path(), chmod_mode="755", **self._ssh_auth_payload()
         )
@@ -1916,8 +1913,7 @@ if __name__ == "__main__":
         p = self._app_settings_path()
         if os.path.isfile(p):
             try:
-                with open(p, encoding="utf-8") as f:
-                    loaded = json.load(f)
+                loaded = read_settings_json(p)
                 if isinstance(loaded, dict):
                     raw = loaded
                     for sec in (
@@ -2372,8 +2368,7 @@ if __name__ == "__main__":
                 leg_p = os.path.join(self._app_data_dir(), "qnap_smb_prefs.json")
                 if os.path.isfile(leg_p):
                     try:
-                        with open(leg_p, encoding="utf-8") as f:
-                            leg = json.load(f)
+                        leg = read_settings_json(leg_p)
                         if isinstance(leg, dict) and str(leg.get("host") or "").strip():
                             smb0["host"] = str(leg.get("host") or "").strip()
                             smb0["user"] = str(leg.get("user") or "").strip()
@@ -2401,8 +2396,7 @@ if __name__ == "__main__":
         try:
             # Verbindungsdaten parallel in die bestehende Connection-Datei schreiben.
             self._save_connection_config_clicked()
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(cfg, f, indent=2)
+            write_settings_json(path, cfg)
             try:
                 self.ensure_script_notify_runner_on_nas(cfg)
             except Exception:
@@ -2468,8 +2462,7 @@ if __name__ == "__main__":
             base = {}
         else:
             try:
-                with open(p, encoding="utf-8") as f:
-                    base = json.load(f)
+                base = read_settings_json(p)
             except Exception:
                 base = {}
         tok, cid = self._settings_telegram_creds()
@@ -2542,8 +2535,7 @@ if __name__ == "__main__":
             return
         path = os.path.abspath(self._telegram_config_path())
         try:
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(cfg, f, indent=2)
+            write_settings_json(path, cfg)
         except Exception as e:
             messagebox.showerror(self.t("msg.telegram"), self.t("msg.telegram_save_failed", e=e))
             return
@@ -2576,16 +2568,16 @@ if __name__ == "__main__":
             with urllib.request.urlopen(req, timeout=20) as resp:
                 raw = resp.read().decode("utf-8", errors="replace")
                 if resp.status != 200:
-                    return False, raw[:200]
+                    return False, f"Telegram HTTP {resp.status}"
                 try:
                     j = json.loads(raw)
                     if not j.get("ok"):
-                        return False, str(j.get("description", raw))[:200]
+                        return False, "Telegram API rejected the request"
                 except json.JSONDecodeError:
                     pass
                 return True, ""
         except Exception as e:
-            return False, str(e)
+            return False, type(e).__name__
 
     def telegram_send_test(self):
         if not self._danger_gate():
