@@ -1,6 +1,15 @@
 """Windows-compatible boundary doubles for Linux mounts in archive I/O tests."""
 import builtins
+import io
 import shlex
+import tarfile
+
+
+def write_archive(path, payload=b'synthetic archive'):
+    with tarfile.open(path, 'w:gz') as archive:
+        member = tarfile.TarInfo('synthetic.txt')
+        member.size = len(payload)
+        archive.addfile(member, io.BytesIO(payload))
 
 
 def preflight_stub(sources, archive_root, **kwargs):
@@ -17,6 +26,7 @@ def execute_inline(command):
     def load(source, namespace):
         builtins.exec(source, namespace)
         namespace["_preflight"] = preflight_stub
+        namespace['_check_live_writers'] = lambda sources: None
         namespace["print"] = lambda *args, **kwargs: output.append(" ".join(map(str, args)))
     try:
         builtins.exec(shlex.split(command)[-1], {"exec": load})

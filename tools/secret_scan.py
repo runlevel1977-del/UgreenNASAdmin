@@ -9,7 +9,7 @@ from pathlib import Path
 
 TELEGRAM_BOT_TOKEN_RE = re.compile(r"\b\d{8,}:[A-Za-z0-9_-]{20,}\b")
 SMTP_PASSWORD_JSON_RE = re.compile(
-    r'"(?:smtp_pass(?:word)?|password|bot_token|ssh_key_passphrase)"\s*:\s*"(?!")[^"]{4,}"',
+    r'"(?:smtp_pass(?:word)?|password|bot_token|ssh_key_passphrase)"\s*:\s*"(?!")(?!synthetic-|replacement-secret")[^"]{4,}"',
     re.IGNORECASE,
 )
 

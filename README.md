@@ -29,6 +29,12 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 - **Transfer Hub / Wake & Sync (UGOS):** Folder picker includes **Home** (`/home/…/Photos`) without an SMB share; only `@…` system folders stay hidden. Transfer Hub **0.6.28** also supports **multi-select source folders** (one transfer per folder). Wake & Sync **0.1.32**.
 - **Deutsch:** Transfer Hub / Wake & Sync — Ordnerwahl inkl. Home/Photos und Mehrfach-Quellordner — siehe [`CHANGELOG.md`](CHANGELOG.md).
 
+### What's new in v23.8.70
+
+- **Backup / restore / upload:** a backup succeeds only if the archive passes the app's own restore check and no running Docker writer has a writable mount on the source. TAR restore goes into a **new folder** only. Unknown upload security attributes keep the original file. Public release packing no longer accepts `--local-dist` without a verified build manifest. Details in [`CHANGELOG.md`](CHANGELOG.md) (Review **#27–#32**).
+- **Deutsch:** Backup nur bei bestandener eigener Restore-Prüfung und ohne laufende Docker-Schreiber. TAR-Restore nur in einen neuen Ordner. Unbekannte Upload-Attribute behalten das Original. `--local-dist` packt kein öffentliches Release mehr.
+- **Installer:** `UgreenNASAdmin_setup_23.8.70.exe` under [Releases](https://github.com/runlevel1977-del/UgreenNASAdmin/releases).
+
 ### What's new in v23.8.69
 
 - **Security train (#16–#26):** UGOS TLS first-contact confirmation, HTTPS/SMTP transport policy, OS vault + private Windows ACLs, signed update metadata, root stdin writes, private backup generations, atomic upload/restore, SSH profile rollback via systemd timer before apply, release source guard + security CI scaffolding.
@@ -115,7 +121,7 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 - **Settings SSH workflow:** create SSH key pair and install public key to UGREEN or second NAS/QNAP directly from the app. **TOFU host keys** (`ssh_known_hosts.json`) — first connect trusts the key; later changes are rejected (Settings → **Forget SSH host key**).
 - **Health improvements:** Scheduler inventory and expanded UGOS/service visibility.
 - **Updated screenshots:** `images/` now reflects the newest app state (latest captures provided by the maintainer).
-- **Version** **23.8.69** — see full details in [`CHANGELOG.md`](CHANGELOG.md).
+- **Version** **23.8.70** — see full details in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Repository layout
 
@@ -481,6 +487,10 @@ For **another Ugreen/QNAP/SMB NAS** as a destination, configure **SMB peer profi
 - Watch the **log / status area** in the Backup tab — copy errors verbatim if something fails (paths, permission, busy files).  
 - After sync, planned backup jobs typically show under **Dashboard** → scheduled jobs summary (same cron namespace the app manages).
 
+**Before a backup succeeds:** confirm the data-archive notice. The run is not a database export or a filesystem snapshot, and it does not stop applications. Success requires the archive to pass the app's own restore check. Running Docker containers with a writable mount on the source block publication. Other writers are not detected. After this change, **save schedules to the NAS once**.
+
+**Restore:** the target must be a **new folder that does not exist yet**. Existing files stay untouched. The recovered folder is initially private; check contents and permissions before using the files.
+
 **Safety:** Confirm every warning; snapshots or a trial **user data** run on one user first beats losing data on mistaken scope.
 
 ### 11) Settings
@@ -734,6 +744,10 @@ Je nach Kombobox (Bezeichnung leicht sprachabhängig):
 - Auf Zielvolume/USB **genug freien Platz** einplanen.  
 - **Log-Ausgabe** im Backup-Tab bei Fehlern kopieren (Pfade, Rechte, gesperrte Dateien).  
 - Nach Einrichtung zeigen Aufträge oft im **Dashboard** unter den **Cron-/Job-Zusammenfassungen**.
+
+**Bevor ein Backup als erfolgreich gilt:** den Hinweis zum Datenarchiv bestätigen. Das ist kein Datenbank-Export, kein Dateisystem-Snapshot und stoppt keine Anwendung. Erfolg setzt voraus, dass das Archiv die eigene Restore-Prüfung besteht. Laufende Docker-Container mit schreibendem Mount auf die Quelle blockieren die Veröffentlichung. Andere Schreiber erkennt die App nicht. Nach diesem Stand Zeitpläne **einmal neu auf die NAS schreiben**.
+
+**Wiederherstellen:** das Ziel muss ein **neuer, noch nicht vorhandener Ordner** sein. Bestehende Dateien bleiben unverändert. Der neue Ordner ist zunächst privat; Inhalte und Rechte prüfen, bevor die Dateien benutzt werden.
 
 **Vorsicht:** Rückfragen bestätigen; lieber erst **ein User**/`Userdaten` testen oder **Snapshots** zusätzlich nutzen als mit falschem Umfang alles zu überschreiben.
 

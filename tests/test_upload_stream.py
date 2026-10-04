@@ -138,7 +138,7 @@ class UploadStreamTests(unittest.TestCase):
                 self.assertEqual((root/'target/file').read_bytes(), b'old')
                 self.assertEqual(len(list((root/'target').iterdir())), 1)
 
-    def test_unsupported_security_xattrs_are_omitted_not_blocking(self):
+    def test_unsupported_security_xattrs_preserve_original_instead_of_silent_loss(self):
         attributes = {
             'security.capability': b'capability',
             'user.note': b'keep-me',
@@ -148,12 +148,10 @@ class UploadStreamTests(unittest.TestCase):
             root = Path(folder)
             (root / 'target').mkdir()
             (root / 'target/file').write_bytes(b'old')
-            calls = self.run_receiver(root, self.frame(b'new'), 3, attributes=attributes)
-            self.assertEqual((root / 'target/file').read_bytes(), b'new')
-            self.assertEqual(
-                {call.args[1]: call.args[2] for call in calls.setxattr.call_args_list},
-                {'user.note': b'keep-me'},
-            )
+            with self.assertRaisesRegex(ValueError, 'original kept'):
+                self.run_receiver(root, self.frame(b'new'), 3, attributes=attributes)
+            self.assertEqual((root / 'target/file').read_bytes(), b'old')
+            self.assertEqual([p.name for p in (root/'target').iterdir()], ['file'])
 
 
 if __name__ == '__main__':

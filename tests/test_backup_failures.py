@@ -7,13 +7,14 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+import tarfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
 from ugreen_app.mixin_tabs_setup import MixinTabsSetup
 from ugreen_app.resources import ugreen_scheduled_backup_runner as runner
-from tests.backup_fixtures import execute_inline, preflight_stub
+from tests.backup_fixtures import execute_inline, preflight_stub, write_archive
 
 
 BASH = shutil.which("bash") or (
@@ -22,6 +23,10 @@ BASH = shutil.which("bash") or (
 
 
 class BackupFailureTests(unittest.TestCase):
+    def setUp(self):
+        check = patch.object(runner, '_check_live_writers')
+        check.start(); self.addCleanup(check.stop)
+
     def run_scheduled(self, base, code=0, error=None, write_data=True):
         exists = os.path.exists
         def tar_stub(cmd, **kwargs):
@@ -30,7 +35,7 @@ class BackupFailureTests(unittest.TestCase):
                 self.assertTrue(cmd[2].endswith(".partial"))
                 self.assertIn("--exclude=" + str(Path(base) / "backup/ugreen_admin"), cmd)
                 if write_data:
-                    Path(cmd[2]).write_bytes(b"synthetic archive")
+                    write_archive(cmd[2])
                 if error:
                     raise error
                 return SimpleNamespace(returncode=code)
@@ -70,7 +75,9 @@ class BackupFailureTests(unittest.TestCase):
             files = list(directory.iterdir())
             self.assertEqual(len(files), 4)
             self.assertTrue(all(p.name.endswith(".tar.gz") for p in files))
-            self.assertTrue(any(p.read_bytes() == b"synthetic archive" for p in files))
+            published = next(p for p in files if p.name not in old)
+            with tarfile.open(published, 'r:gz') as archive:
+                self.assertEqual(archive.extractfile('synthetic.txt').read(), b'synthetic archive')
             self.assertEqual({name: (directory / name).read_bytes() for name in old}, old)
 
     def test_publish_failure_preserves_old_archives(self):

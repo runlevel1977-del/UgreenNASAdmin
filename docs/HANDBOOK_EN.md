@@ -1148,7 +1148,7 @@ Loads local files to NAS.
 
 Actively select the target folder on the left beforehand.
 
-**Security (from 23.8.69):** Upload is **atomic** — the destination appears only after a fully verified transfer. Supported ACLs/xattrs are preserved; **UGOS-unsupported** security xattrs are skipped (upload continues). Symlinks and unsafe metadata abort the transfer.
+**Security:** Upload replaces each file only after a verified transfer. Both single-file and ZIP uploads preserve supported ACLs/xattrs. Unknown security attributes abort replacement and keep the original; use a new filename and review permissions. ZIP is atomic per file, not for the entire batch. See [metadata policy (German)](UPLOAD_METADATA_DE.md).
 
 ### 45.3 `Perms 755`
 
@@ -2067,6 +2067,8 @@ Only with clear identification of the snapshot and fallback plan.
 - Refresh Lists
 - **Migration assistant** (rsync for volume/NAS moves; also on NAS ↔ NAS tab)
 
+Before a run, confirm that this creates a **data archive**: no database export, no filesystem snapshot, and no stopped applications. Running Docker containers with a writable mount on the source block success. Other writers are not detected. Success requires the archive to pass the app's own restore check; hardlinks are stored as regular file contents. Details: [backup/restore contract](BACKUP_RESTORE_CONTRACT_DE.md) and [operating limits](NAS_ACCEPTANCE_DE.md).
+
 ### 35.1a Migration assistant
 
 Scenarios: same NAS (other volumes), push to another NAS, pull from another NAS, Synology/QNAP template. Generates a Bash script with `rsync -aHAX` (dry-run by default). Save to `/volume1/scripts/ugreen_migration_rsync.sh`. For interactive copy use **NAS ↔ NAS**.
@@ -2099,7 +2101,7 @@ Buttons:
 - Select file
 - Start restore
 
-**Security (from 23.8.69):** Archive restore uses resource bounds and metadata checks; members are applied atomically. Existing **UGOS ACLs/xattrs** on the destination no longer hard-fail restore — they are still **not** restored from the archive.
+**Security:** TAR recovery requires a **new, nonexistent target directory** under an existing parent. Only the fully extracted result is published under that name. Existing data is never replaced. The recovery directory is initially private; check its contents and permissions before adopting files. Archive ACLs/xattrs, links and special files are unsupported. See [isolated recovery and acceptance limits (German)](ISOLATED_RESTORE_DE.md).
 
 ### 35.4 Scheduled Backup
 
@@ -2117,7 +2119,7 @@ Fields:
 - Cron fields
 - Additional options
 
-**Security (from 23.8.57 / extended 23.8.69):** Saving to the NAS preflights sources/mounts and validates cron lines **before** any root write. State/runner live under **`/var/lib/ugreen-nas-admin/`**. **Backup generations** activate privately under a NAS-side lock (atomic cron enable). There is **no** automatic archive deletion — manage free space manually.
+**Security (from 23.8.57 / extended 23.8.69):** Saving to the NAS preflights sources/mounts and validates cron lines **before** any root write. State/runner live under **`/var/lib/ugreen-nas-admin/`**. **Backup generations** activate privately under a NAS-side lock (atomic cron enable). There is **no** automatic archive deletion — manage free space manually. Non-empty schedules ask for the same archive limit as a manual backup before they are saved. After this change, **write schedules to the NAS once**. Detected Docker writers abort the run; applications are not stopped.
 
 ---
 
@@ -2166,16 +2168,16 @@ Complete job management with cron logic.
 1. Open backup tab.
 2. Filter Scope/Volume/User.
 3. Set target mode (NAS/PC/USB/second NAS).
-4. Choose the appropriate backup button.
-5. Check run.
+4. Choose the appropriate backup button and confirm the data-archive notice.
+5. Check the run. Success means the archive passes the app's own restore check and no running Docker writer covers the source.
 6. Document archive path.
 
 ### 61.2 Perform a restore
 
 1. Set source mode.
 2. Select Source Archive.
-3. Set target path.
-4. Click 'Start Restore'.
+3. Set the target path to a **new folder that does not exist yet**, under a parent that does.
+4. Click 'Start Restore'. Existing data is not replaced. The new folder is initially private.
 5. Result check:
    - do files exist?
    - Are rights correct?

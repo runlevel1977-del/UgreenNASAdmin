@@ -1,5 +1,29 @@
 # Changelog — Ugreen NAS Admin
 
+## 23.8.70 — 2026-10-04
+
+Nacharbeit zu **23.8.69**, aus dem Integrationscommit `d80f843`. Installer: `UgreenNASAdmin_setup_23.8.70.exe`.
+
+### Deutsch
+
+- **Öffentliche Tests (#27):** Secret- und TLS-Regressionstests bleiben in der Exportliste. Zwei rein private Route-Tests (Transfer Hub, Wake & Sync) bleiben davon ausgenommen.
+- **TAR-Restore (#28):** Wiederherstellung nur in einen **neuen, noch nicht vorhandenen** Zielordner. Bestehende Daten werden nicht ersetzt. Der Ordner ist zunächst privat.
+- **Backup-Vertrag (#29):** Ein Backup gilt nur als erfolgreich, wenn dasselbe Archiv den eigenen Restore-Prüfer besteht. Hardlinks werden als normale Dateiinhalte gespeichert (`--hard-dereference`).
+- **Upload-Metadaten (#30):** Einzel- und ZIP-Upload behalten unterstützte ACLs/xattrs. Unbekannte Sicherheitsattribute brechen den Austausch ab; das Original bleibt. Ersetzt den 23.8.69-Hinweis, unbekannte xattrs still zu überspringen.
+- **Release-Bindung (#31):** Öffentliche Pakete und Signaturen brauchen ein geprüftes `BUILD_MANIFEST` und denselben öffentlichen Tag. `--local-dist` packt nicht mehr.
+- **Docker-Schreiber (#32):** Manuelle Backups und nichtleere Zeitpläne fragen die Grenze ab. Laufende Container mit schreibendem Mount blockieren den Erfolg. Bestehende NAS-Zeitpläne einmal neu synchronisieren. Eine Live-Abnahme auf dem NAS bleibt offen.
+
+### English
+
+Follow-up to **23.8.69**, taken from integration commit `d80f843`. Installer: `UgreenNASAdmin_setup_23.8.70.exe`.
+
+- **Public tests (#27):** vault and TLS regression tests stay on the export list. Two private-only route tests (Transfer Hub, Wake & Sync) stay excluded.
+- **TAR restore (#28):** recovery only into a **new folder that does not exist yet**. Existing data is left in place. The folder starts private.
+- **Backup contract (#29):** a backup succeeds only when the same archive passes the app's own restore check. Hardlinks are stored as regular file contents (`--hard-dereference`).
+- **Upload metadata (#30):** single-file and ZIP uploads keep supported ACLs/xattrs. Unknown security attributes abort replacement and keep the original. This replaces the 23.8.69 note that skipped unknown xattrs.
+- **Release binding (#31):** public packages and signatures require a verified `BUILD_MANIFEST` and the same public tag. `--local-dist` no longer packs a release.
+- **Docker writers (#32):** manual backups and non-empty schedules ask for this limit. Running containers with a writable mount block success. Re-sync existing NAS schedules once. Live NAS acceptance is still open.
+
 ## 23.8.69 — 2026-10-03
 
 Sicherheits- und Release-Härtung aus den öffentlichen Review-PRs **#16–#26** (lokal integriert und getestet). Installer: `UgreenNASAdmin_setup_23.8.69.exe`.

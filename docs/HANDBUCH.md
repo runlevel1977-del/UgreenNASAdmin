@@ -1148,7 +1148,7 @@ Lädt lokale Dateien auf NAS.
 
 Vorher Zielordner links aktiv auswählen.
 
-**Sicherheit (ab 23.8.69):** Upload ist **atomar** — das Ziel erscheint erst nach vollständig verifiziertem Transfer. Unterstützte ACLs/xattrs werden mitgenommen; **UGOS-fremde** Security-xattrs werden übersprungen (Upload läuft weiter). Symlinks und unsichere Metadaten → Abbruch.
+**Sicherheit:** Jede Datei wird erst nach geprüftem Transfer ersetzt. Einzeldatei- und ZIP-Upload erhalten unterstützte ACLs/xattrs. Bei unbekannten Sicherheitsattributen bleibt das Original erhalten; unter neuem Namen hochladen und Rechte prüfen. ZIP ist pro Datei atomar, nicht für den gesamten Auftrag. Details: [Metadatenregeln](UPLOAD_METADATA_DE.md).
 
 ### 45.3 `Perms 755`
 
@@ -2067,6 +2067,8 @@ Nur mit klarer Identifikation des Snapshots und Rückfallplan.
 - Refresh Lists
 - **Migrations-Assistent** (rsync für Volume-/NAS-Umzug; auch im Tab NAS↔NAS)
 
+Vor dem Start bestätigen, dass ein **Datenarchiv** entsteht: kein Datenbank-Export, kein Dateisystem-Snapshot, keine gestoppten Anwendungen. Laufende Docker-Container mit schreibendem Mount auf die Quelle blockieren den Erfolg. Andere Schreiber erkennt die App nicht. Erfolg gibt es nur, wenn das Archiv den eigenen Restore-Prüfer besteht; Hardlinks werden als normale Dateiinhalte gespeichert. Details: [Backup-Restore-Vertrag](BACKUP_RESTORE_CONTRACT_DE.md) und [Betriebsgrenzen](NAS_ACCEPTANCE_DE.md).
+
 ### 35.1a Migrations-Assistent
 
 Szenarien: gleiche NAS (andere Volumes), Push auf andere NAS, Pull von anderer NAS, Vorlage Synology/QNAP. Erzeugt ein Bash-Skript mit `rsync -aHAX` (Dry-Run standardmäßig). Speichern unter `/volume1/scripts/ugreen_migration_rsync.sh`. Für interaktives Kopieren weiterhin **NAS ↔ NAS**.
@@ -2099,7 +2101,7 @@ Buttons:
 - Datei wählen
 - Wiederherstellen starten
 
-**Sicherheit (ab 23.8.69):** Archiv-Restore mit Ressourcengrenzen und Metadatenprüfung; Mitglieder atomar. Vorhandene **UGOS-ACLs/xattrs** am Ziel **stoppen** den Restore nicht — sie werden aber **nicht** aus dem Archiv wiederhergestellt (Inhalte/Rechte ohne vollständige ACL-Runde).
+**Sicherheit:** TAR-Restore benötigt einen **neuen, noch nicht vorhandenen Zielordner** unter einem bestehenden Verzeichnis. Erst die vollständig extrahierten Dateien werden unter diesem Namen sichtbar. Bestehende Daten werden nicht ersetzt. Der neue Ordner ist zunächst privat; vor der Übernahme Inhalte und Zugriffsrechte prüfen. ACLs/xattrs aus dem Archiv, Links und Spezialdateien werden nicht unterstützt. Details und Grenzen: [Isolierter Restore](ISOLATED_RESTORE_DE.md).
 
 ### 35.4 Scheduled Backup
 
@@ -2117,7 +2119,7 @@ Felder:
 - Cron-Felder
 - Zusatzoptionen
 
-**Sicherheit (ab 23.8.57 / ergänzt 23.8.69):** Beim Speichern auf die NAS werden Quellen/Mounts vorgeprüft und Cron-Zeilen **vor** Root-Schreiben validiert. State/Runner liegen unter **`/var/lib/ugreen-nas-admin/`**. **Backup-Generationen** werden privat und unter NAS-seitiger Sperre aktiviert (atomare Cron-Freigabe). Es gibt **keine** automatische Archivlöschung — Speicherplatz manuell verwalten.
+**Sicherheit (ab 23.8.57 / ergänzt 23.8.69):** Beim Speichern auf die NAS werden Quellen/Mounts vorgeprüft und Cron-Zeilen **vor** Root-Schreiben validiert. State/Runner liegen unter **`/var/lib/ugreen-nas-admin/`**. **Backup-Generationen** werden privat und unter NAS-seitiger Sperre aktiviert (atomare Cron-Freigabe). Es gibt **keine** automatische Archivlöschung — Speicherplatz manuell verwalten. Nichtleere Zeitpläne fragen vor dem Speichern dieselbe Archivgrenze ab wie ein manuelles Backup. Nach diesem Stand die Zeitpläne **einmal neu auf die NAS schreiben**. Erkannte Docker-Schreiber brechen den Lauf ab; Anwendungen werden nicht gestoppt.
 
 ---
 
@@ -2166,16 +2168,16 @@ Komplette Jobverwaltung mit Cronlogik.
 1. Backup-Tab oeffnen.
 2. Scope/Volume/User filtern.
 3. Zielmodus setzen (NAS/PC/USB/zweites NAS).
-4. Passenden Backupbutton waehlen.
-5. Lauf pruefen.
+4. Passenden Backupbutton waehlen und den Hinweis zum Datenarchiv bestaetigen.
+5. Lauf pruefen. Erfolg heisst: Archiv besteht die eigene Restore-Pruefung, und kein laufender Docker-Schreiber liegt auf der Quelle.
 6. Archivpfad dokumentieren.
 
 ### 61.2 Restore durchfuehren
 
 1. Source Mode setzen.
 2. Source Archive auswaehlen.
-3. Target Path festlegen.
-4. `Wiederherstellen starten` klicken.
+3. Target Path auf einen **neuen, noch nicht vorhandenen Ordner** unter einem bestehenden Verzeichnis setzen.
+4. `Wiederherstellen starten` klicken. Bestehende Daten werden nicht ersetzt. Der neue Ordner ist zunaechst privat.
 5. Ergebnispruefung:
    - existieren Dateien?
    - stimmen Rechte?

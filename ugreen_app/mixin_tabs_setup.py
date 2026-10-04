@@ -32,7 +32,7 @@ import nas_ssh
 import nas_utils
 from ugreen_app.root_runtime import BACKUP_STATE, ROOT_RUNTIME_DIR
 from ugreen_app.backup_generation import MARKER, active_state_path, generation_paths, transaction_code
-from ugreen_app.backup_commands import inline_backup_command
+from ugreen_app.backup_commands import bundle_backup_runner, inline_backup_command
 from ugreen_app.archive_commands import safe_extract_command
 from ugreen_app.scheduled_backup_cron import build_backup_cron_lines
 from ugreen_app.scroll_helpers import (
@@ -1739,7 +1739,7 @@ class MixinTabsSetup:
             insertbackground=self.color_input_fg,
         )
         self.entry_backup_restore_target.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=4)
-        self.entry_backup_restore_target.insert(0, "/volume1")
+        self.entry_backup_restore_target.insert(0, "/volume1/restore_recovered")
         self._register_danger_rounded(
             self.create_modern_btn(
                 rr,
@@ -2618,6 +2618,8 @@ class MixinTabsSetup:
     def _backup_run_async(self, *, title_key: str, tag: str, sources: list[str], exclude_globs: tuple[str, ...] = ()) -> None:
         if not self._danger_gate():
             return
+        if not messagebox.askyesno(self.t('backup.title'), self.t('backup.consistency_confirm')):
+            return
         src = self._backup_unique_ordered_paths(sources)
         if not src:
             self._backup_log(self.t("backup.no_source"), reset=True)
@@ -2767,7 +2769,7 @@ class MixinTabsSetup:
         for p in cand:
             try:
                 if p.is_file():
-                    return p.read_text(encoding="utf-8").rstrip() + "\n"
+                    return bundle_backup_runner(p.read_text(encoding="utf-8").rstrip() + "\n")
             except OSError:
                 continue
         return ""
@@ -3046,6 +3048,9 @@ class MixinTabsSetup:
 
     def scheduled_backup_sync_to_nas(self):
         if not self._danger_gate():
+            return
+        if getattr(self, 'scheduled_backup_jobs', []) and not messagebox.askyesno(
+                self.t('backup.title'), self.t('backup.consistency_schedule_confirm')):
             return
         self._backup_log(self.t("backup.sched.sync_start"))
         self._backup_log(self.t("backup.retention_notice"))
