@@ -1,0 +1,69 @@
+Subject: Multi-volume folder access — Transfer Hub / Wake & Sync / related apps (Volume 3)
+
+Dear UGREEN NAS Developer Platform Team,
+
+Some users reported that they could not access folders on **Volume 3** (and other storage pools beyond the first granted path) in our apps. We investigated and rebuilt the App Center folder grants so users can select folders on any volume.
+
+## What we changed
+
+Previously, some packages relied on a multi-select path parameter. That approach was unreliable in practice for additional volumes. We now use up to **three separate single-folder grants**:
+
+1. UGOS folder (required)
+2. Extra UGOS folder 2 (optional)
+3. Extra UGOS folder 3 (optional)
+
+Users may leave the optional fields empty. Folders may sit on Volume 1, Volume 2, Volume 3, or any other pool. After changing grants, the app should be restarted.
+
+We also fixed the first-password setup screen for Transfer Hub and Wake & Sync (New + Confirm always shown when setting the initial app password).
+
+Related updates in this iteration:
+- Stats Hub lists only real mounted volumes (no empty stubs)
+- Moving Files 0.2.0.0055: activation hang related to an extra-folder parameter removed; volume roots limited to real mountpoints
+- Backup Verifier / Lock & Key: multi-volume mount and discovery improvements
+
+## Packages (amd64 + arm64)
+
+GitHub Release:
+https://github.com/runlevel1977-del/Runlevel-UGOS-Apps/releases/tag/upk-2026-10-14-multivolume
+
+| App | Version |
+| --- | --- |
+| Transfer Hub | 0.6.39 |
+| Wake & Sync | 0.1.50 |
+| Backup Verifier | 0.3.26 |
+| Lock & Key | 0.1.34 |
+| Stats Hub | 0.2.57 |
+| Moving Files | 0.2.0.0055 |
+
+Direct downloads (amd64):
+- https://github.com/runlevel1977-del/Runlevel-UGOS-Apps/releases/download/upk-2026-10-14-multivolume/amd64_nasync_com.runlevel.transferhub_0.6.39.0001.upk
+- https://github.com/runlevel1977-del/Runlevel-UGOS-Apps/releases/download/upk-2026-10-14-multivolume/amd64_nasync_com.runlevel.wakesync_0.1.50.0001.upk
+- https://github.com/runlevel1977-del/Runlevel-UGOS-Apps/releases/download/upk-2026-10-14-multivolume/amd64_nasync_com.runlevel.backupverifier_0.3.26.0001.upk
+- https://github.com/runlevel1977-del/Runlevel-UGOS-Apps/releases/download/upk-2026-10-14-multivolume/amd64_nasync_com.runlevel.lockandkey_0.1.34.0001.upk
+- https://github.com/runlevel1977-del/Runlevel-UGOS-Apps/releases/download/upk-2026-10-14-multivolume/amd64_nasync_com.runlevel.statshub_0.2.57.0001.upk
+- https://github.com/runlevel1977-del/Runlevel-UGOS-Apps/releases/download/upk-2026-10-14-multivolume/amd64_nasync_com.runlevel.movingfiles_0.2.0.0055.upk
+
+Direct downloads (arm64):
+- https://github.com/runlevel1977-del/Runlevel-UGOS-Apps/releases/download/upk-2026-10-14-multivolume/arm64_nasync_com.runlevel.transferhub_0.6.39.0001.upk
+- https://github.com/runlevel1977-del/Runlevel-UGOS-Apps/releases/download/upk-2026-10-14-multivolume/arm64_nasync_com.runlevel.wakesync_0.1.50.0001.upk
+- https://github.com/runlevel1977-del/Runlevel-UGOS-Apps/releases/download/upk-2026-10-14-multivolume/arm64_nasync_com.runlevel.backupverifier_0.3.26.0001.upk
+- https://github.com/runlevel1977-del/Runlevel-UGOS-Apps/releases/download/upk-2026-10-14-multivolume/arm64_nasync_com.runlevel.lockandkey_0.1.34.0001.upk
+- https://github.com/runlevel1977-del/Runlevel-UGOS-Apps/releases/download/upk-2026-10-14-multivolume/arm64_nasync_com.runlevel.statshub_0.2.57.0001.upk
+- https://github.com/runlevel1977-del/Runlevel-UGOS-Apps/releases/download/upk-2026-10-14-multivolume/arm64_nasync_com.runlevel.movingfiles_0.2.0.0055.upk
+
+Please uninstall the previous package before installing the new UPK.
+
+Source repository:
+https://github.com/runlevel1977-del/Runlevel-UGOS-Apps
+
+Release notes:
+https://github.com/runlevel1977-del/Runlevel-UGOS-Apps/releases/tag/upk-2026-10-14-multivolume
+
+We kindly ask you to arrange listing / update for these packages so users with Volume 3 (and further pools) can grant the needed folders. If you need any additional evidence or a specific test case format, please let us know.
+
+Best regards,
+Ivica Kampic / Runlevel
+Leipziger Str. 33, 89537 Giengen, Deutschland
+runlevel1977@posteo.de
+WeChat: wxid_r58ona77xr2812
+https://github.com/runlevel1977-del/Runlevel-UGOS-Apps

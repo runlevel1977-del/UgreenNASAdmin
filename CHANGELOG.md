@@ -1,5 +1,37 @@
 # Changelog — Ugreen NAS Admin
 
+## UGOS-Apps — 2026-10-14
+
+Drei Ordner-Grants ohne `multi:true` (ugcli-Bug) plus Login-Setup-Fix.
+
+### Deutsch
+
+- **Transfer Hub 0.6.39 / Wake & Sync 0.1.50:** Bei Installation und in der App-Config gibt es bis zu **drei** Ordnerfelder: `UGOS-Ordner` (pflicht) sowie optional **Weiterer UGOS-Ordner 2/3** (beliebiges Volume). Leer lassen, wenn nicht nötig.
+- **Login-Setup:** Beim ersten Passwort immer **Neu** und **Bestätigen**; NAS-Admin-Felder nur wenn Installer-Bind nötig. JS-Nullfehler bei fehlendem Confirm-Feld behoben.
+
+### English
+
+- **Transfer Hub 0.6.39 / Wake & Sync 0.1.50:** Install and app config offer up to **three** folder fields: required UGOS folder plus optional Extra UGOS folder 2/3 (any volume). Leave empty if unused.
+- **Login setup:** First password always shows **New** and **Confirm**; NAS admin fields only when installer bind is required. Fixed JS null error when Confirm was missing.
+
+## UGOS-Apps — 2026-10-09
+
+Sicherheitsnachzug für die drei gelisteten Apps. Die Windows-App bleibt **23.8.70**. UPK-Build folgt separat.
+
+### Deutsch
+
+- **Transfer Hub 0.6.36:** Lokale Quell- und Zielpfade bleiben nach `resolve()` im gewählten Volume (`/mnt/ugos` bzw. USB). `..` und Symlinks, die den Mount verlassen, werden beim Speichern und beim Start abgelehnt.
+- **Security Hub 0.1.21:** Login-Track schreibt Ereignisfelder als Text ins Dashboard. Ein Anmeldename aus einem fehlgeschlagenen UGOS-Login wird nicht mehr als HTML ausgeführt.
+- **Wake & Sync 0.1.46:** Das erste App-Passwort setzt nur eine Anmeldung als UGOS-Administrator. Ein LAN-Client ohne dieses Konto erhält keine Sitzung.
+- **Store-Text:** App-Beschreibungen verweisen auf **Technischer Support** und `runlevel1977@posteo.de`.
+
+### English
+
+- **Transfer Hub 0.6.36:** Local source and destination paths stay inside the selected volume after `resolve()` (`/mnt/ugos` or USB). `..` and symlinks that leave the mount are rejected when saving and when starting a profile.
+- **Security Hub 0.1.21:** Login Track writes event fields into the dashboard as text. A username from a failed UGOS sign-in is no longer executed as HTML.
+- **Wake & Sync 0.1.46:** The first app password requires a UGOS administrator sign-in. A LAN client without that account does not get a session.
+- **Store text:** App descriptions point to **Technical Support** and `runlevel1977@posteo.de`.
+
 ## 23.8.70 — 2026-10-04
 
 Nacharbeit zu **23.8.69**, aus dem Integrationscommit `d80f843`. Installer: `UgreenNASAdmin_setup_23.8.70.exe`.

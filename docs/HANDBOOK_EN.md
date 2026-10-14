@@ -1268,6 +1268,10 @@ Error case:
 
 **Runlevel apps (Transfer Hub / Wake & Sync):** The folder picker shows local NAS paths including **Home** (`/home/…`, e.g. Photos) **without** an SMB share. Only system folders (`@…`) stay hidden. **Transfer Hub 0.6.28+:** multi-select source folders (check boxes → “Add checked”) — one transfer per folder; destination stays a single folder. After updating the UPK apps, restart/reinstall (Transfer Hub **0.6.28+**, Wake & Sync **0.1.32+**).
 
+**UGOS install/config (Transfer Hub 0.6.39+ / Wake & Sync 0.1.50+):** Choose up to **three** folders — required UGOS folder plus optional Extra UGOS folder 2 and 3 (other volumes allowed). Leave unused extras empty; restart the app after changes. First app password always asks for New + Confirm.
+
+**UGOS security update, October 2026:** Transfer Hub **0.6.36+** copies local folders only inside the selected volume (including after `..` or symlinks). Security Hub **0.1.21** shows sign-in names in Login Track as text, not HTML. Wake & Sync **0.1.46+** sets the first app password only after the UGOS administrator who installed the app signs in. Bug reports: **Technical Support** on the app page, or `runlevel1977@posteo.de`.
+
 ### 30.1 Creation/Catalog Group
 
 - Build Docker

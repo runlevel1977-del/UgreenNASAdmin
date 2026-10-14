@@ -26,8 +26,8 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 
 ### Unreleased / upcoming
 
-- **Transfer Hub / Wake & Sync (UGOS):** Folder picker includes **Home** (`/home/…/Photos`) without an SMB share; only `@…` system folders stay hidden. Transfer Hub **0.6.28** also supports **multi-select source folders** (one transfer per folder). Wake & Sync **0.1.32**.
-- **Deutsch:** Transfer Hub / Wake & Sync — Ordnerwahl inkl. Home/Photos und Mehrfach-Quellordner — siehe [`CHANGELOG.md`](CHANGELOG.md).
+- **Transfer Hub / Wake & Sync (UGOS):** Install/config offers up to **three** folder grants (required + optional 2/3, any volume). Folder picker includes **Home** (`/home/…/Photos`) without an SMB share; only `@…` system folders stay hidden. Transfer Hub **0.6.39** / Wake & Sync **0.1.50**. Security Hub **0.1.21** renders login names as text. Bug reports: Technical Support on the app page, or `runlevel1977@posteo.de`.
+- **Deutsch:** Transfer Hub **0.6.39** / Wake & Sync **0.1.50** — bis zu drei Ordner bei Installation/Config; Login-Setup mit Neu + Bestätigen. Security Hub 0.1.21 zeigt Anmeldenamen als Text. Details in [`CHANGELOG.md`](CHANGELOG.md).
 
 ### What's new in v23.8.70
 

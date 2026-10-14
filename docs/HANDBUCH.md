@@ -1268,6 +1268,10 @@ Fehlerfall:
 
 **Runlevel-Apps (Transfer Hub / Wake & Sync):** In der Ordnerwahl erscheinen lokale NAS-Pfade inkl. **Home** (`/home/…`, z. B. Photos) **ohne** SMB-Freigabe. Ausgeblendet bleiben nur Systemordner (`@…`). **Transfer Hub ab 0.6.28:** mehrere Quellordner per Häkchen wählen („Markierte übernehmen“) — pro Ordner ein eigener Transfer; Ziel bleibt ein Ordner. Nach Update der UPK-Apps neu starten/installieren (Transfer Hub **0.6.28+**, Wake & Sync **0.1.32+**).
 
+**UGOS Install/Config (Transfer Hub 0.6.39+ / Wake & Sync 0.1.50+):** Bis zu **drei** Ordner wählen — Pflichtfeld UGOS-Ordner plus optional Weiterer UGOS-Ordner 2 und 3 (andere Volumes möglich). Ungenutzte Extra-Felder leer lassen; danach App neu starten. Erstes App-Passwort: immer Neu + Bestätigen.
+
+**UGOS-Sicherheitsstand Oktober 2026:** Transfer Hub **0.6.36+** kopiert lokale Ordner nur innerhalb des gewählten Volumes (auch nach `..` oder Symlinks). Security Hub **0.1.21** zeigt Anmeldenamen im Login-Track als Text, nicht als HTML. Wake & Sync **0.1.46+** vergibt das erste App-Passwort erst nach Anmeldung mit dem UGOS-Administratorkonto, das die App installiert hat. Fehlermeldungen: in den App-Details **Technischer Support** oder `runlevel1977@posteo.de`.
+
 ### 30.1 Erstell-/Kataloggruppe
 
 - Docker erstellen
