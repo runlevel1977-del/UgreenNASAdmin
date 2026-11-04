@@ -86,8 +86,18 @@ class MixinProDrawer:
         text_box.insert("1.0", self.t("pro.drawer.body"))
         text_box.config(state=tk.DISABLED)
 
+        feature_row = tk.Frame(body, bg=self.color_surface)
+        feature_row.pack(fill=tk.X, pady=(18, 0))
+        create_rounded_button(
+            feature_row,
+            self.t("pro.drawer.btn_features"),
+            self._open_pro_features,
+            _PRO_ACCENT,
+            width_chars=22,
+        ).pack(side=tk.LEFT)
+
         btn_row = tk.Frame(body, bg=self.color_surface)
-        btn_row.pack(fill=tk.X, pady=(18, 0))
+        btn_row.pack(fill=tk.X, pady=(10, 0))
 
         btn_inner = tk.Frame(btn_row, bg=self.color_surface)
         btn_inner.pack(anchor=tk.W)
@@ -119,6 +129,16 @@ class MixinProDrawer:
             self.color_btn_secondary,
             width_chars=16,
         ).pack(side=tk.LEFT)
+
+    def _open_pro_features(self) -> None:
+        """Öffnet die englische Pro-Funktionsseite im Browser.
+
+        Die Datei ``pro_features.html`` liegt bei den übrigen Dokumenten
+        und wird mit dem installierten Programm mitgeliefert.
+        """
+        opener = getattr(self, "_open_local_doc", None)
+        if callable(opener):
+            opener("pro_features.html")
 
     def _open_pro_paypal(self) -> None:
         """Öffnet die PayPal-Spenden-Seite."""

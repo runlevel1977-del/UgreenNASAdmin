@@ -674,6 +674,7 @@ TRANSLATIONS_DE = _merge(
         "pro.drawer.btn_sponsors": "♥ GitHub Sponsors",
         "pro.drawer.btn_email": "✉ Lizenz anfragen (E-Mail)",
         "pro.drawer.btn_close": "Zurück",
+        "pro.drawer.btn_features": "Was Pro kann",
         "tab.pro": "Get Pro",
         "pro.drawer.email_subject": "Ugreen NAS Admin Pro — Freischaltung",
         "pro.drawer.email_body": (
@@ -2008,6 +2009,7 @@ TRANSLATIONS_EN = _merge(
         "pro.drawer.btn_sponsors": "♥ GitHub Sponsors",
         "pro.drawer.btn_email": "✉ Request license (email)",
         "pro.drawer.btn_close": "Back",
+        "pro.drawer.btn_features": "What Pro can do",
         "tab.pro": "Get Pro",
         "pro.drawer.email_subject": "Ugreen NAS Admin Pro — activation",
         "pro.drawer.email_body": (

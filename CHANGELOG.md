@@ -1,5 +1,87 @@
 # Changelog — Ugreen NAS Admin
 
+## 23.8.71 — 2026-11-04
+
+Installer: `UgreenNASAdmin_setup_23.8.71.exe`.
+
+### Deutsch
+
+- **Get Pro:** Der Button **Was Pro kann** öffnet im Browser die englische Seite `docs/pro_features.html` mit dem kompletten Funktionsumfang von Ugreen NAS Admin Pro.
+
+### English
+
+- **Get Pro:** **What Pro can do** opens the English page `docs/pro_features.html` in the browser, listing everything Ugreen NAS Admin Pro can do.
+
+## UGOS-Apps — 2026-11-04
+
+### Deutsch
+
+- **Moving Files 0.2.0.0057:** Der Dienstport ist 29140. Port 21010 ist der Beispielport in der UGREEN-Doku und wurde bei der Prüfung als Konflikt abgelehnt.
+
+### English
+
+- **Moving Files 0.2.0.0057:** The service port is 29140. Port 21010 is the sample port in the UGREEN docs and was rejected as a conflict.
+
+## UGOS-Apps — 2026-11-03
+
+### Deutsch
+
+- **Moving Files 0.2.0.0056:** IP, MAC, SMB-Benutzer, Passwort, Archivpasswort und Geräte-ID gehen nur noch als RSA-OAEP-Chiffretext über den NAS-HTTP-Proxy; Klartext wird abgelehnt. Die Datenschutzerklärung nennt Zweck, Weg und Umfang inklusive NAS-LAN-Adresse, Rechtsgrundlage, Verantwortlichen, keine Weitergabe, Minderjährige, Rechte und das Datum 3. November 2026. Wake & Sync liest einen Home-Unterordner auch dann, wenn der UGOS-Shared-Mount leer oder nicht vorhanden ist und derselbe Ordner unter `/home` oder `/volumeN/@home` liegt.
+
+### English
+
+- **Moving Files 0.2.0.0056:** IP, MAC, SMB username, password, archive password and device ID are sent only as RSA-OAEP ciphertext on the NAS HTTP proxy; plaintext is rejected. The privacy policy states purpose, method and scope, including the NAS LAN address, legal basis, controller, no sale, minors, rights, and the 3 November 2026 date. Wake & Sync reads a home subfolder when the UGOS shared mount is empty or missing and the same folder exists under `/home` or `/volumeN/@home`.
+
+## Ugreen NAS Admin Pro — 2026-11-03
+
+### Deutsch
+
+- **Lizenzfenster:** Das erste Fenster ohne gültige Lizenz (Hinweis, Fingerprint-Text und die Buttons E-Mail/Telegram) ist immer Englisch, auch wenn der Installer auf Deutsch lief.
+
+### English
+
+- **License window:** The first window without a valid license (notice, fingerprint text, and the e-mail/Telegram buttons) is always English, even when the installer language was German.
+
+## UGOS-Apps — 2026-10-27
+
+### Deutsch
+
+- **Transporter 0.2.0.0020:** Unter Wichtiges wird der Zielordner im Baum angeklickt. Die Lüfterkurve bleibt nach einem Neustart aktiv; Haken weg und speichern gibt die Steuerung an UGOS zurück. Ein Testfeld setzt einen Prozentwert und zeigt die gemessene Drehzahl.
+
+### English
+
+- **Transporter 0.2.0.0020:** On Important, the destination folder is chosen in the tree. The fan curve stays on after a reboot; clearing the checkbox and saving hands control back to UGOS. A test field sets a percentage and shows the measured speed.
+
+## UGOS-Apps — 2026-10-27
+
+### Deutsch
+
+- **Transporter 0.2.0.0018:** Neuer Tab **Wichtiges**. Lüfterkurve in 1-%-Schritten für CPU, heißeste Festplatte oder beides (der höhere Wert gilt). Darunter eine manuelle Sicherung von Skripten, Home, Docker-Projekten und den Transporter-Einstellungen auf ein gespeichertes NAS oder einen PC. Kein Zeitplan.
+
+### English
+
+- **Transporter 0.2.0.0018:** New **Important** tab. Fan curve in 1% steps for CPU, the hottest disk, or both (the higher duty wins). Below that, a manual copy of scripts, home, Docker projects and the Transporter settings to a saved NAS or PC. No schedule.
+
+## UGOS-Apps — 2026-10-26
+
+### Deutsch
+
+- **Transfer Hub 0.6.40:** Lokale Quell- und Zielpfade werden beim Speichern eines Profils und direkt vor jedem Lauf geprüft. Jede aufgeklappte Route (auch der Zielpfad, der in `rsync` landet) muss nach Symlink-Auflösung im gewählten Volume bleiben (`/mnt/ugos` bzw. USB). Pfade außerhalb, inklusive `..` und Symlink-Ausbruch, werden abgelehnt.
+
+### English
+
+- **Transfer Hub 0.6.40:** Local source and destination paths are checked when a profile is saved and again immediately before every run. Each expanded route, including the destination path passed to `rsync`, must stay inside the selected volume after symlink resolution (`/mnt/ugos` or USB). Paths outside that root, including `..` and symlink escapes, are rejected.
+
+## UGOS-Apps — 2026-10-20
+
+### Deutsch
+
+- **Security Hub 0.1.22:** Beim ersten Start gibt es die Felder **Neu** und **Bestätigen**. Das einzelne Feld aus 0.1.21, das mit `Cannot read properties of null (reading 'value')` abbrach, ist entfernt. NAS-Admin-Felder erscheinen nur, wenn die App eine Installer-Bindung verlangt.
+
+### English
+
+- **Security Hub 0.1.22:** First launch shows **New** and **Confirm**. The single field from 0.1.21, which failed with `Cannot read properties of null (reading 'value')`, is gone. NAS administrator fields appear only when the app requires installer bind.
+
 ## UGOS-Apps — 2026-10-14
 
 Drei Ordner-Grants ohne `multi:true` (ugcli-Bug) plus Login-Setup-Fix.

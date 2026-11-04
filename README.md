@@ -26,8 +26,14 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 
 ### Unreleased / upcoming
 
-- **Transfer Hub / Wake & Sync (UGOS):** Install/config offers up to **three** folder grants (required + optional 2/3, any volume). Folder picker includes **Home** (`/home/…/Photos`) without an SMB share; only `@…` system folders stay hidden. Transfer Hub **0.6.39** / Wake & Sync **0.1.50**. Security Hub **0.1.21** renders login names as text. Bug reports: Technical Support on the app page, or `runlevel1977@posteo.de`.
-- **Deutsch:** Transfer Hub **0.6.39** / Wake & Sync **0.1.50** — bis zu drei Ordner bei Installation/Config; Login-Setup mit Neu + Bestätigen. Security Hub 0.1.21 zeigt Anmeldenamen als Text. Details in [`CHANGELOG.md`](CHANGELOG.md).
+- **Transfer Hub / Wake & Sync (UGOS):** Install/config offers up to **three** folder grants (required + optional 2/3, any volume). Folder picker includes **Home** (`/home/…/Photos`) without an SMB share; only `@…` system folders stay hidden. Transfer Hub **0.6.40** keeps every local route inside the selected volume when a profile is saved and again before `rsync` (symlink escapes rejected). Wake & Sync **0.1.50**. Security Hub **0.1.22** shows New and Confirm on first launch and renders login names as text. Bug reports: Technical Support on the app page, or `runlevel1977@posteo.de`.
+- **Deutsch:** Transfer Hub **0.6.40** hält jede lokale Route beim Speichern und vor `rsync` im gewählten Volume (auch nach Symlinks). Wake & Sync **0.1.50** — bis zu drei Ordner bei Installation/Config; Login-Setup mit Neu + Bestätigen. Security Hub **0.1.22** zeigt beim ersten Passwort Neu und Bestätigen, Anmeldenamen als Text. Details in [`CHANGELOG.md`](CHANGELOG.md).
+
+### What's new in v23.8.71
+
+- **Get Pro:** **What Pro can do** opens an English browser page that lists everything Ugreen NAS Admin Pro can do. The five-step supporter guide stays in the app. Details in [`CHANGELOG.md`](CHANGELOG.md).
+- **Deutsch:** **Was Pro kann** öffnet die englische Funktionsseite im Browser. Die fünf Schritte zum Freischalten bleiben im Tab.
+- **Installer:** `UgreenNASAdmin_setup_23.8.71.exe` under [Releases](https://github.com/runlevel1977-del/UgreenNASAdmin/releases).
 
 ### What's new in v23.8.70
 
@@ -51,8 +57,8 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 - **Window / laptop:** Startup size and position fit the visible work area; saved geometry prevents gradual drift off-screen on restart.
 
 
-- **Sidebar — Get Pro:** Five-step supporter flow — donate (PayPal or GitHub Sponsors) → Pro by email → install & fill fields → activation request → import license; request to `ugna@posteo.de`. Pro **Problems & errors** scan is stricter (real issues only). Pro **Storage** tab: **Backup now** after Analyze saves selected volumes as `.tar.gz` to the download folder.
-- **Deutsch (kurz):** Get Pro — 5 Schritte: Spende (PayPal / GitHub Sponsors) → Pro per Mail → installieren → Anfrage → Lizenz — Details in [`CHANGELOG.md`](CHANGELOG.md). Pro-Probleme-Scan ohne Rauschen; Speicher-Tab **„Backup jetzt“** vor dem Löschen.
+- **Sidebar — Get Pro:** Five-step supporter flow — donate (PayPal or GitHub Sponsors) → Pro by email → install & fill fields → activation request → import license; request to `ugna@posteo.de`. **What Pro can do** opens [`docs/pro_features.html`](docs/pro_features.html) in the browser (English, full capability list). The Pro window without a valid license is always English. Pro **Problems & errors** scan is stricter (real issues only). Pro **Storage** tab: **Backup now** after Analyze saves selected volumes as `.tar.gz` to the download folder.
+- **Deutsch (kurz):** Get Pro — 5 Schritte: Spende (PayPal / GitHub Sponsors) → Pro per Mail → installieren → Anfrage → Lizenz. **Was Pro kann** öffnet die englische Funktionsseite im Browser — Details in [`CHANGELOG.md`](CHANGELOG.md). Das Pro-Fenster ohne gültige Lizenz ist immer Englisch. Pro-Probleme-Scan ohne Rauschen; Speicher-Tab **„Backup jetzt“** vor dem Löschen.
 - **Support:** [GitHub Sponsors](https://github.com/sponsors/runlevel1977-del) · [PayPal](https://paypal.me/UgADMINapp)
 
 ### What's new in v23.8.34
@@ -121,7 +127,7 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 - **Settings SSH workflow:** create SSH key pair and install public key to UGREEN or second NAS/QNAP directly from the app. **TOFU host keys** (`ssh_known_hosts.json`) — first connect trusts the key; later changes are rejected (Settings → **Forget SSH host key**).
 - **Health improvements:** Scheduler inventory and expanded UGOS/service visibility.
 - **Updated screenshots:** `images/` now reflects the newest app state (latest captures provided by the maintainer).
-- **Version** **23.8.70** — see full details in [`CHANGELOG.md`](CHANGELOG.md).
+- **Version** **23.8.71** — see full details in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Repository layout
 

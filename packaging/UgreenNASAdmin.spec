@@ -15,6 +15,7 @@ MANUAL_DE_PDF = os.path.join(PROJECT, "docs", "HANDBUCH.pdf")
 MANUAL_EN_PDF = os.path.join(PROJECT, "docs", "HANDBOOK_EN.pdf")
 MANUAL_DE_MD = os.path.join(PROJECT, "docs", "HANDBUCH.md")
 MANUAL_EN_MD = os.path.join(PROJECT, "docs", "HANDBOOK_EN.md")
+PRO_FEATURES = os.path.join(PROJECT, "docs", "pro_features.html")
 HANDBOOK_PAGE_INDEX = os.path.join(PROJECT, "docs", "handbook_page_index.json")
 
 _DATAS = [
@@ -41,6 +42,8 @@ if os.path.isfile(MANUAL_EN_MD):
     _DATAS.append((MANUAL_EN_MD, "."))
 if os.path.isfile(HANDBOOK_PAGE_INDEX):
     _DATAS.append((HANDBOOK_PAGE_INDEX, "."))
+if os.path.isfile(PRO_FEATURES):
+    _DATAS.append((PRO_FEATURES, "docs"))
 
 a = Analysis(
     [MAIN],

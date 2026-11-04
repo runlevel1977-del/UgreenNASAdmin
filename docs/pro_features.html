@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What Ugreen NAS Admin Pro can do</title>
+<style>
+  :root {
+    color-scheme: light;
+    --ink: #1c1917;
+    --muted: #57534e;
+    --line: #e7e5e4;
+    --bg: #fafaf9;
+    --card: #ffffff;
+    --accent: #d97706;
+    --accent-soft: #fff7ed;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 17px/1.55 "Segoe UI", system-ui, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+  }
+  header {
+    background: var(--accent);
+    color: #fff;
+    padding: 36px 24px 28px;
+  }
+  header h1 { margin: 0 0 8px; font-size: 1.8rem; }
+  header p { margin: 0; max-width: 46rem; color: #fff7ed; }
+  main { max-width: 52rem; margin: 0 auto; padding: 28px 20px 64px; }
+  nav {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin-bottom: 28px;
+  }
+  nav strong { display: block; margin-bottom: 8px; }
+  nav a { color: #9a3412; margin-right: 12px; white-space: nowrap; }
+  section {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 18px 20px 8px;
+    margin-bottom: 16px;
+  }
+  h2 { margin: 0 0 8px; font-size: 1.25rem; }
+  h3 { margin: 16px 0 6px; font-size: 1.05rem; }
+  p { margin: 0 0 12px; }
+  ul { margin: 0 0 14px; padding-left: 1.2rem; }
+  li { margin: 0 0 6px; }
+  .note {
+    background: var(--accent-soft);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin: 0 0 18px;
+  }
+  footer { color: var(--muted); font-size: 0.9rem; margin-top: 8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>What Ugreen NAS Admin Pro can do</h1>
+  <p>Pro is a separate app for diagnosis and technician work on a UGREEN NAS. The free app stays the everyday tool. Pro is for supporters after a donation, and for selected testers.</p>
+</header>
+<main>
+  <p class="note">Everything below is in the Pro app after a license is imported. Lab and App development are visible only on a tester license.</p>
+  <nav>
+    <strong>On this page</strong>
+    <a href="#problems">Problems</a>
+    <a href="#logs">Logs</a>
+    <a href="#live">Live tail</a>
+    <a href="#console">Console</a>
+    <a href="#dumps">Dumps</a>
+    <a href="#storage">Storage</a>
+    <a href="#overview">Overview</a>
+    <a href="#watcher">Watcher</a>
+    <a href="#technician">Technician</a>
+    <a href="#settings">Settings</a>
+    <a href="#testers">Testers</a>
+  </nav>
+
+  <section id="problems">
+    <h2>Problems &amp; errors</h2>
+    <p>One scan of the NAS, the UGOS App Center, and the Pro app on the PC. The scan reports real issues only: no UGOS or Docker noise, SMART only on FAIL or critical counters, and script logs only when they are recent. During boot, “services not started” can appear briefly; a second scan a few minutes later clears that.</p>
+    <ul>
+      <li>Scan history marks what is new, resolved, or unchanged since the last scan.</li>
+      <li>Compare any two saved scans (older against newer).</li>
+      <li>Export a support report, or save the current view.</li>
+      <li>The UGOS API port (usually 9443) is set in Settings. If API results stay empty, that port is the first place to check.</li>
+    </ul>
+  </section>
+
+  <section id="logs">
+    <h2>Logs</h2>
+    <p>Load log sources from the active NAS by category, then refresh:</p>
+    <ul>
+      <li>All</li>
+      <li>Transfers</li>
+      <li>Docker</li>
+      <li>System</li>
+      <li>Scripts / cron</li>
+      <li>Installations / apps</li>
+      <li>Problems &amp; errors</li>
+    </ul>
+  </section>
+
+  <section id="live">
+    <h2>Live tail</h2>
+    <p>Follow a log on the NAS in real time (<code>tail -f</code>). Start, stop, clear, and save. Built-in sources:</p>
+    <ul>
+      <li><code>backup_log.txt</code></li>
+      <li>UGOS <code>log_serv.slog</code>, <code>docker_serv.slog</code>, <code>storage_serv.slog</code>, <code>entry_serv.slog</code></li>
+      <li><code>auth.log</code></li>
+      <li>syslog / messages</li>
+    </ul>
+    <p><strong>.slog list</strong> reads the UGOS service logs on the NAS and adds them as extra tail sources.</p>
+  </section>
+
+  <section id="console">
+    <h2>Console</h2>
+    <p>An interactive SSH shell to the active NAS profile, without an external terminal. Connect, disconnect, clear the view, and send Ctrl+C. Commands are typed in the app; output stays in the same window. For a sudo password prompt, the NAS password is sent from the command line.</p>
+  </section>
+
+  <section id="dumps">
+    <h2>Dumps &amp; support package</h2>
+    <p>Run one diagnostic preset, or build an incident bundle: a ZIP for a forum post or a support thread. The bundle can include a fresh problem scan, an HTML support report, scan history, the Pro session, and the standard dumps. Host, IP, and user can be anonymized.</p>
+    <p>Presets:</p>
+    <ul>
+      <li><strong>Storage &amp; RAID</strong> — df, lsblk, mdstat, fstab, short SMART overview</li>
+      <li><strong>Temperatures &amp; fans</strong> — sensors, thermal, it86/hwmon, disk temperatures</li>
+      <li><strong>Docker</strong> — info, containers, logs, networks, compose paths, docker_serv.slog</li>
+      <li><strong>Network</strong> — interfaces, routing, DNS, ports, gateway, networking.log</li>
+      <li><strong>SMB/NFS shares</strong> — testparm, smb.conf, exports</li>
+      <li><strong>UGOS &amp; App Center</strong> — OS, packages, package logs, log_serv</li>
+      <li><strong>UGOS service logs</strong> — tail of <code>/var/ugreen/log/*.slog</code></li>
+      <li><strong>UGOS services</strong> — systemd <code>*_serv</code>, failed units, service status</li>
+      <li><strong>Scripts &amp; cron</strong> — <code>/volume1/scripts</code>, papa_jobs, backup_log, <code>*.log</code></li>
+      <li><strong>Login &amp; SSH</strong> — auth.log, ssh journal, last/lastlog, login lines from ctl/log_serv</li>
+      <li><strong>System support</strong> — support snapshot: syslog, journal, core UGOS logs</li>
+      <li><strong>Full (support)</strong> — every preset above, with size limits</li>
+      <li><strong>Full (tester, unfiltered)</strong> — tester license only: every preset without size limits, including full logs, journal, and SMART</li>
+    </ul>
+    <p>Logs and dumps always use the active NAS. The download folder is shared by all profiles.</p>
+  </section>
+
+  <section id="storage">
+    <h2>Storage</h2>
+    <p>Find pools and volumes through the UGOS API, then back them up, restore them, or erase selected user data. The UGOS system stays. System disks are not touched. SSH admin rights and API port 9443 are required.</p>
+    <ol>
+      <li><strong>Analyze</strong> detects every pool and volume.</li>
+      <li>Select a whole pool or individual volumes. <strong>Home</strong> (<code>/home</code>, including Photos) can be included for backup and restore only.</li>
+      <li><strong>Backup now</strong> streams user data to a <code>.tar.gz</code> in the download folder. <code>@…</code> system folders and the recycle bin are left out. Hard links are stored as normal files. The job is finished only after the local archive passes a restore check. A warning is kept when a single file cannot be read. Size, speed, and ETA are shown; the transfer can be cancelled.</li>
+      <li><strong>Restore</strong> after a disk swap goes to exactly one selected volume, or to Home. Incomplete archives, <code>..</code>, absolute paths, and device or FIFO entries are rejected.</li>
+      <li>A pre-wipe checklist runs before erase: SSH/API, system disks, RAID and Docker hints, plus two manual confirmations.</li>
+      <li><strong>Delete selected</strong> asks more than once. Verification afterwards checks that the target is gone, RAID is stopped where expected, and the system disk is unchanged.</li>
+    </ol>
+  </section>
+
+  <section id="overview">
+    <h2>NAS overview</h2>
+    <p>Compare every saved profile in one list: SSH, the last scan, and live hints (volume at or above 90%, RAID). The most critical NAS sorts to the top. Double-click or <strong>Set as active</strong> switches the profile and can open Problems for that NAS. With two or more profiles, the sidebar shows a short status.</p>
+    <p><strong>Test connection</strong> in the sidebar checks the active profile.</p>
+  </section>
+
+  <section id="watcher">
+    <h2>Watcher</h2>
+    <p>A scheduled health check. It alerts on new scan problems, an SSH outage, or volume/RAID hints.</p>
+    <ul>
+      <li>Turn the automatic check on or off.</li>
+      <li>Interval: 1, 6, 12, 24, 48, or 168 hours.</li>
+      <li>One profile, or all NAS profiles.</li>
+      <li>Optional popup when there is something to report.</li>
+      <li><strong>Check now</strong> runs it immediately. The last run shows the time and whether it was clean.</li>
+    </ul>
+  </section>
+
+  <section id="technician">
+    <h2>Technician</h2>
+    <p>Power-user tools. Each sub-tab keeps the full output.</p>
+    <h3>API</h3>
+    <p>Call the undocumented UGOS REST API. Read-only use is the safe default. Docker and apps are better handled from the console. Presets:</p>
+    <ul>
+      <li>Storage — disk list, pool list, volume list</li>
+      <li>Network — interfaces (two variants)</li>
+      <li>System — machine info, CPU/RAM/network, temperature/fans</li>
+      <li>Desktop — SystemStatus, DeviceMonitoring</li>
+      <li>Users — list, groups</li>
+      <li>Hardware — UPS live data, UPS USB info</li>
+      <li>Camera — devices, cameras</li>
+      <li>Docker — container list, and POST to start, stop, or restart a container</li>
+    </ul>
+    <p>Method (GET or POST), path, and a JSON body can be edited. The response is shown in full.</p>
+    <h3>Benchmark</h3>
+    <p>Load the volumes, then run a short <code>dd</code> test (32–512 MiB). The temporary file is deleted afterwards.</p>
+    <h3>Config</h3>
+    <p>A fingerprint of cron, sysconfig, compose files, and service status. Save a snapshot and compare it with the last one later.</p>
+    <h3>Quarantine</h3>
+    <p>Isolate a service (stop and disable): core services, UGOS <code>*_serv</code>, failed units, and app packages. Protected and left alone: ssh, nginx, gateway, storage. Restore one entry, or restore all.</p>
+    <h3>Recovery</h3>
+    <p>Emergency diagnosis over SSH and the UGOS API. Actions are offered only when a check actually fails. Scenarios:</p>
+    <ul>
+      <li><strong>Full emergency overview</strong> — SSH, UGOS API, web ports, core services, RAID, disk usage, Docker, failed units</li>
+      <li><strong>UGOS web/app unreachable</strong> — ports 443/9443, nginx/gateway/filemgr, API login</li>
+      <li><strong>SSH connection</strong> — reachability, ssh.service, port 22</li>
+      <li><strong>RAID / storage degraded</strong> — mdadm, storage_serv, volume mounts</li>
+      <li><strong>Volume almost full</strong> — usage under <code>/volume*</code> (warning at 90%, critical at 95%)</li>
+      <li><strong>Docker will not start</strong> — docker.service, docker_serv, docker info</li>
+    </ul>
+    <p>The two repair actions, each with sudo and only after a real finding: restart Docker (docker.service and docker_serv), or restart UGOS web services (nginx and the central UGOS services, unmask/enable/restart, no port kill).</p>
+    <h3>Wake-on-LAN</h3>
+    <p>Read the NAS MAC over SSH, then send a magic packet. Optionally wait until SSH (the port from Settings) answers. WoL has to be enabled in the BIOS or UGOS and on the switch.</p>
+  </section>
+
+  <section id="settings">
+    <h2>Settings, connection, and updates</h2>
+    <ul>
+      <li>Several NAS profiles, switched from a dropdown. One shared download folder.</li>
+      <li><strong>Import from main app</strong> copies connection data from Ugreen NAS Admin.</li>
+      <li>UGOS API port and HTTPS. UGREEN default is 9443. Storage, Technician, Lab, and the dashboard use this port.</li>
+      <li>SSH remembers the first host key and stops if the key changes. UGOS HTTPS remembers the certificate after the fingerprint is confirmed. Both can be forgotten in Settings.</li>
+      <li>The NAS password and the Telegram token for developer reports stay in the Windows vault when it is available. The settings file does not keep those secrets.</li>
+      <li><strong>Check for updates</strong> looks only at the Pro GitHub release channel. The download is checked for size and redirects. The installer starts only after signed release metadata. A valid license is required.</li>
+      <li>The license file is <code>pro_entitlement.json</code>, bound to this PC’s fingerprint. A new PC needs a new request.</li>
+    </ul>
+  </section>
+
+  <section id="testers">
+    <h2>Testers only</h2>
+    <p>A supporter license does not show these two areas.</p>
+    <h3>App development</h3>
+    <p>Sits above Problems. Three tabs:</p>
+    <ul>
+      <li><strong>Apps to test</strong> — catalog from the private GitHub repo (the same source as Pro updates). Download a test app and install the UPK yourself in the UGOS App Center. Open the download folder. A badge appears when a new test app is published.</li>
+      <li><strong>Report</strong> — pick the app, write what happened, attach screenshots. The report goes to the developer by email or Telegram.</li>
+      <li><strong>Suggestions</strong> — the same path, for ideas rather than a bug in one app.</li>
+    </ul>
+    <h3>Lab</h3>
+    <p>Tester tools, each with full output that can be copied into a report.</p>
+    <ul>
+      <li><strong>Diagnose</strong> — a quick check (problem scan plus a short SSH block), or a preset: disk (<code>df -hT</code>), RAID/mdstat, memory, uptime and load, dmesg, Docker process list, UGOS log_serv tail, network, auth.log. A custom SSH command is there only when the developer has specified it.</li>
+      <li><strong>Debug</strong> — app version, PC fingerprint, license ok/tier, UGOS API port, active profile, SSH state, last SSH error, and the recent session events.</li>
+      <li><strong>API sweep</strong> — probes the known UGOS endpoints, keeps a history, and diffs two sweeps (added, removed, status-code changes).</li>
+      <li><strong>Dashboard</strong> — the same UGOS API data the web UI uses (sysinfo, task manager, SystemStatus), to see why the main app’s dashboard might be empty.</li>
+      <li><strong>Camera / RTSP</strong> — camera and device lists from the UGOS API, then ping and ffprobe of an IP or <code>rtsp://</code> URL from the NAS. RTSP passwords with special characters are normalized.</li>
+      <li><strong>SMB / Win32</strong> — explains Windows error 1219 (an SMB credential clash on the PC, not on the NAS) and shows <code>net use</code>.</li>
+      <li><strong>Slog grep</strong> — regex search across <code>/var/ugreen/log/*.slog</code> over SSH, with a line cap.</li>
+      <li><strong>Checklists</strong> — guided scenarios from the runbook: app cannot connect / SSH failed, storage full / RAID / volume, Docker container will not start, camera / RTSP, NAS slow / high load, backup or transfer stuck. Output can be copied into the report. Support codes in the runbook cover installed UGOS packages and a SMART quick check.</li>
+      <li><strong>Snapshot</strong> — save diagnose, API sweep, and dashboard together, then compare with an older snapshot (for example after a firmware update).</li>
+      <li><strong>Runbook</strong> — extra commands, checklists, and support codes. A built-in default ships with the app; a JSON file or a URL can replace it.</li>
+      <li><strong>To the developer</strong> — bundle notes and files (dumps, ZIP, text), optionally the current problem scan, optionally anonymized. Email goes to ugna@posteo.de. Telegram opens the developer chat, or sends directly when the bot is configured. <strong>Full report</strong> packs the lab output into one package.</li>
+    </ul>
+  </section>
+
+  <footer>Ugreen NAS Admin Pro is a separate app. This page describes what it can do. It does not replace the activation steps in Get Pro.</footer>
+</main>
+</body>
+</html>
