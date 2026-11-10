@@ -8,7 +8,8 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 
 | What you need | Where to go |
 |---------------|-------------|
-| **The packaged app (`.exe` / forum ZIPs uploaded to a release)** | **[Releases → Latest](https://github.com/runlevel1977-del/UgreenNASAdmin/releases/latest)** → under **Assets**, pick e.g. `UgreenNASAdmin_v*_…_mit_EXE.zip` (or the no-EXE pack). |
+| **The packaged Windows app (`.exe`)** | **[Releases → Latest](https://github.com/runlevel1977-del/UgreenNASAdmin/releases/latest)** → `UgreenNASAdmin_setup_*.exe`. |
+| **macOS app** | **[UgreenNASAdmin-mac](https://github.com/runlevel1977-del/UgreenNASAdmin-mac)** — the Mac installer `UgreenNASAdmin_setup_*.pkg` is under that repository’s **Releases → Latest**. |
 | **SourceForge (mirror / direct file)** | https://sourceforge.net/projects/ugreennasadmin/files/latest/download |
 | **Raw source code** of the default branch (for developers) | **Code** → **Download ZIP** on the repo home page. |
 
@@ -16,9 +17,9 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 
 **What that ZIP is / isn’t:** it is **source code** for developers. It is **not** the same as **Release** assets, and it **does not** contain a **release-built EXE** (build that yourself with `python packaging/builder.py` or download from **Releases**). The app version in `ugreen_app/nas_manager.py` (`__version__`) in that zip matches whatever is **pushed to `main`**; if in doubt, open that file in the unzipped tree. For end users, **always** link to **Releases / Assets** (or SourceForge), not the green button.
 
-**Deutsch (kurz):** Wer die **fertige EXE/Release-ZIPs** will: **Releases → Assets** (oder SourceForge) — **nicht** der grüne **Code → Download ZIP**. Dieser liefert **nur Quellcode** des Standard-Branches; eine **Umlenkung** dieses Buttons gibt es bei GitHub **nicht** (kein Repo-Fix). Die **Zahl** in `nas_manager.py` im ZIP-Snapshot entspricht dem letzten **Push** auf `main` (siehe Datei im entpackten Ordner, falls unsicher).
+**Deutsch (kurz):** Wer die **fertige EXE** will: **Releases → Latest** (oder SourceForge) — **nicht** der grüne **Code → Download ZIP**. Dieser liefert **nur Quellcode** des Standard-Branches. Die **Mac-Version** liegt im eigenen Repository [UgreenNASAdmin-mac](https://github.com/runlevel1977-del/UgreenNASAdmin-mac).
 
-**Links (immer aktuell):** [GitHub **Latest release**](https://github.com/runlevel1977-del/UgreenNASAdmin/releases/latest) · SourceForge „latest“ (oben) · [All releases](https://github.com/runlevel1977-del/UgreenNASAdmin/releases)
+**Links (immer aktuell):** [GitHub **Latest release**](https://github.com/runlevel1977-del/UgreenNASAdmin/releases/latest) · [macOS](https://github.com/runlevel1977-del/UgreenNASAdmin-mac) · SourceForge „latest“ (oben) · [All releases](https://github.com/runlevel1977-del/UgreenNASAdmin/releases)
 
 **Portable (One-Dir):** Settings and connection JSON files live beside `UgreenNASAdmin.exe` inside the `UgreenNASAdmin/` folder. After upgrading from an older one-file EXE, the app migrates existing config from the parent folder or `%LOCALAPPDATA%\UgreenNASAdmin\` on first start. **Window geometry** (size/position, taskbar-aware) is stored in `app_settings.json` → `window` (v23.8.42+).
 
