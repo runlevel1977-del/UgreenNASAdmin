@@ -14,7 +14,7 @@ _PRO_ACCENT = "#d97706"
 _PRO_LICENSE_EMAIL = "ugna@posteo.de"
 _PRO_PAYPAL_URL = "https://paypal.me/UgADMINapp"
 _PRO_SPONSORS_URL = "https://github.com/sponsors/runlevel1977-del"
-PRO_TAB_INDEX = 15
+PRO_TAB_INDEX = 16
 
 
 class MixinProDrawer:

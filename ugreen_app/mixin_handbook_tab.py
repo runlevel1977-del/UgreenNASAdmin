@@ -25,6 +25,7 @@ _NOTEBOOK_TAB_KEYS: tuple[str, ...] = (
     "snapshots",
     "backup",
     "settings",
+    "wishes",
 )
 
 

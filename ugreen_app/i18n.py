@@ -87,6 +87,7 @@ from ugreen_app.i18n_backup_locales import BACKUP_TRANSLATIONS_SUPPLEMENT
 from ugreen_app.i18n_supplement_devices_telegram import SUPPLEMENT_DEVICES_TELEGRAM
 from ugreen_app.i18n_supplement_login_track import LOGIN_TRACK_SUPPLEMENT
 from ugreen_app.i18n_supplement_nas_admin import NAS_ADMIN_SUPPLEMENT
+from ugreen_app.i18n_wishes import WISHES_DE, WISHES_EN
 
 # --- Übersetzungen (Schlüssel = stabil, Werte = UI-Text) ---
 TRANSLATIONS_DE = _merge(
@@ -10034,8 +10035,8 @@ TRANSLATIONS_ZH = {'acl.chmod755': '🛡️ chmod 755',
  'weekday.fallback': '天 {wd}'}
 
 TRANSLATIONS = {
-    "de": _merge(TRANSLATIONS_DE, _MSG_DE),
-    "en": _merge(TRANSLATIONS_EN, _MSG_EN),
+    "de": _merge(TRANSLATIONS_DE, _MSG_DE, WISHES_DE),
+    "en": _merge(TRANSLATIONS_EN, _MSG_EN, WISHES_EN),
     "hr": _merge(
         TRANSLATIONS_HR,
         BACKUP_TRANSLATIONS_SUPPLEMENT.get("hr", {}),

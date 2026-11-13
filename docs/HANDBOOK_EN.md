@@ -9,7 +9,7 @@ This edition is tab-centered: Description, buttons, operation, workflows and err
 ### From the area: 1. Purpose of this manual
 
 This manual is written as a complete user guide for the **current app version**. It explains operation **tab by tab**, including input fields, buttons, typical processes, error patterns and sensible procedures in everyday life.
-It is **not a short description** and not a marketing text, but rather a working instruction for real operations.
+It is **not a short description** and not a marketing text, but rather a working instruction for real operations. The macOS edition is at [UgreenNASAdmin-mac](https://github.com/runlevel1977-del/UgreenNASAdmin-mac). The Windows edition stays in this project.
 
 Important: The app works directly on your NAS in many areas. Changes are not “simulated” but directly affect files, services, containers and schedules. That's why this manual always describes **what a button actually triggers** and **when you shouldn't use it**.
 
@@ -335,6 +335,19 @@ Buttons:
 - Host, Port, User, Password, From, To fields
 - Checkboxes STARTTLS and SSL
 - Secret privacy button
+
+### 23.7a App development and wishes
+
+In the left bar, directly under **Settings**.
+
+1. **Your name**
+2. **Your email** for the reply
+3. **Kind of wish** — new function, change, or both
+4. **Place in the app** — the area on the left, for example Explorer or Docker
+5. **Your wish** — what the app does today and what it should do instead
+6. **Screenshot** — optional, up to four pictures (PNG, JPG, GIF, WEBP, or BMP)
+
+**Send wish by email** delivers the message to `ugna@posteo.de`. When Settings has an SMTP server, the app attaches the pictures and sends the mail itself. The email program opens only when no SMTP server is saved. The mouse wheel scrolls the page even over the fields. The text box and the picture list scroll themselves only while they still have room.
 
 ### 23.8 Paths
 
@@ -1269,6 +1282,8 @@ Error case:
 **Runlevel apps (Transfer Hub / Wake & Sync):** The folder picker shows local NAS paths including **Home** (`/home/…`, e.g. Photos) **without** an SMB share. Only system folders (`@…`) stay hidden. **Transfer Hub 0.6.28+:** multi-select source folders (check boxes → “Add checked”) — one transfer per folder; destination stays a single folder. After updating the UPK apps, restart/reinstall (Transfer Hub **0.6.28+**, Wake & Sync **0.1.32+**).
 
 **UGOS install/config (Transfer Hub 0.6.39+ / Wake & Sync 0.1.50+):** Choose up to **three** folders — required UGOS folder plus optional Extra UGOS folder 2 and 3 (other volumes allowed). Leave unused extras empty; restart the app after changes. First app password always asks for New + Confirm (Security Hub **0.1.22+** as well).
+
+**Transfer Hub 0.6.41:** The log uses the language of the interface. That choice also applies to scheduled runs. Lines that rsync or rclone print themselves stay in English.
 
 **UGOS security update, October 2026:** Transfer Hub **0.6.40** checks local source and destination paths when a profile is saved and again immediately before every run. Each expanded route, including the path passed to `rsync`, must stay inside the selected volume after symlink resolution. `..` and symlinks that leave the volume are rejected. Packages from **0.6.36** only had part of this check. Security Hub **0.1.21** shows sign-in names in Login Track as text, not HTML. Wake & Sync **0.1.46+** sets the first app password only after the UGOS administrator who installed the app signs in. Bug reports: **Technical Support** on the app page, or `runlevel1977@posteo.de`.
 

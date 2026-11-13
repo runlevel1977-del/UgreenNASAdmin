@@ -9,7 +9,7 @@ Diese Ausgabe ist tab-zentriert aufgebaut: Pro Bereich stehen Beschreibung, Butt
 ### Aus dem Bereich: 1. Zweck dieses Handbuchs
 
 Dieses Handbuch ist als vollständige Bedienanleitung für die **aktuelle App-Version** geschrieben. Es erklärt die Bedienung **tab für tab**, inklusive Eingabefelder, Schaltflächen, typische Abläufe, Fehlerbilder und sinnvolle Vorgehensweisen im Alltag.  
-Es ist **keine Kurzbeschreibung** und kein Marketingtext, sondern eine Arbeitsanleitung für den echten Betrieb.
+Es ist **keine Kurzbeschreibung** und kein Marketingtext, sondern eine Arbeitsanleitung für den echten Betrieb. Die macOS-Version liegt unter [UgreenNASAdmin-mac](https://github.com/runlevel1977-del/UgreenNASAdmin-mac). Die Windows-Version bleibt dieses Projekt.
 
 Wichtig: Die App arbeitet in vielen Bereichen direkt auf deinem NAS. Änderungen sind nicht „simuliert“, sondern wirken direkt auf Dateien, Dienste, Container und Zeitpläne. Deshalb wird in diesem Handbuch immer beschrieben, **was ein Button konkret auslöst** und **wann du ihn besser nicht benutzen solltest**.
 
@@ -335,6 +335,19 @@ Buttons:
 - Felder Host, Port, User, Passwort, From, To
 - Checkboxen STARTTLS und SSL
 - Secret-Privacy-Button
+
+### 23.7a App Entwicklung und Wünsche
+
+Links in der Leiste, direkt unter **Einstellungen**.
+
+1. **Dein Name**
+2. **Deine E-Mail** für die Antwort
+3. **Art des Wunsches** — neue Funktion, Änderung, oder beides
+4. **Stelle in der App** — der Bereich links, zum Beispiel Explorer oder Docker
+5. **Dein Wunsch** — was die App heute macht und was sie stattdessen machen soll
+6. **Screenshot** — freiwillig, bis zu vier Bilder (PNG, JPG, GIF, WEBP oder BMP)
+
+**Wunsch per E-Mail senden** schickt die Nachricht an `ugna@posteo.de`. Steht unter Einstellungen ein SMTP-Server, hängt die App die Bilder an und sendet selbst. Nur ohne SMTP-Server öffnet sich das E-Mail-Programm. Das Mausrad scrollt die Seite auch über den Feldern. Das Textfeld und die Bilderliste scrollen nur selbst, solange darin noch Platz ist.
 
 ### 23.8 Pfade
 
@@ -1269,6 +1282,8 @@ Fehlerfall:
 **Runlevel-Apps (Transfer Hub / Wake & Sync):** In der Ordnerwahl erscheinen lokale NAS-Pfade inkl. **Home** (`/home/…`, z. B. Photos) **ohne** SMB-Freigabe. Ausgeblendet bleiben nur Systemordner (`@…`). **Transfer Hub ab 0.6.28:** mehrere Quellordner per Häkchen wählen („Markierte übernehmen“) — pro Ordner ein eigener Transfer; Ziel bleibt ein Ordner. Nach Update der UPK-Apps neu starten/installieren (Transfer Hub **0.6.28+**, Wake & Sync **0.1.32+**).
 
 **UGOS Install/Config (Transfer Hub 0.6.39+ / Wake & Sync 0.1.50+):** Bis zu **drei** Ordner wählen — Pflichtfeld UGOS-Ordner plus optional Weiterer UGOS-Ordner 2 und 3 (andere Volumes möglich). Ungenutzte Extra-Felder leer lassen; danach App neu starten. Erstes App-Passwort: immer Neu + Bestätigen (Security Hub ab **0.1.22** ebenfalls).
+
+**Transfer Hub 0.6.41:** Das Protokoll verwendet die Sprache der Oberfläche. Die Auswahl gilt auch für Läufe aus dem Zeitplan. Meldungen, die rsync oder rclone selbst ausgeben, bleiben englisch.
 
 **UGOS-Sicherheitsstand Oktober 2026:** Transfer Hub **0.6.40** prüft lokale Quell- und Zielpfade beim Speichern und noch einmal direkt vor jedem Lauf. Jede aufgeklappte Route, auch der Pfad im `rsync`-Aufruf, muss nach Symlink-Auflösung im gewählten Volume bleiben. `..` und Symlinks nach außerhalb werden abgelehnt. Ältere Pakete ab **0.6.36** hatten diese Prüfung nur unvollständig. Security Hub **0.1.21** zeigt Anmeldenamen im Login-Track als Text, nicht als HTML. Wake & Sync **0.1.46+** vergibt das erste App-Passwort erst nach Anmeldung mit dem UGOS-Administratorkonto, das die App installiert hat. Fehlermeldungen: in den App-Details **Technischer Support** oder `runlevel1977@posteo.de`.
 

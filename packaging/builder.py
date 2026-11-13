@@ -54,6 +54,19 @@ def build():
     except Exception as e:
         print(f"Hinweis: create_icon.py konnte nicht laufen ({e}) — vorhandene assets/nas_icon.* werden genutzt.")
 
+    if sys.platform == "darwin":
+        icns_path = os.path.join(ASSETS, "nas_icon.icns")
+        try:
+            import create_icon as _icons
+            from mac_icns import write_icns_from_rgba
+
+            write_icns_from_rgba(_icons.render_nas_rgba(256), 256, icns_path)
+            print(f"Mac-Icon: {icns_path}")
+        except Exception as e:
+            print(f"FEHLER: nas_icon.icns konnte nicht erzeugt werden ({e})")
+            print("Auf dem Mac werden die Xcode-Befehlszeilen gebraucht (iconutil).")
+            sys.exit(1)
+
     icon_path = os.path.join(ASSETS, "nas_icon.ico")
     spec_path = os.path.join(PACK_DIR, SPEC_NAME)
 
@@ -83,6 +96,15 @@ def build():
         except OSError as e:
             print(f"Konnte dist/{EXE_NAME}/ nicht loeschen: {e}")
             sys.exit(1)
+    if sys.platform == "darwin":
+        dist_app = os.path.join(ROOT, "dist", f"{EXE_NAME}.app")
+        if os.path.isdir(dist_app):
+            try:
+                shutil.rmtree(dist_app, ignore_errors=False)
+                print(f"Altes dist/{EXE_NAME}.app entfernt.")
+            except OSError as e:
+                print(f"Konnte dist/{EXE_NAME}.app nicht loeschen: {e}")
+                sys.exit(1)
 
     params = [
         spec_path,
@@ -111,8 +133,23 @@ def build():
         sys.exit(r.returncode)
 
     print("\n" + "*" * 20)
-    print("BAU ABGESCHLOSSEN — EXE in dist/")
+    if sys.platform == "darwin":
+        print("BAU ABGESCHLOSSEN — App in dist/")
+    else:
+        print("BAU ABGESCHLOSSEN — EXE in dist/")
     print("*" * 20)
+    if sys.platform == "darwin":
+        dist_app = os.path.join(ROOT, "dist", f"{EXE_NAME}.app")
+        mac_bin = os.path.join(dist_app, "Contents", "MacOS", EXE_NAME)
+        if os.path.isfile(mac_bin):
+            em = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(os.path.getmtime(mac_bin)))
+            print(f"Neue App: {dist_app} ({em})")
+            print(f"SHA256: {_sha256(mac_bin)}")
+        else:
+            print("WARNUNG: dist-App wurde nicht gefunden (Build unvollstaendig).")
+            sys.exit(1)
+        print("\nErster Start im Finder: Rechtsklick auf die App, dann Öffnen.")
+        return
     if os.path.isfile(dist_exe):
         em = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(os.path.getmtime(dist_exe)))
         print(f"Neue EXE: {dist_exe} ({em})")

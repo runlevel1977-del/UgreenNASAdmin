@@ -13,6 +13,7 @@ from pathlib import Path
 # Kapitelnummern in HANDBUCH.md / HANDBOOK_EN.md (## N. …)
 TAB_HANDBOOK_CHAPTER: dict[str, str] = {
     "settings": "5",
+    "wishes": "5",
     "dashboard": "6",
     "scripts": "7",
     "explorer": "9",

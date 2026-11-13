@@ -1,5 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
+import sys
 
 # Spec liegt unter packaging/ — Projektroot ist eine Ebene höher
 PROJECT = os.path.abspath(os.path.join(SPECPATH, os.pardir))
@@ -45,6 +46,12 @@ if os.path.isfile(HANDBOOK_PAGE_INDEX):
 if os.path.isfile(PRO_FEATURES):
     _DATAS.append((PRO_FEATURES, "docs"))
 
+_HIDDEN_KEYRING = ["keyring", "keyring.backends"]
+if sys.platform == "darwin":
+    _HIDDEN_KEYRING.append("keyring.backends.macOS")
+else:
+    _HIDDEN_KEYRING.append("keyring.backends.Windows")
+
 a = Analysis(
     [MAIN],
     pathex=[PROJECT],
@@ -60,12 +67,10 @@ a = Analysis(
         "ugreen_app.mixin_storage_acl_snap",
         "ugreen_app.mixin_config_telegram",
         "ugreen_app.keyring_helper",
-        "keyring",
-        "keyring.backends",
-        "keyring.backends.Windows",
+        *_HIDDEN_KEYRING,
         "ugreen_app.mixin_scripts_docker_monitor",
         "ugreen_app.mixin_qnap_smb",
-        "ugreen_app.win_smb_peer",
+        *(["ugreen_app.win_smb_peer"] if sys.platform != "darwin" else []),
         "ugreen_app.mixin_explorer",
         "ugreen_app.mixin_transfer",
         "ugreen_app.rounded_ui",
@@ -95,6 +100,8 @@ a = Analysis(
         "ugreen_app.mixin_migration_assistant",
         "ugreen_app.mixin_handbook_tab",
         "ugreen_app.mixin_pro_drawer",
+        "ugreen_app.mixin_wishes",
+        "ugreen_app.i18n_wishes",
         "ugreen_app.mixin_runlevel_apps",
         "ugreen_app.runlevel_apps_scan",
         "ugreen_app.handbook_nav",
@@ -130,7 +137,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=[ICON],
+    icon=None if sys.platform == "darwin" else [ICON],
 )
 
 coll = COLLECT(
@@ -142,3 +149,17 @@ coll = COLLECT(
     upx_exclude=[],
     name="UgreenNASAdmin",
 )
+
+if sys.platform == "darwin":
+    _ICNS = os.path.join(PROJECT, "assets", "nas_icon.icns")
+    app = BUNDLE(
+        coll,
+        name="UgreenNASAdmin.app",
+        icon=_ICNS if os.path.isfile(_ICNS) else None,
+        bundle_identifier="local.ugreen.nasadmin",
+        info_plist={
+            "CFBundleName": "Ugreen NAS Admin",
+            "CFBundleDisplayName": "Ugreen NAS Admin",
+            "NSHighResolutionCapable": True,
+        },
+    )

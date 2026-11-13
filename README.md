@@ -1,6 +1,6 @@
 ﻿# Ugreen NAS Admin
 
-Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: **Dashboard** with live metrics (incl. **UGOS API** storage tile), **scripts** and cron planner, **Explorer**, **NAS ↔ NAS** SMB copy, **network devices**, **Docker**, **Runlevel Apps**, **system health** / Telegram guard, **Login Track** (client-IP access log: SSH, SMB, UGOS app/web, live/history, sort, export, optional IP block), **NAS management** (power/WoL, **UGOS power scheduler**, HDD spin-down, scheduled shutdown, USB eject, SMART, RAID/trim/scrub, SSH drop-in, services + **`.slog` logs**, **network read-only**, NGINX, earlyOOM, Samba, LED/beeper), **storage**, **ACL**, **snapshots**, dedicated **Backup** tab (**Docker+scripts**, **user data**, **full data exports**; destinations **NAS / PC folder / USB on the NAS / second NAS SMB**; **cron scheduling on the NAS** without leaving a PC running), **Settings**, plus optional Telegram/Email notifications. The UI is available in many languages; switch in **Settings** (and often the status bar).
+Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: **Dashboard** with live metrics (incl. **UGOS API** storage tile), **scripts** and cron planner, **Explorer**, **NAS ↔ NAS** SMB copy, **network devices**, **Docker**, **Runlevel Apps**, **system health** / Telegram guard, **Login Track** (client-IP access log: SSH, SMB, UGOS app/web, live/history, sort, export, optional IP block), **NAS management** (power/WoL, **UGOS power scheduler**, HDD spin-down, scheduled shutdown, USB eject, SMART, RAID/trim/scrub, SSH drop-in, services + **`.slog` logs**, **network read-only**, NGINX, earlyOOM, Samba, LED/beeper), **storage**, **ACL**, **snapshots**, dedicated **Backup** tab (**Docker+scripts**, **user data**, **full data exports**; destinations **NAS / PC folder / USB on the NAS / second NAS SMB**; **cron scheduling on the NAS** without leaving a PC running), **Settings**, **App Entwicklung und Wünsche**, plus optional Telegram/Email notifications. The UI is available in many languages; switch in **Settings** (and often the status bar).
 
 **This file** is the README of the **public GitHub repository** ([UgreenNASAdmin](https://github.com/runlevel1977-del/UgreenNASAdmin)). The step-by-step guide below is in **English + German**, including an **extended Backup chapter** — release notes in [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -8,16 +8,16 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 
 | What you need | Where to go |
 |---------------|-------------|
-| **The packaged Windows app (`.exe`)** | **[Releases → Latest](https://github.com/runlevel1977-del/UgreenNASAdmin/releases/latest)** → `UgreenNASAdmin_setup_*.exe`. |
-| **macOS app** | **[UgreenNASAdmin-mac](https://github.com/runlevel1977-del/UgreenNASAdmin-mac)** — the Mac installer `UgreenNASAdmin_setup_*.pkg` is under that repository’s **Releases → Latest**. |
+| **The packaged app (`.exe` / forum ZIPs uploaded to a release)** | **[Releases → Latest](https://github.com/runlevel1977-del/UgreenNASAdmin/releases/latest)** → under **Assets**, pick e.g. `UgreenNASAdmin_v*_…_mit_EXE.zip` (or the no-EXE pack). |
 | **SourceForge (mirror / direct file)** | https://sourceforge.net/projects/ugreennasadmin/files/latest/download |
+| **macOS app** | **[UgreenNASAdmin-mac](https://github.com/runlevel1977-del/UgreenNASAdmin-mac)** — the Mac installer is under that repository’s **Releases → Latest**. |
 | **Raw source code** of the default branch (for developers) | **Code** → **Download ZIP** on the repo home page. |
 
 **Not something we can “fix” in the repo:** GitHub’s green **Code → Download ZIP** is **always** a **snapshot of the default branch** (`main`). There is **no** repository setting to point that button to **Releases** or to ship the EXE there — that is how **github.com** works.
 
 **What that ZIP is / isn’t:** it is **source code** for developers. It is **not** the same as **Release** assets, and it **does not** contain a **release-built EXE** (build that yourself with `python packaging/builder.py` or download from **Releases**). The app version in `ugreen_app/nas_manager.py` (`__version__`) in that zip matches whatever is **pushed to `main`**; if in doubt, open that file in the unzipped tree. For end users, **always** link to **Releases / Assets** (or SourceForge), not the green button.
 
-**Deutsch (kurz):** Wer die **fertige EXE** will: **Releases → Latest** (oder SourceForge) — **nicht** der grüne **Code → Download ZIP**. Dieser liefert **nur Quellcode** des Standard-Branches. Die **Mac-Version** liegt im eigenen Repository [UgreenNASAdmin-mac](https://github.com/runlevel1977-del/UgreenNASAdmin-mac).
+**Deutsch (kurz):** Wer die **fertige EXE/Release-ZIPs** will: **Releases → Assets** (oder SourceForge) — **nicht** der grüne **Code → Download ZIP**. Dieser liefert **nur Quellcode** des Standard-Branches; eine **Umlenkung** dieses Buttons gibt es bei GitHub **nicht** (kein Repo-Fix). Die **Zahl** in `nas_manager.py` im ZIP-Snapshot entspricht dem letzten **Push** auf `main` (siehe Datei im entpackten Ordner, falls unsicher). Die **Mac-Version** liegt im eigenen Repository [UgreenNASAdmin-mac](https://github.com/runlevel1977-del/UgreenNASAdmin-mac).
 
 **Links (immer aktuell):** [GitHub **Latest release**](https://github.com/runlevel1977-del/UgreenNASAdmin/releases/latest) · [macOS](https://github.com/runlevel1977-del/UgreenNASAdmin-mac) · SourceForge „latest“ (oben) · [All releases](https://github.com/runlevel1977-del/UgreenNASAdmin/releases)
 
@@ -27,8 +27,23 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 
 ### Unreleased / upcoming
 
-- **Transfer Hub / Wake & Sync (UGOS):** Install/config offers up to **three** folder grants (required + optional 2/3, any volume). Folder picker includes **Home** (`/home/…/Photos`) without an SMB share; only `@…` system folders stay hidden. Transfer Hub **0.6.40** keeps every local route inside the selected volume when a profile is saved and again before `rsync` (symlink escapes rejected). Wake & Sync **0.1.50**. Security Hub **0.1.22** shows New and Confirm on first launch and renders login names as text. Bug reports: Technical Support on the app page, or `runlevel1977@posteo.de`.
-- **Deutsch:** Transfer Hub **0.6.40** hält jede lokale Route beim Speichern und vor `rsync` im gewählten Volume (auch nach Symlinks). Wake & Sync **0.1.50** — bis zu drei Ordner bei Installation/Config; Login-Setup mit Neu + Bestätigen. Security Hub **0.1.22** zeigt beim ersten Passwort Neu und Bestätigen, Anmeldenamen als Text. Details in [`CHANGELOG.md`](CHANGELOG.md).
+- **Transfer Hub / Wake & Sync (UGOS):** Install/config offers up to **three** folder grants (required + optional 2/3, any volume). Folder picker includes **Home** (`/home/…/Photos`) without an SMB share; only `@…` system folders stay hidden. Transfer Hub **0.6.40** keeps every local route inside the selected volume when a profile is saved and again before `rsync` (symlink escapes rejected). Transfer Hub **0.6.41** writes the log in the same language as the interface, including scheduled runs; lines from rsync and rclone stay English. Wake & Sync **0.1.50**. Security Hub **0.1.22** shows New and Confirm on first launch and renders login names as text. Bug reports: Technical Support on the app page, or `runlevel1977@posteo.de`.
+- **Deutsch:** Transfer Hub **0.6.40** hält jede lokale Route beim Speichern und vor `rsync` im gewählten Volume (auch nach Symlinks). Transfer Hub **0.6.41** schreibt das Protokoll in der Sprache der Oberfläche, auch bei geplanten Läufen; Zeilen von rsync und rclone bleiben englisch. Wake & Sync **0.1.50** — bis zu drei Ordner bei Installation/Config; Login-Setup mit Neu + Bestätigen. Security Hub **0.1.22** zeigt beim ersten Passwort Neu und Bestätigen, Anmeldenamen als Text. Details in [`CHANGELOG.md`](CHANGELOG.md).
+
+### What's new in v23.8.83
+
+- The mouse wheel keeps scrolling the page, including over input fields. A text box or list scrolls itself only while it still has room.
+- **Deutsch:** Das Mausrad scrollt die Seite auch über Eingabefeldern weiter. Textfeld und Liste nur, solange darin noch Platz ist.
+
+### What's new in v23.8.82
+
+- The left bar shows each symbol once. The label no longer repeats it.
+- **Deutsch:** In der linken Leiste steht jedes Symbol nur einmal.
+
+### What's new in v23.8.81
+
+- **App development and wishes:** left bar, directly under Settings. **Send wish by email** goes to `ugna@posteo.de`. SMTP from Settings attaches pictures; otherwise the email program opens.
+- **Deutsch:** Links unter Einstellungen liegt **App Entwicklung und Wünsche**. Die Mail geht an `ugna@posteo.de`.
 
 ### What's new in v23.8.71
 

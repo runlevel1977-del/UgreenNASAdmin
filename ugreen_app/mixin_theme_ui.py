@@ -313,6 +313,28 @@ class MixinThemeUI:
         except Exception as ex:
             messagebox.showerror(self.t("header.screenshot"), f"{self.t('header.screenshot_failed')}\n{ex}")
 
+    def _sidebar_nav_label(self, title: str) -> str:
+        """Entfernt das führende Symbol, das die Zeile schon als Icon zeigt.
+
+        Args:
+            title: Übersetzung der Navigationszeile.
+
+        Returns:
+            Beschriftung ohne führende Symbole. Ist danach nichts übrig, bleibt der Rohtext.
+        """
+        raw = str(title or "").strip()
+        index = 0
+        while index < len(raw):
+            char = raw[index]
+            if char.isspace():
+                index += 1
+                continue
+            if unicodedata.category(char).startswith(("L", "N")):
+                break
+            index += 1
+        cleaned = raw[index:].strip()
+        return cleaned or raw
+
     def _compute_sidebar_width(self) -> int:
         """Berechnet eine sprachabhängige Sidebar-Breite, damit Labels/Buttons nicht clippen."""
         try:
@@ -327,7 +349,8 @@ class MixinThemeUI:
                 self.t("nav.acl"),
                 self.t("nav.snapshots"),
                 self.t("nav.backup"),
-                self.t("nav.settings"),
+                self._sidebar_nav_label(self.t("nav.settings")),
+                self._sidebar_nav_label(self.t("nav.wishes")),
                 self.t("sidebar.refresh_all"),
                 self.t("sidebar.health_snapshot"),
             ]
@@ -1258,6 +1281,7 @@ class MixinThemeUI:
         self.tab_snapshots = tk.Frame(self.notebook, bg=_page_bg)
         self.tab_backup = tk.Frame(self.notebook, bg=_page_bg)
         self.tab_settings = tk.Frame(self.notebook, bg=_page_bg)
+        self.tab_wishes = tk.Frame(self.notebook, bg=_page_bg)
         self.tab_pro = tk.Frame(self.notebook, bg=_page_bg)
 
         self.notebook.add(self.tab_dashboard, text=self.t("tab.dashboard"))
@@ -1275,6 +1299,7 @@ class MixinThemeUI:
         self.notebook.add(self.tab_snapshots, text=self.t("tab.snapshots"))
         self.notebook.add(self.tab_backup, text=self.t("tab.backup"))
         self.notebook.add(self.tab_settings, text=self.t("tab.settings"))
+        self.notebook.add(self.tab_wishes, text=self.t("tab.wishes"))
         self.notebook.add(self.tab_pro, text=self.t("tab.pro"))
         self.notebook.bind("<<NotebookTabChanged>>", lambda e: self._sync_sidebar_with_tab())
         try:
@@ -1309,6 +1334,7 @@ class MixinThemeUI:
         self.setup_snapshots_tab()
         self.setup_backup_tab()
         self.setup_settings_tab()
+        self.setup_wishes_tab()
         self.setup_pro_tab_ui()
         self.setup_scheduler_ui()
         self.setup_sidebar_nav()
@@ -1355,10 +1381,13 @@ class MixinThemeUI:
             ("snapshots", "📸", self.t("nav.snapshots")),
             ("backup", "🗃", self.t("nav.backup")),
             ("settings", "⚙", self.t("nav.settings")),
+            ("wishes", "💡", self.t("nav.wishes")),
         ]
         nav_bg = getattr(self, "color_sidebar_bg", sb_bg)
         for key, icon, title in nav_rows:
-            row = SidebarNavItem(self, sb, key, icon, title, lambda k=key: self.switch_view(k))
+            row = SidebarNavItem(
+                self, sb, key, icon, self._sidebar_nav_label(title), lambda k=key: self.switch_view(k)
+            )
             row.pack(fill=tk.X)
             self.nav_buttons[key] = row
 
@@ -1525,6 +1554,7 @@ class MixinThemeUI:
             "snapshots": 12,
             "backup": 13,
             "settings": 14,
+            "wishes": 15,
         }
         idx = index_map.get(key, 0)
         try:
@@ -1554,6 +1584,7 @@ class MixinThemeUI:
             12: "snapshots",
             13: "backup",
             14: "settings",
+            15: "wishes",
         }
         active = rev.get(idx) if idx in rev else None
         nav_bg = getattr(self, "color_sidebar_bg", self.color_nav_idle_bg)
@@ -1628,6 +1659,7 @@ class MixinThemeUI:
             12: "snapshots",
             13: "backup",
             14: "settings",
+            15: "wishes",
         }
         nav_bg = getattr(self, "color_sidebar_bg", self.color_nav_idle_bg)
         act_bg = getattr(self, "color_nav_active_row_bg", self.color_selected_bg)

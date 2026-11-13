@@ -36,6 +36,7 @@ from ugreen_app.backup_commands import bundle_backup_runner, inline_backup_comma
 from ugreen_app.archive_commands import safe_extract_command
 from ugreen_app.scheduled_backup_cron import build_backup_cron_lines
 from ugreen_app.scroll_helpers import (
+    pointer_wheel_scroll,
     should_ignore_smooth_mousewheel_target,
     smooth_bind_mousewheel_tree,
     smooth_canvas_scrollregion_cb,
@@ -114,14 +115,17 @@ class MixinTabsSetup:
             return metrics_h
         return None
 
-    def _dash_route_app_mousewheel(self, ev: tk.Event) -> None:
+    def _dash_route_app_mousewheel(self, ev: tk.Event) -> str | None:
+        if pointer_wheel_scroll(ev):
+            return "break"
         tup = self._dash_pick_nested_scroll_wheel_handlers(getattr(ev, "widget", None))
         if tup is None or tup[0] is None:
-            return
+            return None
         try:
             tup[0](ev)
         except tk.TclError:
             pass
+        return "break"
 
     def _dash_route_app_btn4(self, ev: tk.Event) -> None:
         if not sys.platform.startswith("linux"):

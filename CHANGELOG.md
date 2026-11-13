@@ -1,5 +1,73 @@
 # Changelog — Ugreen NAS Admin
 
+## 23.8.83 — 2026-11-13
+
+Installer: `UgreenNASAdmin_setup_23.8.83.exe`.
+
+### Deutsch
+
+- Das Mausrad scrollt die Seite durch. Über einem Eingabefeld bleibt es nicht stehen. Ein Textfeld oder eine Liste scrollt nur selbst, solange darin noch Platz ist; danach geht es auf der Seite weiter.
+
+### English
+
+- The mouse wheel scrolls the page continuously. It no longer stops over an input field. A text box or list scrolls itself only while it still has room; after that the page continues.
+
+## 23.8.82 — 2026-11-13
+
+Installer: `UgreenNASAdmin_setup_23.8.82.exe`.
+
+### Deutsch
+
+- In der linken Leiste steht jedes Symbol nur noch einmal. Der Text daneben beginnt ohne zweites Symbol. **App Entwicklung und Wünsche** bleibt unter Einstellungen.
+
+### English
+
+- Each symbol in the left bar appears once. The label beside it no longer starts with a second symbol. **App development and wishes** stays under Settings.
+
+## 23.8.81 — 2026-11-13
+
+Installer: `UgreenNASAdmin_setup_23.8.81.exe`.
+
+### Deutsch
+
+- **App Entwicklung und Wünsche:** Neue Seite links unter Einstellungen. Nummerierte Felder für Name, Antwort-Mail, Art, Stelle, Wunsch und Screenshot. **Wunsch per E-Mail senden** schickt die Nachricht an `ugna@posteo.de`. Mit SMTP aus den Einstellungen hängen die Bilder an. Ohne SMTP öffnet sich das E-Mail-Programm. Die übrige Windows-Oberfläche bleibt unverändert.
+
+### English
+
+- **App development and wishes:** New page in the left bar under Settings. Numbered fields for name, reply email, kind, place, wish, and screenshot. **Send wish by email** delivers the message to `ugna@posteo.de`. With SMTP from Settings, pictures are attached. Without SMTP, the email program opens. The rest of the Windows interface is unchanged.
+
+## UGOS-Apps — 2026-11-13
+
+### Deutsch
+
+- **Transfer Hub 0.6.41:** Das Protokoll folgt der Sprache der Oberfläche (Deutsch, Englisch, Chinesisch, Französisch, Spanisch, Italienisch, Polnisch, Russisch, Türkisch, Kroatisch). Die gewählte Sprache gilt auch für geplante Läufe. Die Textzeilen von rsync und rclone bleiben englisch.
+
+### English
+
+- **Transfer Hub 0.6.41:** The log follows the language of the interface (German, English, Chinese, French, Spanish, Italian, Polish, Russian, Turkish, Croatian). The chosen language also applies to scheduled runs. Lines printed by rsync and rclone stay in English.
+
+## Mac-Download — 2026-11-10
+
+### Deutsch
+
+- Die macOS-Version hat ein eigenes Repository: [UgreenNASAdmin-mac](https://github.com/runlevel1977-del/UgreenNASAdmin-mac). Der Windows-Release bleibt in diesem Projekt.
+
+### English
+
+- The macOS edition has its own repository: [UgreenNASAdmin-mac](https://github.com/runlevel1977-del/UgreenNASAdmin-mac). The Windows release stays in this project.
+
+## Werkzeuge — 2026-11-06
+
+### Deutsch
+
+- **Mac Build Studio:** Neue App unter `tools/mac_build_studio/`. Auf macOS reicht ein Doppelklick auf `Mac Build Studio.app`, ohne Terminal. Sie installiert Python 3.12, die Pakete und die Xcode-Befehlszeilen und baut Ugreen NAS Admin sowie Ugreen NAS Admin Pro als `.app`. Der Windows-EXE-Build bleibt unverändert.
+- **Mac Build Studio:** **Projektordner wählen** sucht die Bau-Dateien im angegebenen Ordner, auch unter `ugreen nas admin` im Benutzerordner, und merkt sich die Auswahl.
+
+### English
+
+- **Mac Build Studio:** New app at `tools/mac_build_studio/`. On macOS a double-click on `Mac Build Studio.app` opens the window, with no Terminal. It installs Python 3.12, the packages and the Xcode command line tools, then builds Ugreen NAS Admin and Ugreen NAS Admin Pro as `.app` bundles. The Windows EXE build is unchanged.
+- **Mac Build Studio:** **Choose project folder** looks for the build files in the selected folder, including `ugreen nas admin` in the user folder, and remembers that choice.
+
 ## 23.8.71 — 2026-11-04
 
 Installer: `UgreenNASAdmin_setup_23.8.71.exe`.

@@ -6,14 +6,7 @@ import sys
 import tkinter as tk
 from tkinter import scrolledtext, ttk
 
-_SMOOTH_SKIP_MOUSEWHEEL = (
-    tk.Spinbox,
-    tk.Entry,
-    tk.Text,
-    scrolledtext.ScrolledText,
-    ttk.Entry,
-    ttk.Combobox,
-)
+_SMOOTH_SKIP_MOUSEWHEEL = (tk.Spinbox,)
 try:
     _SMOOTH_SKIP_MOUSEWHEEL += (ttk.Spinbox,)  # type: ignore[assignment]
 except AttributeError:
@@ -21,7 +14,14 @@ except AttributeError:
 
 
 def should_ignore_smooth_mousewheel_target(w: tk.Misc | None) -> bool:
-    """True: Eingaben (Spinbox/Text/…) sollen ihr eigenes Mausrad behalten, nicht Canvas-Scroll."""
+    """True: eine Spinbox soll mit dem Rad ihren Wert ändern, nicht die Seite.
+
+    Args:
+        w: Widget unter dem Zeiger.
+
+    Returns:
+        True nur für Spinboxen.
+    """
     return w is not None and isinstance(w, _SMOOTH_SKIP_MOUSEWHEEL)
 
 
@@ -51,43 +51,189 @@ def smooth_canvas_scrollregion_cb(root: tk.Misc, canvas: tk.Canvas):
     return on_configure
 
 
-def _canvas_refresh_scrollregion(canvas: tk.Canvas) -> None:
-    """Sofort bbox → scrollregion (vermeidet „Klemmen“ durch verzögertes after(…))."""
+def _wheel_steps(delta: int) -> int:
+    """Rechnet ein Mausrad-Delta in Scroll-Schritte um.
+
+    Positives Delta schiebt die Ansicht nach oben. Eine Windows-Kerbe ist 120.
+    Kleinere Werte kommen vom Präzisionspad und bleiben kleine Schritte, damit
+    die Bewegung nicht in Sprüngen abbricht.
+
+    Args:
+        delta: ``event.delta`` von Tk.
+
+    Returns:
+        Schrittzahl für ``yview_scroll``. Negativ heißt nach oben.
+    """
+    if not delta:
+        return 0
+    if sys.platform == "darwin":
+        if abs(delta) >= 40:
+            steps = int(-delta / 24)
+            return steps or (-1 if delta > 0 else 1)
+        magnitude = max(5, abs(delta) * 2)
+        return -magnitude if delta > 0 else magnitude
+    if abs(delta) >= 120:
+        notches = int(round(-delta / 120.0))
+        if notches == 0:
+            notches = -1 if delta > 0 else 1
+        return notches * 3
+    magnitude = max(1, abs(delta) // 40)
+    return -magnitude if delta > 0 else magnitude
+
+
+def _claim_wheel(event: tk.Event, widget: tk.Misc) -> bool:
+    """Verhindert, dass dasselbe Rad-Ereignis zweimal scrollt.
+
+    Args:
+        event: Tk-Ereignis.
+        widget: Fläche, die scrollen soll.
+
+    Returns:
+        True, wenn dieses Ereignis hier zum ersten Mal ankommt.
+    """
+    serial = getattr(event, "serial", None)
+    if serial is not None and getattr(widget, "_ug_wheel_serial", None) == serial:
+        return False
+    if serial is not None:
+        try:
+            setattr(widget, "_ug_wheel_serial", serial)
+        except Exception:
+            pass
+    return True
+
+
+def _can_scroll(widget: tk.Misc, steps: int) -> bool:
+    """Prüft, ob die Fläche in der gewünschten Richtung noch Luft hat.
+
+    Args:
+        widget: Canvas, Text, Liste oder Treeview.
+        steps: Richtung aus ``_wheel_steps``.
+
+    Returns:
+        True, wenn ein Scrollen die Ansicht noch verschieben würde.
+    """
     try:
-        box = canvas.bbox("all")
-        if box:
-            canvas.configure(scrollregion=box)
+        first, last = widget.yview()
+    except tk.TclError:
+        return False
+    if steps < 0:
+        return float(first) > 0.002
+    if steps > 0:
+        return float(last) < 0.998
+    return False
+
+
+def _scroll_widget(widget: tk.Misc, steps: int) -> None:
+    """Scrollt eine Fläche um die angegebenen Schritte.
+
+    Args:
+        widget: Ziel.
+        steps: Wert für ``yview_scroll``.
+    """
+    if isinstance(widget, tk.Canvas):
+        try:
+            if int(float(widget.cget("yscrollincrement") or 0)) == 0:
+                widget.configure(yscrollincrement=8 if sys.platform == "darwin" else 12)
+        except (tk.TclError, ValueError):
+            pass
+    try:
+        widget.yview_scroll(int(steps), "units")
     except tk.TclError:
         pass
+
+
+def _is_spinbox(widget: tk.Misc) -> bool:
+    """Erkennt eine Spinbox, deren Rad den Zahlenwert ändert.
+
+    Args:
+        widget: Kandidat.
+
+    Returns:
+        True für tk- und ttk-Spinbox.
+    """
+    if isinstance(widget, tk.Spinbox):
+        return True
+    try:
+        return isinstance(widget, ttk.Spinbox)
+    except Exception:
+        return False
+
+
+def pointer_wheel_target(widget: tk.Misc | None, steps: int) -> tk.Misc | None:
+    """Sucht die innerste Fläche unter dem Zeiger, die noch scrollen kann.
+
+    Eingabefelder und ausgeklappte Listen halten das Rad nicht fest. Ist ein
+    Text oder eine Liste am Anschlag, scrollt die Seite dahinter weiter.
+
+    Args:
+        widget: Widget unter dem Mauszeiger.
+        steps: Gewünschte Scroll-Richtung.
+
+    Returns:
+        Die Fläche, die scrollen soll, oder None.
+    """
+    if steps == 0:
+        return None
+    fallback: tk.Misc | None = None
+    current = widget
+    guard = 0
+    while current is not None and guard < 80:
+        guard += 1
+        if _is_spinbox(current):
+            return None
+        scrollable = isinstance(current, (tk.Text, scrolledtext.ScrolledText, tk.Listbox, ttk.Treeview))
+        if isinstance(current, tk.Canvas):
+            try:
+                scrollable = bool(str(current.cget("scrollregion") or "").strip())
+            except tk.TclError:
+                scrollable = False
+        if scrollable:
+            if fallback is None:
+                fallback = current
+            if _can_scroll(current, steps):
+                return current
+        current = getattr(current, "master", None)
+    return fallback
+
+
+def pointer_wheel_scroll(event: tk.Event) -> bool:
+    """Scrollt die Fläche unter dem Zeiger.
+
+    Args:
+        event: MouseWheel-Ereignis.
+
+    Returns:
+        True, wenn eine Fläche das Ereignis übernommen hat.
+    """
+    delta = int(getattr(event, "delta", 0) or 0)
+    steps = _wheel_steps(delta)
+    target = pointer_wheel_target(getattr(event, "widget", None), steps)
+    if target is None:
+        return False
+    if not isinstance(target, tk.Canvas):
+        lines = 3 if abs(steps) < 24 else max(3, abs(steps) // 8)
+        steps = -lines if steps < 0 else lines
+    if not _claim_wheel(event, target):
+        return True
+    _scroll_widget(target, steps)
+    return True
 
 
 def smooth_canvas_wheel_handlers(canvas: tk.Canvas):
-    """Gleichmäßiges Scrollen: pro Rad-Kerbe genug Pixel; scrollregion direkt nach Bewegung."""
-    # Etwas feinere Schritte = flüssigere Wahrnehmung bei gleicher Kerbe.
+    """Gleichmäßiges Scrollen: pro Rad-Bewegung ein sichtbarer Weg."""
     try:
-        canvas.configure(yscrollincrement=12)
+        canvas.configure(yscrollincrement=8 if sys.platform == "darwin" else 12)
     except tk.TclError:
         pass
-    # Windows: typ. ±120 pro Kerbe — etwas mehr motion pro Kerbe als vorher (weniger „ruckeln“).
-    divisor = 28 if sys.platform == "darwin" else 26
 
     def on_wheel(event):
-        d = getattr(event, "delta", 0) or 0
-        try:
-            if d:
-                n = int(-d / divisor)
-                if n == 0:
-                    n = -1 if d > 0 else 1
-                canvas.yview_scroll(n, "units")
-                _canvas_refresh_scrollregion(canvas)
-        except tk.TclError:
-            pass
-        return "break"
+        if pointer_wheel_scroll(event):
+            return "break"
+        return None
 
     def on_up(_event=None):
         try:
             canvas.yview_scroll(-4, "units")
-            _canvas_refresh_scrollregion(canvas)
         except tk.TclError:
             pass
         return "break"
@@ -95,7 +241,6 @@ def smooth_canvas_wheel_handlers(canvas: tk.Canvas):
     def on_dn(_event=None):
         try:
             canvas.yview_scroll(4, "units")
-            _canvas_refresh_scrollregion(canvas)
         except tk.TclError:
             pass
         return "break"

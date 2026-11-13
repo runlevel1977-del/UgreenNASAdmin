@@ -8,6 +8,10 @@ from __future__ import annotations
 
 import os
 import sys
+
+if sys.platform != "win32":
+    raise ImportError("win_smb_peer is only available on Windows")
+
 from ctypes import POINTER, Structure, WinDLL, byref, c_void_p, wintypes
 from typing import Iterable
 
