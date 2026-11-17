@@ -51,7 +51,7 @@ from ugreen_app.mixin_pro_drawer import MixinProDrawer
 from ugreen_app.mixin_wishes import MixinWishes
 from ugreen_app.i18n import cron_mappings_for_lang, translate
 
-__version__ = "23.8.83"
+__version__ = "23.8.85"
 
 class NASManager(
     MixinSafetyLock,

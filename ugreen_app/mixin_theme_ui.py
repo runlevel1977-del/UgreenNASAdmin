@@ -1524,6 +1524,13 @@ class MixinThemeUI:
         self.status_right.pack(side=tk.RIGHT, padx=10, pady=5)
 
     def set_status(self, message, connected=None):
+        root = getattr(self, "root", None)
+        try:
+            if root is not None and threading.current_thread() is not threading.main_thread():
+                root.after(0, lambda m=message, c=connected: self.set_status(m, c))
+                return
+        except Exception:
+            return
         try:
             self.status_left.config(text=message)
             if connected is None:

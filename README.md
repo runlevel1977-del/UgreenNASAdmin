@@ -30,6 +30,16 @@ Desktop **control center** for an **Ugreen (and compatible) NAS** over **SSH**: 
 - **Transfer Hub / Wake & Sync (UGOS):** Install/config offers up to **three** folder grants (required + optional 2/3, any volume). Folder picker includes **Home** (`/home/…/Photos`) without an SMB share; only `@…` system folders stay hidden. Transfer Hub **0.6.40** keeps every local route inside the selected volume when a profile is saved and again before `rsync` (symlink escapes rejected). Transfer Hub **0.6.41** writes the log in the same language as the interface, including scheduled runs; lines from rsync and rclone stay English. Wake & Sync **0.1.50**. Security Hub **0.1.22** shows New and Confirm on first launch and renders login names as text. Bug reports: Technical Support on the app page, or `runlevel1977@posteo.de`.
 - **Deutsch:** Transfer Hub **0.6.40** hält jede lokale Route beim Speichern und vor `rsync` im gewählten Volume (auch nach Symlinks). Transfer Hub **0.6.41** schreibt das Protokoll in der Sprache der Oberfläche, auch bei geplanten Läufen; Zeilen von rsync und rclone bleiben englisch. Wake & Sync **0.1.50** — bis zu drei Ordner bei Installation/Config; Login-Setup mit Neu + Bestätigen. Security Hub **0.1.22** zeigt beim ersten Passwort Neu und Bestätigen, Anmeldenamen als Text. Details in [`CHANGELOG.md`](CHANGELOG.md).
 
+### What's new in v23.8.85
+
+- Status updates from background work no longer touch the window directly. A dropped dashboard connection retries up to five times while the tab stays open.
+- **Deutsch:** Statusmeldungen aus dem Hintergrund frieren das Fenster nicht mehr ein. Die Dashboard-Verbindung wird bis zu fünfmal neu versucht.
+
+### What's new in v23.8.84
+
+- Dashboard live view stays smooth: CPU, RAM, network, and fans every second; disks, Docker, cron, and interface details every five seconds. Network speed is real bytes per second.
+- **Deutsch:** Die Live-Anzeige ruckelt nicht mehr. CPU, RAM, Netz und Lüfter jede Sekunde, Platten, Docker, Cron und Schnittstellen alle fünf Sekunden. Die Netzgeschwindigkeit ist Byte pro Sekunde.
+
 ### What's new in v23.8.83
 
 - The mouse wheel keeps scrolling the page, including over input fields. A text box or list scrolls itself only while it still has room.

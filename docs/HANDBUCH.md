@@ -574,7 +574,7 @@ Nutzen: Backupziel und NAS↔NAS.
 ### 24.1 Elemente
 
 - Dashboard-Titel
-- Live-Hinweis (beim Start der Live-Schleife wird — falls die **UGOS/OS-Zeile** im Header noch leer ist — **`/etc/os-release`** einmalig mitgelesen)
+- Live-Hinweis (beim Start der Live-Schleife wird — falls die **UGOS/OS-Zeile** im Header noch leer ist — **`/etc/os-release`** einmalig mitgelesen). CPU, RAM, Netz und Lüfter etwa **jede Sekunde**. Platten, Docker, geplante Jobs und die Schnittstellen-Liste etwa **alle fünf Sekunden**. Die Netzangabe ist **Byte pro Sekunde**. Bricht die Verbindung ab, versucht die App es bis zu fünfmal erneut, solange der Tab offen bleibt.
 - Webcam-Button
 - Metrik-Kacheln (inkl. Netzwerk mit **aktueller Schnittstellen-Konfiguration**, Filter, Bearbeiten — siehe **42.3**)
 - **Lüfter:** Hinweiszeile **„Lüfter prüfen & zuordnen …“** (Erkennungs-/Zuordnungsdialog) sowie **eine Steuer-Kachel pro erkanntem Lüfter** (1–8, je nach NAS-Modell)

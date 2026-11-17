@@ -574,7 +574,7 @@ Benefits: Backup destination and NAS↔NAS.
 ### 24.1 Elements
 
 - Dashboard title
-- Live notice (when live polling starts, **`/etc/os-release`** is read **once** if the **UGOS/OS header line** is still empty)
+- Live notice (when live polling starts, **`/etc/os-release`** is read **once** if the **UGOS/OS header line** is still empty). CPU, RAM, network, and fans about **every second**. Disks, Docker, scheduled jobs, and the interface list about **every five seconds**. The network figure is **bytes per second**. If the connection drops, the app retries up to five times while this tab stays open.
 - Webcam button
 - Metric tiles (including Network with **current interface configuration**, filter, and edit controls — see **42.3**)
 - **Fans:** toolbar **“Probe & map fans…”** (discovery/mapping dialog) plus **one control tile per discovered fan** (1–8, depending on NAS model)

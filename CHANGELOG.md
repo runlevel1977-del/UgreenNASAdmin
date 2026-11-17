@@ -1,5 +1,31 @@
 # Changelog — Ugreen NAS Admin
 
+## 23.8.85 — 2026-11-17
+
+### Deutsch
+
+- Die Statuszeile wird nicht mehr aus einem Hintergrund-Thread direkt beschrieben. Das hat unter Windows die Oberfläche einfrieren lassen.
+- Bricht die Dashboard-Verbindung ab, versucht die App es bis zu fünfmal erneut, solange der Tab offen bleibt. Live-Daten, Docker-Protokoll und Webcam lesen die Verbindungsfelder nicht mehr aus dem Hintergrund.
+
+### English
+
+- The status line is no longer written directly from a background thread. That could freeze the window on Windows.
+- If the dashboard connection drops, the app retries up to five times while that tab stays open. Live data, the Docker log, and the webcam no longer read the connection fields from a background thread.
+
+## 23.8.84 — 2026-11-17
+
+### Deutsch
+
+- Das Dashboard bleibt bei der Live-Anzeige flüssig. CPU, RAM, Netz und Lüfter kommen weiter jede Sekunde. Platten, Docker, Cron und die Schnittstellen-Liste nur noch alle fünf Sekunden, und die Kacheln werden nicht mehr jede Sekunde neu gebaut.
+- Die Netzgeschwindigkeit ist Byte pro Sekunde. Vorher wurden alle Bytes seit der letzten Messung als eine Sekunde gezählt, dadurch war der Wert zu hoch, sobald die Abfrage länger dauerte.
+- Gespeicherte Einstellungen werden nicht mehr bei jedem Dashboard-Takt neu aus dem Windows-Tresor gelesen.
+
+### English
+
+- The dashboard stays smooth while live data is on. CPU, RAM, network, and fans still update every second. Disks, Docker, cron, and the interface list update every five seconds, and those tiles are no longer rebuilt every second.
+- Network speed is bytes per second. Previously every byte since the last sample was shown as one second, so the value was too high whenever the query took longer.
+- Saved settings are no longer read from the Windows vault on every dashboard tick.
+
 ## 23.8.83 — 2026-11-13
 
 Installer: `UgreenNASAdmin_setup_23.8.83.exe`.

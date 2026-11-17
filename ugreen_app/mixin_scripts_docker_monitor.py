@@ -788,13 +788,13 @@ class MixinScriptsDockerMonitor:
         self._docker_tail_thread = None
         self._docker_tail_stop_event = None
 
-    def _docker_log_tail_worker(self, container_name: str):
+    def _docker_log_tail_worker(self, container_name: str, host: str, connect_kwargs: dict) -> None:
         pk = _paramiko()
         ssh = pk.SSHClient()
-        self._prepare_ssh_client(ssh)
+        self._prepare_ssh_client(ssh, host, connect_kwargs.get("port"))
         stop_ev = getattr(self, "_docker_tail_stop_event", None)
         try:
-            ssh.connect(self.entry_ip.get().strip(), **self._ssh_connect_kwargs(timeout=25, banner_timeout=45, auth_timeout=45))
+            ssh.connect(host, **connect_kwargs)
             self._ssh_transport_keepalive(ssh)
             cmd = f"docker logs -f --tail 200 {shlex.quote(container_name)}"
             stdin, stdout, _stderr = ssh.exec_command(cmd)
@@ -844,13 +844,26 @@ class MixinScriptsDockerMonitor:
         if not name:
             return
         self.docker_log_tail_stop()
+        try:
+            host = self.entry_ip.get().strip()
+            connect_kwargs = self._ssh_connect_kwargs(timeout=25, banner_timeout=45, auth_timeout=45)
+        except Exception:
+            messagebox.showinfo(self.t("msg.docker_admin"), self.t("dash.ssh_needed"))
+            return
+        if not host:
+            messagebox.showinfo(self.t("msg.docker_admin"), self.t("dash.ssh_needed"))
+            return
         self._docker_tail_stop_event = threading.Event()
         try:
             self.docker_log_view.delete("1.0", tk.END)
             self.docker_log_view.insert("1.0", self.t("docker.log_live_banner", name=name))
         except tk.TclError:
             pass
-        t = threading.Thread(target=self._docker_log_tail_worker, args=(name,), daemon=True)
+        t = threading.Thread(
+            target=self._docker_log_tail_worker,
+            args=(name, host, connect_kwargs),
+            daemon=True,
+        )
         self._docker_tail_thread = t
         t.start()
 
@@ -1269,11 +1282,14 @@ class MixinScriptsDockerMonitor:
                 cb.set(ifn)
         row = info.get(ifn) if ifn else None
         txt = self._dash_net_format_live_config(ifn, row if isinstance(row, dict) else None)
+        if getattr(tw, "_ug_dash_txt", None) == txt:
+            return
         try:
             tw.configure(state=tk.NORMAL)
             tw.delete("1.0", tk.END)
             tw.insert("1.0", txt)
             tw.configure(state=tk.DISABLED)
+            tw._ug_dash_txt = txt
         except tk.TclError:
             pass
 
@@ -2682,12 +2698,13 @@ class MixinScriptsDockerMonitor:
             self._dash_fan_run_sudo_inner(inner, detail=f"{tag}: {ft['standard']} (Auto)", fan_id=fan_id)
             return
 
-    def _dash_ssh_sudo_bash_lc(self, ssh, inner: str) -> str:
+    def _dash_ssh_sudo_bash_lc(self, ssh, inner: str, password: str | None = None) -> str:
         """Ein mehrzeiliges Remote-Skript mit sudo -S (Passwort wie bei run_ssh_cmd) — nötig für /proc/it86/fan."""
+        pwd = self._get_effective_ssh_password() if password is None else password
         full = f"sudo -S bash -lc {nas_ssh.quote_remote_bash_lc(inner)}"
         stdin, stdout, stderr = ssh.exec_command(full)
         try:
-            stdin.write((self._get_effective_ssh_password() or "") + "\n")
+            stdin.write((pwd or "") + "\n")
             stdin.flush()
             try:
                 stdin.channel.shutdown_write()
@@ -3707,11 +3724,30 @@ class MixinScriptsDockerMonitor:
         cv = getattr(self, "dash_script_jobs_canvas", None)
         if inner is None or cv is None:
             return
-        for w in inner.winfo_children():
-            w.destroy()
         bg = getattr(self, "_dash_tile_bg", self.color_surface)
         dnames = {str(x).strip() for x in (docker_names or []) if str(x).strip()}
-        if not jobs:
+        rendered: list[tuple[str, str, str, str, bool]] = []
+        for j in jobs:
+            name = str(j.get("name") or "?").strip() or "?"
+            kind = j.get("kind") or "host"
+            sched = str(j.get("schedule") or "—").strip() or "—"
+            if kind == "docker":
+                kind_l = self.t("dash.script_job_kind_docker")
+            elif kind == "backup":
+                kind_l = self.t("dash.script_job_kind_backup")
+            else:
+                kind_l = self.t("dash.script_job_kind_host")
+            hint = self._dash_cron_schedule_hint(sched)
+            is_run = name in running
+            if kind == "docker" and self._dash_script_job_container_name(name) in dnames:
+                is_run = True
+            rendered.append((name, kind_l, sched, hint, is_run))
+        fp = (getattr(self, "ui_lang", ""), tuple(rendered))
+        if getattr(inner, "_ug_dash_fp", None) == fp and inner.winfo_children():
+            return
+        for w in inner.winfo_children():
+            w.destroy()
+        if not rendered:
             tk.Label(
                 inner,
                 text=self.t("dash.script_jobs_empty"),
@@ -3723,20 +3759,7 @@ class MixinScriptsDockerMonitor:
             ).pack(anchor="w", pady=2)
         else:
             run_fg = getattr(self, "color_user", "#059669")
-            for j in jobs:
-                name = str(j.get("name") or "?").strip() or "?"
-                kind = j.get("kind") or "host"
-                sched = str(j.get("schedule") or "—").strip() or "—"
-                if kind == "docker":
-                    kind_l = self.t("dash.script_job_kind_docker")
-                elif kind == "backup":
-                    kind_l = self.t("dash.script_job_kind_backup")
-                else:
-                    kind_l = self.t("dash.script_job_kind_host")
-                hint = self._dash_cron_schedule_hint(sched)
-                is_run = name in running
-                if kind == "docker" and self._dash_script_job_container_name(name) in dnames:
-                    is_run = True
+            for name, kind_l, sched, hint, is_run in rendered:
                 row = tk.Frame(inner, bg=bg)
                 row.pack(fill=tk.X, pady=1)
                 led = "●" if is_run else "○"
@@ -3768,6 +3791,7 @@ class MixinScriptsDockerMonitor:
                         anchor="w",
                         justify=tk.LEFT,
                     ).pack(anchor="w")
+        inner._ug_dash_fp = fp
         inner.update_idletasks()
         bbox = cv.bbox("all")
         if bbox:
@@ -3775,6 +3799,10 @@ class MixinScriptsDockerMonitor:
         self._dashboard_metrics_touch_scrollregion()
 
     def _dash_ugos_status_labels(self) -> dict[str, str]:
+        lang = getattr(self, "ui_lang", "de")
+        cached = getattr(self, "_dash_ugos_labels_cache", None)
+        if isinstance(cached, tuple) and cached[0] == lang:
+            return cached[1]
         labels = {
             "none": self.t("dash.ugos_none"),
             "pool_line": self.t("dash.ugos_pool_line"),
@@ -3793,6 +3821,7 @@ class MixinScriptsDockerMonitor:
                 labels[f"{kind}_status_{code}"] = self.t(f"ugos.status.{kind}.{code}")
         for code in range(4):
             labels[f"volume_health_{code}"] = self.t(f"ugos.status.volume.{code}")
+        self._dash_ugos_labels_cache = (lang, labels)
         return labels
 
     def _dash_ugos_pool_line(self, pool: dict) -> str:
@@ -3809,6 +3838,24 @@ class MixinScriptsDockerMonitor:
         tb = getattr(self, "_dash_tile_bg", self.color_surface)
         fg_val = getattr(self, "color_text", "#0f172a")
         fg_muted = getattr(self, "color_text_muted", "#64748b")
+        lang = getattr(self, "ui_lang", "")
+        if not snap.get("ugos_ok"):
+            fp: tuple = (lang, False, self.t("dash.ugos_unavailable"))
+        else:
+            pools = [p for p in (snap.get("ugos_pools") or []) if isinstance(p, dict)]
+            disks = [d for d in (snap.get("ugos_disks") or []) if isinstance(d, dict)]
+            pool_lines = tuple(self._dash_ugos_pool_line(p) for p in pools[:8]) or (self.t("dash.ugos_none"),)
+            disk_lines = tuple(self._dash_ugos_disk_line(d) for d in disks[:12]) or (self.t("dash.ugos_none"),)
+            hdr_metrics = {
+                "model": snap.get("ugos_model") or "",
+                "sysinfo": snap.get("ugos_sysinfo") or {},
+            }
+            hdr = format_sysinfo_header(hdr_metrics, self._dash_ugos_status_labels())
+            hdr_line = hdr.splitlines()[0] if hdr else str(snap.get("ugos_model") or "").strip()
+            extra = format_dashboard_ugos_extra(snap, self._dash_ugos_status_labels())
+            fp = (lang, True, pool_lines, disk_lines, hdr_line, extra)
+        if getattr(pools_body, "_ug_dash_fp", None) == fp and pools_body.winfo_children():
+            return
 
         for body in (pools_body, disks_body):
             for ch in body.winfo_children():
@@ -3840,6 +3887,8 @@ class MixinScriptsDockerMonitor:
             xl = getattr(self, "dash_ugos_extra_lbl", None)
             if xl is not None:
                 xl.config(text="")
+            pools_body._ug_dash_fp = fp
+            self._dashboard_metrics_touch_scrollregion()
             return
 
         pools = [p for p in (snap.get("ugos_pools") or []) if isinstance(p, dict)]
@@ -3901,8 +3950,10 @@ class MixinScriptsDockerMonitor:
         st = getattr(self, "dash_ugos_status_lbl", None)
         if st is not None:
             st.config(text="", fg=fg_muted)
+        pools_body._ug_dash_fp = fp
+        self._dashboard_metrics_touch_scrollregion()
 
-    def start_dashboard_live(self):
+    def start_dashboard_live(self, *, reset_fails: bool = True) -> None:
         lk = getattr(self, "_dash_live_lock", None)
         if lk is None:
             lk = threading.Lock()
@@ -3910,9 +3961,17 @@ class MixinScriptsDockerMonitor:
         with lk:
             if self.is_monitoring:
                 return
+            if reset_fails:
+                self._dash_live_fails = 0
             try:
-                if not str(self.entry_ip.get() or "").strip():
+                host = str(self.entry_ip.get() or "").strip()
+                if not host:
                     return
+                self._dash_live_host = host
+                self._dash_live_password = self._get_effective_ssh_password()
+                self._dash_live_connect = self._ssh_connect_kwargs(
+                    timeout=5, banner_timeout=20, auth_timeout=20
+                )
             except Exception:
                 return
             self.is_monitoring = True
@@ -3935,13 +3994,16 @@ class MixinScriptsDockerMonitor:
         last_idle, last_total = 0, 0
         last_iface_counters: dict[str, tuple[int, int]] = {}
         try:
+            host = str(getattr(self, "_dash_live_host", "") or "")
+            connect_kwargs = getattr(self, "_dash_live_connect", None)
+            live_password = str(getattr(self, "_dash_live_password", "") or "")
+            if not host or not isinstance(connect_kwargs, dict):
+                self.is_monitoring = False
+                return
             pk = _paramiko()
             ssh = pk.SSHClient()
-            self._prepare_ssh_client(ssh)
-            ssh.connect(
-                self.entry_ip.get(),
-                **self._ssh_connect_kwargs(timeout=5, banner_timeout=20, auth_timeout=20),
-            )
+            self._prepare_ssh_client(ssh, host, connect_kwargs.get("port"))
+            ssh.connect(host, **connect_kwargs)
             self._ssh_transport_keepalive(ssh)
             ri = getattr(self, "_nas_release_info", None) or {}
             if not (ri.get("os_version") or ri.get("pretty")):
@@ -3949,6 +4011,7 @@ class MixinScriptsDockerMonitor:
                     os_raw = self._dash_ssh_sudo_bash_lc(
                         ssh,
                         "grep -E \"^(PRETTY_NAME|OS_VERSION|OS_IS_BETA)=\" /etc/os-release 2>/dev/null || true\n",
+                        live_password,
                     )
                 except Exception:
                     os_raw = ""
@@ -3984,13 +4047,7 @@ for f in /sys/class/hwmon/hwmon*/temp*_input; do
 done
 echo "$max"
 """
-            dash_cmd = (
-                "grep '^cpu ' /proc/stat | head -1\n"
-                "echo __UG_CPU_TEMP__\n"
-                f"{_remote_cpu_temp}"
-                "echo __UG_MEM__\n"
-                "free | grep Mem\n"
-                "echo __UG_DF__\n"
+            df_slow = (
                 "df -P 2>/dev/null | tail -n +2\n"
                 # UGOS: USB oft nicht in der globalen df-Liste; gezielt nachmounten + findmnt-Nachzug
                 "[ -d /mnt/@usb ] && df -P /mnt/@usb 2>/dev/null | tail -n +2 || true\n"
@@ -4003,29 +4060,59 @@ echo "$max"
                 "printf %s \"$_ug_m\" | grep -Eqi '@usb|volumeusb|/media/|/run/media/|[/][Uu]sb|removabledisk|externaldisk' || continue; "
                 "df -P \"$_ug_m\" 2>/dev/null | tail -n +2 || true; "
                 "done\n"
-                "echo __UG_NET__\n"
-                "cat /proc/net/dev\n"
-                "echo __UG_IPJ__\n"
-                "PATH=/usr/sbin:/sbin:/usr/bin:/bin; ip -j addr 2>/dev/null || echo []\n"
-                "echo __UG_RT__\n"
-                "PATH=/usr/sbin:/sbin:/usr/bin:/bin; ip -j route 2>/dev/null || echo []\n"
-                "echo __UG_DOCKER__\n"
-                "(docker ps --format '{{.Names}}' 2>/dev/null || true) | head -n 48\n"
-                "echo __UG_SCRIPT_PS__\n"
-                "ps -ww -o args= -C python3 2>/dev/null | grep -F -- 'ugreen_script_notify_runner.py --script-name' | head -n 40 || true\n"
-                "echo __UG_CRON__\n"
-                f"cat {cron_path} 2>/dev/null || true\n"
-                "echo __UG_LOAD__\n"
-                "cat /proc/loadavg\n"
-                "echo __UG_FAN__\n"
+            )
+            fan_tail = (
                 "cat /proc/it86/fan 2>/dev/null || "
                 "for f in /sys/class/hwmon/hwmon*/fan*_input; do "
                 '[ -r "$f" ] && echo "$(basename "$f") $(cat "$f")"; done 2>/dev/null\n'
             )
+
+            def _live_script(slow: bool) -> str:
+                if slow:
+                    df_body = df_slow
+                    ipj_body = "PATH=/usr/sbin:/sbin:/usr/bin:/bin; ip -j addr 2>/dev/null || echo []\n"
+                    rt_body = "PATH=/usr/sbin:/sbin:/usr/bin:/bin; ip -j route 2>/dev/null || echo []\n"
+                    docker_body = "(docker ps --format '{{.Names}}' 2>/dev/null || true) | head -n 48\n"
+                    script_body = (
+                        "ps -ww -o args= -C python3 2>/dev/null | "
+                        "grep -F -- 'ugreen_script_notify_runner.py --script-name' | head -n 40 || true\n"
+                    )
+                    cron_body = f"cat {cron_path} 2>/dev/null || true\n"
+                else:
+                    df_body = ipj_body = rt_body = docker_body = script_body = cron_body = "echo __UG_KEEP__\n"
+                return (
+                    "grep '^cpu ' /proc/stat | head -1\n"
+                    "echo __UG_CPU_TEMP__\n"
+                    f"{_remote_cpu_temp}"
+                    "echo __UG_MEM__\n"
+                    "free | grep Mem\n"
+                    "echo __UG_DF__\n"
+                    f"{df_body}"
+                    "echo __UG_NET__\n"
+                    "cat /proc/net/dev\n"
+                    "echo __UG_IPJ__\n"
+                    f"{ipj_body}"
+                    "echo __UG_RT__\n"
+                    f"{rt_body}"
+                    "echo __UG_DOCKER__\n"
+                    f"{docker_body}"
+                    "echo __UG_SCRIPT_PS__\n"
+                    f"{script_body}"
+                    "echo __UG_CRON__\n"
+                    f"{cron_body}"
+                    "echo __UG_LOAD__\n"
+                    "cat /proc/loadavg\n"
+                    "echo __UG_FAN__\n"
+                    f"{fan_tail}"
+                )
+
             ugos_cache: dict | None = None
             ugos_tick = 0
+            slow_keep = {3: "", 5: "[]\n", 6: "[]\n", 7: "", 8: "", 9: ""}
+            last_net_mono = 0.0
             while self.is_monitoring:
                 ugos_tick += 1
+                do_slow = ugos_tick == 1 or ugos_tick % 5 == 0
                 if ugos_tick == 1 or ugos_tick % 8 == 0:
                     if hasattr(self, "_ugos_api_fetch_dashboard_metrics"):
                         try:
@@ -4033,7 +4120,7 @@ echo "$max"
                         except Exception:
                             ugos_cache = None
 
-                raw = self._dash_ssh_sudo_bash_lc(ssh, dash_cmd)
+                raw = self._dash_ssh_sudo_bash_lc(ssh, _live_script(do_slow), live_password)
 
                 chunks: list[str] | None = []
                 remainder = raw
@@ -4061,6 +4148,11 @@ echo "$max"
                 if not chunks or len(chunks) < 12:
                     time.sleep(1)
                     continue
+                for keep_idx in (3, 5, 6, 7, 8, 9):
+                    if chunks[keep_idx].strip() == "__UG_KEEP__":
+                        chunks[keep_idx] = slow_keep[keep_idx]
+                    else:
+                        slow_keep[keep_idx] = chunks[keep_idx]
 
                 cpu_usage = ram_usage = None
                 cpu_block = chunks[0]
@@ -4106,14 +4198,17 @@ echo "$max"
                 info_by_if = self._dash_parse_ip_j_addr_forifaces(ipj_blob, phys)
                 self._dash_merge_default_route_into_iface_info(info_by_if, rt_blob)
                 net_iface_info = {k: dict(v) for k, v in info_by_if.items()}
+                now_mono = time.monotonic()
+                elapsed = (now_mono - last_net_mono) if last_net_mono else 0.0
+                last_net_mono = now_mono
                 net_ifaces_out: dict[str, dict[str, float | None]] = {}
                 for ifn in phys:
                     rx_k, tx_k = phys[ifn]
                     pr = last_iface_counters.get(ifn)
                     rx_r = tx_r = thru = None
-                    if pr is not None:
-                        rx_r = max(0.0, float(rx_k - pr[0]))
-                        tx_r = max(0.0, float(tx_k - pr[1]))
+                    if pr is not None and elapsed >= 0.2:
+                        rx_r = max(0.0, float(rx_k - pr[0])) / elapsed
+                        tx_r = max(0.0, float(tx_k - pr[1])) / elapsed
                         thru = float(rx_r + tx_r)
                     last_iface_counters[ifn] = (rx_k, tx_k)
                     net_ifaces_out[ifn] = {
@@ -4170,12 +4265,36 @@ echo "$max"
                 }
                 snapshot = merge_dashboard_snapshots(snapshot, ugos_cache)
                 scopy = dict(snapshot)
+                self._dash_live_fails = 0
                 self.root.after(0, lambda s=scopy: self._apply_dashboard_snapshot(s))
                 time.sleep(1)
 
         except Exception:
             self.is_monitoring = False
-            self.root.after(0, lambda: self._apply_dashboard_snapshot({"ok": False}))
+            try:
+                self.root.after(0, lambda: self._apply_dashboard_snapshot({"ok": False}))
+            except Exception:
+                pass
+            fails = int(getattr(self, "_dash_live_fails", 0) or 0) + 1
+            self._dash_live_fails = fails
+            if fails <= 5:
+                delay = min(15000, 2000 * fails)
+
+                def _retry(n: int = fails) -> None:
+                    try:
+                        if not self.root.winfo_exists():
+                            return
+                        if int(self.notebook.index(self.notebook.select())) != 0:
+                            return
+                    except Exception:
+                        return
+                    self._dash_live_fails = n
+                    self.start_dashboard_live(reset_fails=False)
+
+                try:
+                    self.root.after(delay, _retry)
+                except Exception:
+                    pass
         finally:
             if ssh is not None:
                 try:
@@ -4211,10 +4330,14 @@ echo "$max"
         cv = getattr(self, "dash_docker_canvas", None)
         if inner is None or cv is None:
             return
+        shown = tuple(sorted((str(n).strip() for n in names if str(n).strip()), key=str.lower))
+        fp = (getattr(self, "ui_lang", ""), shown)
+        if getattr(inner, "_ug_dash_fp", None) == fp and inner.winfo_children():
+            return
         for w in inner.winfo_children():
             w.destroy()
         bg = getattr(self, "_dash_tile_bg", self.color_surface)
-        if not names:
+        if not shown:
             tk.Label(
                 inner,
                 text=self.t("dash.docker_empty"),
@@ -4224,7 +4347,7 @@ echo "$max"
                 anchor="w",
             ).pack(anchor="w", pady=2)
         else:
-            for nm in sorted(names, key=lambda s: s.lower()):
+            for nm in shown:
                 row = tk.Frame(inner, bg=bg)
                 row.pack(fill=tk.X, pady=1)
                 tk.Label(row, text="●", bg=bg, fg=led, font=("Segoe UI", 11)).pack(
@@ -4238,6 +4361,7 @@ echo "$max"
                     font=self.font_mono,
                     anchor="w",
                 ).pack(side=tk.LEFT, padx=(6, 0))
+        inner._ug_dash_fp = fp
         inner.update_idletasks()
         bbox = cv.bbox("all")
         if bbox:
@@ -4386,7 +4510,8 @@ echo "$max"
                 except tk.TclError:
                     pass
             # Legacy fallback (falls alte Widgets noch existieren)
-            l1 = (fan_lines.get(str(self._dash_fan_load_devices()[0].get("id"))) if self._dash_fan_load_devices() else "") or snap.get("fan_line_1") or ""
+            devices = self._dash_fan_load_devices()
+            l1 = (fan_lines.get(str(devices[0].get("id"))) if devices else "") or snap.get("fan_line_1") or ""
             l2 = snap.get("fan_line_2") or ""
             df1 = getattr(self, "dash_fan_lbl_1", None)
             if df1 is not None:
@@ -4401,15 +4526,20 @@ echo "$max"
                 if cb is not None:
                     keys_sorted = tuple(sorted(ninfo.keys(), key=lambda z: z.lower()))
                     try:
-                        cb.configure(values=keys_sorted)
+                        if getattr(self, "_dash_net_combo_keys", None) != keys_sorted:
+                            self._dash_net_combo_keys = keys_sorted
+                            cb.configure(values=keys_sorted)
                         want = self._dash_net_settings_dashboard_dict().get("net_detail_iface") or ""
                         cur = (cb.get() or "").strip()
+                        target = ""
                         if want and want in ninfo:
-                            cb.set(want)
+                            target = want
                         elif cur and cur in ninfo:
-                            pass
+                            target = cur
                         elif keys_sorted:
-                            cb.set(keys_sorted[0])
+                            target = keys_sorted[0]
+                        if target and cur != target:
+                            cb.set(target)
                     except tk.TclError:
                         pass
                 self._dash_net_refresh_config_display()
@@ -4462,7 +4592,6 @@ echo "$max"
             self._dash_refresh_ugos_storage_tile(snap)
 
             self.dash_status_lbl.config(text="")
-            self._dashboard_metrics_touch_scrollregion()
         except (tk.TclError, AttributeError):
             pass
 
@@ -5127,6 +5256,15 @@ echo "$max"
         except (UgosApiError, ValueError) as e:
             messagebox.showwarning(self.t("webcam.title"), str(e))
             return
+        try:
+            preview_host = self.entry_ip.get().strip()
+            preview_connect = self._ssh_connect_kwargs(timeout=25, banner_timeout=45, auth_timeout=45)
+        except Exception as e:
+            messagebox.showwarning(self.t("webcam.title"), str(e))
+            return
+        if not preview_host:
+            messagebox.showwarning(self.t("webcam.title"), self.t("dash.ssh_needed"))
+            return
         self._webcam_preview_stop()
         w = getattr(self, "_webcam_win", None)
         if w is None:
@@ -5141,9 +5279,9 @@ echo "$max"
             while not w._webcam_preview_stop.is_set():
                 if ssh is None:
                     ssh = pk.SSHClient()
-                    self._prepare_ssh_client(ssh)
+                    self._prepare_ssh_client(ssh, preview_host, preview_connect.get("port"))
                     try:
-                        ssh.connect(self.entry_ip.get().strip(), **self._ssh_connect_kwargs(timeout=25, banner_timeout=45, auth_timeout=45))
+                        ssh.connect(preview_host, **preview_connect)
                         self._ssh_transport_keepalive(ssh)
                     except Exception as e:
                         self.root.after(0, lambda m=str(e): self._webcam_log(f"⚠️ Preview error: {m}"))

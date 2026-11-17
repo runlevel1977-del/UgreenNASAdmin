@@ -2,6 +2,7 @@
 """Auto-generiert von tools/split_ugreen_manager.py — Mixin für NASManager."""
 from __future__ import annotations
 
+import copy
 import os
 import posixpath
 import shutil
@@ -1911,6 +1912,17 @@ if __name__ == "__main__":
         data = self._default_app_settings()
         raw: dict = {}
         p = self._app_settings_path()
+        stamp: tuple[int, int] | None = None
+        try:
+            if os.path.isfile(p):
+                st = os.stat(p)
+                stamp = (int(st.st_mtime_ns), int(st.st_size))
+        except OSError:
+            stamp = None
+        cached = getattr(self, "_app_settings_read_cache", None)
+        if isinstance(cached, tuple) and len(cached) == 2 and cached[0] == (p, stamp):
+            return copy.deepcopy(cached[1])
+        parsed = True
         if os.path.isfile(p):
             try:
                 loaded = read_settings_json(p)
@@ -1929,12 +1941,15 @@ if __name__ == "__main__":
                         if isinstance(raw.get(sec), dict):
                             data[sec].update(raw[sec])
             except Exception:
-                pass
+                parsed = False
         peers, ai = self._second_nas_peers_normalize_from_cfg(data, raw)
         data["second_nas_smb_peers"] = peers
         data["second_nas_smb_active_peer"] = ai
         if peers:
             data["second_nas_smb"] = dict(peers[ai])
+        if parsed:
+            self._app_settings_read_cache = ((p, stamp), copy.deepcopy(data))
+            return copy.deepcopy(data)
         return data
 
     def _collect_app_settings_from_ui(self):
